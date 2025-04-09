@@ -2,12 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
+const { connectDB, Score } = require('./db');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Stockage temporaire des scores (dans une application réelle, utilisez une base de données)
+// Stockage temporaire des scores (utilisé si MongoDB n'est pas disponible)
 const highScores = [];
+
+// Connexion à MongoDB
+connectDB();
 
 app.use(cors());
 app.use(express.json());
@@ -26,33 +30,69 @@ app.post('/api/init-data', (req, res) => {
 });
 
 // Endpoint pour enregistrer un score
-app.post('/api/scores', (req, res) => {
+app.post('/api/scores', async (req, res) => {
   const { score, username = 'Anonymous' } = req.body;
   
   if (typeof score !== 'number' || score < 0) {
     return res.status(400).json({ error: 'Score invalide' });
   }
   
-  const newScore = {
-    username,
-    score,
-    date: new Date().toISOString()
-  };
-  
-  highScores.push(newScore);
-  highScores.sort((a, b) => b.score - a.score); // Trier par score décroissant
-  
-  // Garder seulement les 10 meilleurs scores
-  if (highScores.length > 10) {
-    highScores.length = 10;
+  try {
+    // Essayer d'enregistrer dans MongoDB
+    const newScore = new Score({
+      username,
+      score,
+      date: new Date()
+    });
+    
+    await newScore.save();
+    
+    // Récupérer le classement
+    const rank = await Score.countDocuments({ score: { $gt: score } }) + 1;
+    
+    res.status(201).json({ success: true, rank });
+  } catch (error) {
+    console.error('Erreur lors de l\'enregistrement du score dans MongoDB:', error);
+    
+    // Fallback: utiliser le stockage en mémoire
+    const newScore = {
+      username,
+      score,
+      date: new Date().toISOString()
+    };
+    
+    highScores.push(newScore);
+    highScores.sort((a, b) => b.score - a.score); // Trier par score décroissant
+    
+    // Garder seulement les 10 meilleurs scores
+    if (highScores.length > 10) {
+      highScores.length = 10;
+    }
+    
+    res.status(201).json({ 
+      success: true, 
+      rank: highScores.findIndex(s => s === newScore) + 1,
+      note: 'Stocké en mémoire (MongoDB non disponible)'
+    });
   }
-  
-  res.status(201).json({ success: true, rank: highScores.findIndex(s => s === newScore) + 1 });
 });
 
 // Endpoint pour récupérer les meilleurs scores
-app.get('/api/scores', (req, res) => {
-  res.json(highScores);
+app.get('/api/scores', async (req, res) => {
+  try {
+    // Essayer de récupérer depuis MongoDB
+    const scores = await Score.find()
+      .sort({ score: -1 })
+      .limit(10)
+      .select('username score date');
+    
+    res.json(scores);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des scores depuis MongoDB:', error);
+    
+    // Fallback: utiliser le stockage en mémoire
+    res.json(highScores);
+  }
 });
 
 // Servir l'application frontend pour toutes les autres routes
