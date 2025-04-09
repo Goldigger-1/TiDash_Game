@@ -12,19 +12,38 @@ if (!token) {
 // Initialiser le bot Telegram
 const bot = new Telegraf(token);
 
+// Configuration du menu du bot
+bot.telegram.setMyCommands([
+  { command: 'start', description: 'Démarrer le jeu' },
+  { command: 'scores', description: 'Voir les meilleurs scores' },
+  { command: 'help', description: 'Afficher l\'aide' }
+]);
+
 // Commande de démarrage
 bot.start((ctx) => {
-  ctx.reply('Bienvenue sur TiDash Game! 🎮\n\nDans ce jeu, vous contrôlez un petit carré qui avance sur une route infinie avec des virages. Tapez pour tourner et évitez de tomber de la route!\n\nUtilisez /play pour commencer à jouer!');
+  ctx.reply('Bienvenue sur TiDash Game! 🎮\n\nDans ce jeu, vous contrôlez un petit carré qui avance sur une route infinie avec des virages. Tapez pour tourner et évitez de tomber de la route!', {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🎮 Jouer maintenant', web_app: { url: process.env.WEBAPP_URL || 'https://app-fidelitis.space' } }]
+      ]
+    }
+  });
 });
 
 // Commande d'aide
 bot.help((ctx) => {
   ctx.reply(
     'Voici les commandes disponibles:\n' +
-    '/start - Démarrer le bot\n' +
-    '/play - Lancer le jeu\n' +
+    '/start - Démarrer le bot et jouer\n' +
     '/scores - Voir les meilleurs scores\n' +
-    '/help - Afficher l\'aide'
+    '/help - Afficher l\'aide',
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🎮 Jouer maintenant', web_app: { url: process.env.WEBAPP_URL || 'https://app-fidelitis.space' } }]
+        ]
+      }
+    }
   );
 });
 
