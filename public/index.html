@@ -13,142 +13,321 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #ffffff;
+            background-color: #00FF9D;
             overflow: hidden;
         }
         .container {
             position: relative;
-            width: 100%;
-            height: 100%;
+            width: 90%;
+            max-width: 400px;
+            height: 80vh;
+            max-height: 700px;
+            border-radius: 20px;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            background-color: #1a1a2e;
+            border: 10px solid #000;
         }
         #game-canvas {
-            background-color: #ffffff;
+            background-color: #1a1a2e;
             display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        #score-display {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: #00FF9D;
+        }
+        #best-score {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+        #play-again {
+            padding: 10px 20px;
+            font-size: 1.2rem;
+            background-color: #00FF9D;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #score-counter {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 2rem;
+            z-index: 5;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <canvas id="game-canvas"></canvas>
+        <div id="score-counter">0</div>
+        <div id="game-over">
+            <div id="score-display">0</div>
+            <div id="best-score">Best: 0</div>
+            <button id="play-again">Play Again</button>
+        </div>
     </div>
 
     <script>
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         const tg = window.Telegram.WebApp;
+        const gameOverScreen = document.getElementById('game-over');
+        const scoreDisplay = document.getElementById('score-display');
+        const bestScoreDisplay = document.getElementById('best-score');
+        const playAgainBtn = document.getElementById('play-again');
+        const scoreCounter = document.getElementById('score-counter');
 
-        // Set canvas size
-        function resizeCanvas() {
-            const container = document.querySelector('.container');
-            // Utiliser un ratio 16:9 pour mieux correspondre à un écran mobile
-            const width = window.innerWidth * 0.9;
-            const height = width * 9 / 16;
-            canvas.width = width;
-            canvas.height = height;
-            drawScene();
+        // Game variables
+        let gameRunning = false;
+        let score = 0;
+        let bestScore = localStorage.getItem('bestScore') || 0;
+        let ball = {
+            x: 0,
+            y: 0,
+            radius: 0,
+            speed: 0,
+            direction: 1 // 1 for right, -1 for left
+        };
+        let line = {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0
+        };
+        let squares = [];
+        let lastSquareTime = 0;
+        let squareInterval = 1000; // milliseconds
+        let lastFrameTime = 0;
+        let greenSquareChance = 0.2; // 20% chance for green squares
+
+        // Initialize the game
+        function initGame() {
+            // Set canvas size to match container
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            // Initialize ball
+            ball.radius = canvas.width * 0.03;
+            ball.y = canvas.height * 0.7;
+            ball.x = canvas.width / 2;
+            ball.speed = canvas.width * 0.003;
+            ball.direction = 1;
+            
+            // Initialize line
+            line.width = canvas.width * 0.3;
+            line.height = canvas.height * 0.01;
+            line.x = (canvas.width - line.width) / 2;
+            line.y = ball.y + ball.radius - line.height / 2;
+            
+            // Reset game state
+            squares = [];
+            score = 0;
+            scoreCounter.textContent = score;
+            gameOverScreen.style.display = 'none';
+            gameRunning = true;
+            
+            // Start game loop
+            requestAnimationFrame(gameLoop);
         }
 
-        // Draw the scene
-        function drawScene() {
-            // Clear the canvas
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Game loop
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
             
-            // Set fixed dimensions for exact reproduction
-            const unit = Math.min(canvas.width, canvas.height) * 0.06;
+            // Calculate delta time for smooth animation
+            if (!lastFrameTime) lastFrameTime = timestamp;
+            const deltaTime = timestamp - lastFrameTime;
+            lastFrameTime = timestamp;
             
-            // Position for exact reproduction
-            const centerX = canvas.width * 0.55;
-            const centerY = canvas.height * 0.45;
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw the zigzag path
-            createPath(unit, centerX, centerY);
+            // Update ball position
+            ball.x += ball.speed * ball.direction * deltaTime;
             
-            // Draw the cube on the zigzag path
-            drawCube(unit, centerX, centerY);
+            // Check if ball hits the edge of the line
+            if (ball.x - ball.radius < line.x) {
+                ball.x = line.x + ball.radius;
+                ball.direction = 1;
+            } else if (ball.x + ball.radius > line.x + line.width) {
+                ball.x = line.x + line.width - ball.radius;
+                ball.direction = -1;
+            }
+            
+            // Spawn new squares
+            if (timestamp - lastSquareTime > squareInterval) {
+                spawnSquare();
+                lastSquareTime = timestamp;
+                // Gradually decrease interval to increase difficulty
+                squareInterval = Math.max(300, squareInterval - 5);
+            }
+            
+            // Update and draw squares
+            updateSquares(deltaTime);
+            
+            // Draw line
+            drawLine();
+            
+            // Draw ball
+            drawBall();
+            
+            // Check for collisions
+            checkCollisions();
+            
+            // Continue game loop
+            requestAnimationFrame(gameLoop);
         }
-        
-        // Create and draw the zigzag path
-        function createPath(unit, centerX, centerY) {
-            // Path color - exact light gray as in wireframe
-            const pathColor = '#d9d9d9';
+
+        // Spawn a new square
+        function spawnSquare() {
+            const size = canvas.width * 0.05;
+            const x = Math.random() * (canvas.width - size);
+            const isGreen = Math.random() < greenSquareChance;
             
-            // Path thickness - exact as in wireframe
-            const thickness = unit * 0.12;
-            
-            // Draw the zigzag path
-            ctx.fillStyle = pathColor;
-            
-            // Starting point (bottom left)
-            const startX = centerX - unit * 3.5;
-            const startY = centerY + unit * 1.5;
-            
-            // First segment (horizontal)
-            const x1 = centerX - unit * 1.5;
-            const y1 = startY;
-            
-            // Second segment (diagonal)
-            const x2 = centerX + unit * 0.5;
-            const y2 = centerY - unit * 0.5;
-            
-            // Third segment (horizontal)
-            const x3 = centerX + unit * 3.5;
-            const y3 = y2;
-            
-            // Draw path with 3D effect
+            squares.push({
+                x: x,
+                y: -size,
+                size: size,
+                speed: canvas.height * 0.002 * (1 + score * 0.05),
+                isGreen: isGreen
+            });
+        }
+
+        // Update squares positions
+        function updateSquares(deltaTime) {
+            for (let i = squares.length - 1; i >= 0; i--) {
+                const square = squares[i];
+                
+                // Move square down
+                square.y += square.speed * deltaTime;
+                
+                // Remove squares that are off-screen
+                if (square.y > canvas.height) {
+                    squares.splice(i, 1);
+                    continue;
+                }
+                
+                // Draw square
+                ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF';
+                ctx.fillRect(square.x, square.y, square.size, square.size);
+            }
+        }
+
+        // Draw the ball
+        function drawBall() {
             ctx.beginPath();
-            
-            // Top surface
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.lineTo(x3, y3);
-            
-            // Right edge
-            ctx.lineTo(x3, y3 + thickness);
-            
-            // Bottom surface
-            ctx.lineTo(x2, y2 + thickness);
-            ctx.lineTo(x1, y1 + thickness);
-            ctx.lineTo(startX, startY + thickness);
-            
-            // Close the path
-            ctx.closePath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#00FF9D';
             ctx.fill();
+            ctx.closePath();
         }
-        
-        // Draw the cube
-        function drawCube(unit, centerX, centerY) {
-            // Cube position - exact as in wireframe
-            const cubeX = centerX - unit * 3;
-            const cubeY = centerY + unit * 1.2;
-            
-            // Cube size - exact as in wireframe
-            const cubeSize = unit * 0.3;
-            
-            // Cube color - exact as in wireframe
-            const cubeColor = '#666666';
-            
-            // Draw cube
-            ctx.fillStyle = cubeColor;
-            ctx.fillRect(cubeX, cubeY, cubeSize, cubeSize);
+
+        // Draw the line
+        function drawLine() {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(line.x, line.y, line.width, line.height);
         }
+
+        // Check for collisions between ball and squares
+        function checkCollisions() {
+            for (let i = squares.length - 1; i >= 0; i--) {
+                const square = squares[i];
+                
+                // Calculate distance between ball center and square center
+                const squareCenterX = square.x + square.size / 2;
+                const squareCenterY = square.y + square.size / 2;
+                const dx = Math.abs(ball.x - squareCenterX);
+                const dy = Math.abs(ball.y - squareCenterY);
+                
+                // Check if ball collides with square
+                if (dx < (square.size / 2 + ball.radius) && dy < (square.size / 2 + ball.radius)) {
+                    if (square.isGreen) {
+                        // Collect green square
+                        score++;
+                        scoreCounter.textContent = score;
+                        squares.splice(i, 1);
+                    } else {
+                        // Game over on white square collision
+                        gameOver();
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            
+            // Update best score
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('bestScore', bestScore);
+            }
+            
+            // Show game over screen
+            scoreDisplay.textContent = score;
+            bestScoreDisplay.textContent = `Best: ${bestScore}`;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        // Handle screen tap/click
+        function handleTap() {
+            if (gameRunning) {
+                // Change ball direction
+                ball.direction *= -1;
+            }
+        }
+
+        // Resize handler
+        function handleResize() {
+            if (gameRunning) {
+                // Pause game
+                gameRunning = false;
+                
+                // Restart game with new dimensions
+                initGame();
+            }
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', handleTap);
+        window.addEventListener('resize', handleResize);
+        playAgainBtn.addEventListener('click', initGame);
 
         // Initialize
         window.addEventListener('load', function() {
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            
             // Initialize Telegram WebApp if available
             if (tg) {
                 tg.ready();
                 tg.expand();
             }
+            
+            // Start the game
+            initGame();
         });
     </script>
 </body>
