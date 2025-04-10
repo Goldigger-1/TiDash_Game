@@ -30,19 +30,10 @@
             background-color: #ffffff;
             display: block;
         }
-        .score {
-            position: absolute;
-            top: 15%;
-            font-size: 5rem;
-            color: #000000;
-            font-weight: normal;
-            font-family: Arial, Helvetica, sans-serif;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="score">9</div>
         <canvas id="game-canvas"></canvas>
     </div>
 
@@ -81,57 +72,43 @@
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             
-            // Path color - light gray
-            ctx.fillStyle = '#d3d3d3';
+            // Path colors
+            const pathTopColor = '#d3d3d3';    // Light gray for top surface
+            const pathSideColor = '#c4c4c4';   // Slightly darker for sides
             
-            // Define path segments in screen space
-            // Carefully measured from the reference image
+            // Define path segments in screen space - carefully measured from reference
             const segments = [
-                // First segment (top right to first turn)
-                {
-                    x1: centerX + unit * 3.5,
-                    y1: centerY - unit * 2,
-                    x2: centerX - unit * 0.5,
-                    y2: centerY - unit * 2
-                },
-                // Second segment (first turn to second turn)
-                {
-                    x1: centerX - unit * 0.5,
-                    y1: centerY - unit * 2,
-                    x2: centerX - unit * 0.5,
-                    y2: centerY
-                },
-                // Third segment (second turn to third turn)
-                {
-                    x1: centerX - unit * 0.5,
-                    y1: centerY,
-                    x2: centerX - unit * 3.5,
-                    y2: centerY
-                },
-                // Fourth segment (third turn to bottom)
-                {
-                    x1: centerX - unit * 3.5,
-                    y1: centerY,
-                    x2: centerX - unit * 3.5,
-                    y2: centerY + unit * 2
-                },
-                // Fifth segment (bottom to end)
+                // First segment (bottom left to first turn)
                 {
                     x1: centerX - unit * 3.5,
                     y1: centerY + unit * 2,
                     x2: centerX,
                     y2: centerY + unit * 2
+                },
+                // Second segment (first turn to second turn)
+                {
+                    x1: centerX,
+                    y1: centerY + unit * 2,
+                    x2: centerX,
+                    y2: centerY
+                },
+                // Third segment (second turn to top right)
+                {
+                    x1: centerX,
+                    y1: centerY,
+                    x2: centerX + unit * 3.5,
+                    y2: centerY - unit * 2
                 }
             ];
             
             // Draw each segment with 3D effect
             segments.forEach(segment => {
-                drawPathSegment(segment, unit);
+                drawPathSegment(segment, unit, pathTopColor, pathSideColor);
             });
         }
         
         // Draw a single path segment with 3D effect
-        function drawPathSegment(segment, unit) {
+        function drawPathSegment(segment, unit, topColor, sideColor) {
             const pathWidth = unit * 1.5;
             const pathHeight = unit * 0.2;
             
@@ -145,6 +122,7 @@
             const perpY = dx / length * pathWidth / 2;
             
             // Top face (main surface)
+            ctx.fillStyle = topColor;
             ctx.beginPath();
             ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
             ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);
@@ -154,7 +132,6 @@
             ctx.fill();
             
             // Side face (for 3D effect)
-            const sideColor = '#c4c4c4'; // Slightly darker for side
             ctx.fillStyle = sideColor;
             
             // Only draw the visible side face based on segment direction
@@ -201,27 +178,26 @@
                     ctx.fill();
                 }
             }
-            
-            // Reset fill color
-            ctx.fillStyle = '#d3d3d3';
         }
         
         // Draw the cube
         function drawCube(unit) {
-            // Position the cube at the third turn point
+            // Position the cube at the bottom left of the path
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             const cubeX = centerX - unit * 3.5;
-            const cubeY = centerY;
+            const cubeY = centerY + unit * 2;
             
             // Cube size
             const cubeSize = unit * 0.8;
             
-            // Cube color - dark gray
-            const cubeColor = '#4d4d4d';
+            // Cube colors
+            const cubeTopColor = '#666666';    // Medium gray for top
+            const cubeRightColor = '#5a5a5a';  // Slightly darker for right face
+            const cubeLeftColor = '#4d4d4d';   // Darkest for left face
             
             // Draw top face
-            ctx.fillStyle = cubeColor;
+            ctx.fillStyle = cubeTopColor;
             ctx.beginPath();
             ctx.moveTo(cubeX, cubeY - cubeSize/2);
             ctx.lineTo(cubeX + cubeSize/2, cubeY - cubeSize/4);
@@ -231,6 +207,7 @@
             ctx.fill();
             
             // Draw right face
+            ctx.fillStyle = cubeRightColor;
             ctx.beginPath();
             ctx.moveTo(cubeX, cubeY);
             ctx.lineTo(cubeX + cubeSize/2, cubeY - cubeSize/4);
@@ -240,6 +217,7 @@
             ctx.fill();
             
             // Draw left face
+            ctx.fillStyle = cubeLeftColor;
             ctx.beginPath();
             ctx.moveTo(cubeX, cubeY);
             ctx.lineTo(cubeX - cubeSize/2, cubeY - cubeSize/4);
