@@ -13,7 +13,7 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: white;
+            background-color: #f5f5f5;
             overflow: hidden;
             touch-action: manipulation;
         }
@@ -26,7 +26,7 @@
             overflow: hidden;
         }
         #game-canvas {
-            background-color: white;
+            background-color: #f5f5f5;
             display: block;
             width: 100%;
             height: 100%;
@@ -54,7 +54,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
+            background-color: rgba(245, 245, 245, 0.9);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -92,7 +92,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: white;
+            background-color: #f5f5f5;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -132,7 +132,7 @@
     <div class="container">
         <canvas id="game-canvas"></canvas>
         <div class="ui-container">
-            <div class="score">0</div>
+            <div class="score">9</div>
         </div>
         <div class="game-over">
             <h2>Game Over!</h2>
@@ -176,9 +176,9 @@
 
         // Game state
         let gameRunning = false;
-        let score = 0;
+        let score = 9; 
         let speed = 2;
-        let pathSegments = [];
+        let path = [];
         let player = {
             x: 0,
             y: 0,
@@ -189,128 +189,83 @@
 
         // Colors
         const COLORS = {
-            background: '#ffffff',
+            background: '#f5f5f5',
             path: '#cccccc',
-            player: '#555555',
-            pathEdge: '#bbbbbb'
-        };
-
-        // Isometric projection constants
-        const ISO = {
-            scaleX: 1,    // Scale for x-axis
-            scaleY: 0.5,  // Scale for y-axis (to create the isometric effect)
-            offsetX: 0,   // Offset for centering
-            offsetY: 0,   // Offset for centering
-            tileWidth: 60,  // Width of a tile
-            tileHeight: 30, // Height of a tile
-            pathWidth: 3,   // Width of path in tiles
+            player: '#555555'
         };
 
         // Initialize the game
         function initGame() {
-            score = 0;
-            speed = 2;
-            pathSegments = [];
+            score = 9; 
             
-            // Calculate center of screen for starting position
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
+            // Create the exact path from the wireframe
+            createExactPath();
             
-            // Set isometric offsets
-            ISO.offsetX = centerX;
-            ISO.offsetY = centerY - 100; // Move up a bit to see more of the path
-            
-            // Create initial path
-            pathSegments = [];
-            
-            // Start with a straight segment
-            pathSegments.push({
-                startX: -5,
-                startY: 0,
-                endX: 0,
-                endY: 0,
-                direction: 'right',
-                passed: false
-            });
-            
-            // Add more segments
-            for (let i = 0; i < 10; i++) {
-                addNewSegment();
-            }
-            
-            // Position player at start
-            player.x = pathSegments[0].startX + 1;
-            player.y = pathSegments[0].startY;
+            // Position player at the position shown in wireframe
+            player.x = path[2].x + path[2].width / 2;
+            player.y = path[2].y + path[2].height / 2;
             player.direction = 'right';
             player.nextDirection = null;
             
             // Update score display
-            updateScore(0);
+            updateScore(score);
             
             // Start game loop
             gameRunning = true;
             requestAnimationFrame(gameLoop);
         }
 
-        // Add a new path segment with a turn
-        function addNewSegment() {
-            const lastSegment = pathSegments[pathSegments.length - 1];
+        // Create the exact path layout from the wireframe
+        function createExactPath() {
+            const pathWidth = Math.min(canvas.width, canvas.height) * 0.1;
             
-            // Get the end point of the last segment
-            const startX = lastSegment.endX;
-            const startY = lastSegment.endY;
+            // Calculate center position for the path
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
             
-            // Determine possible directions (not going backwards)
-            let possibleDirections = ['right', 'left', 'up', 'down'];
-            
-            // Remove opposite direction of last segment
-            if (lastSegment.direction === 'right') possibleDirections = possibleDirections.filter(d => d !== 'left');
-            if (lastSegment.direction === 'left') possibleDirections = possibleDirections.filter(d => d !== 'right');
-            if (lastSegment.direction === 'up') possibleDirections = possibleDirections.filter(d => d !== 'down');
-            if (lastSegment.direction === 'down') possibleDirections = possibleDirections.filter(d => d !== 'up');
-            
-            // Choose a random direction
-            const direction = possibleDirections[Math.floor(Math.random() * possibleDirections.length)];
-            
-            // Determine end point based on direction
-            let endX = startX;
-            let endY = startY;
-            
-            const segmentLength = 5;
-            
-            if (direction === 'right') {
-                endX = startX + segmentLength;
-            } else if (direction === 'left') {
-                endX = startX - segmentLength;
-            } else if (direction === 'up') {
-                endY = startY - segmentLength;
-            } else if (direction === 'down') {
-                endY = startY + segmentLength;
-            }
-            
-            // Add new segment
-            pathSegments.push({
-                startX: startX,
-                startY: startY,
-                endX: endX,
-                endY: endY,
-                direction: direction,
-                passed: false
-            });
-            
-            // Remove old segments if there are too many
-            if (pathSegments.length > 20) {
-                pathSegments.shift();
-            }
-        }
-
-        // Convert isometric coordinates to screen coordinates
-        function isoToScreen(x, y) {
-            // Apply isometric transformation
-            const screenX = ISO.offsetX + (x - y) * ISO.tileWidth / 2 * ISO.scaleX;
-            const screenY = ISO.offsetY + (x + y) * ISO.tileHeight / 2 * ISO.scaleY;
-            
-            return { x: screenX, y: screenY };
+            // Create path segments exactly as in the wireframe
+            path = [
+                // Bottom segment (going right)
+                {
+                    x: centerX - pathWidth * 5,
+                    y: centerY + pathWidth * 2,
+                    width: pathWidth * 2,
+                    height: pathWidth,
+                    direction: 'right'
+                },
+                // Middle-bottom segment (going right)
+                {
+                    x: centerX - pathWidth * 3,
+                    y: centerY + pathWidth,
+                    width: pathWidth * 5,
+                    height: pathWidth,
+                    direction: 'right'
+                },
+                // Middle segment (going left)
+                {
+                    x: centerX - pathWidth * 3,
+                    y: centerY,
+                    width: pathWidth * 3,
+                    height: pathWidth,
+                    direction: 'left'
+                },
+                // Middle-top segment (going right)
+                {
+                    x: centerX,
+                    y: centerY - pathWidth,
+                    width: pathWidth * 3,
+                    height: pathWidth,
+                    direction: 'right'
+                },
+                // Top segment (going right)
+                {
+                    x: centerX + pathWidth * 3,
+                    y: centerY - pathWidth * 2,
+                    width: pathWidth * 2,
+                    height: pathWidth,
+                    direction: 'right'
+                }
+            ];
         }
 
         // Game loop
@@ -321,211 +276,68 @@
             ctx.fillStyle = COLORS.background;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Update player position
-            movePlayer();
-            
             // Draw path
             drawPath();
             
             // Draw player
             drawPlayer();
             
-            // Check for collisions
-            checkCollisions();
-            
             // Request next frame
             requestAnimationFrame(gameLoop);
         }
 
-        // Move player
-        function movePlayer() {
-            // Check if player needs to change direction at a turn
-            checkTurns();
-            
-            // Move player based on current direction
-            if (player.direction === 'right') {
-                player.x += speed * 0.05;
-            } else if (player.direction === 'left') {
-                player.x -= speed * 0.05;
-            } else if (player.direction === 'up') {
-                player.y -= speed * 0.05;
-            } else if (player.direction === 'down') {
-                player.y += speed * 0.05;
-            }
-            
-            // Increase speed gradually
-            if (score > 0 && score % 5 === 0) {
-                speed = 2 + (score / 30);
-            }
-        }
-
-        // Check if player needs to turn
-        function checkTurns() {
-            // Find current segment player is on
-            let currentSegmentIndex = -1;
-            
-            for (let i = 0; i < pathSegments.length; i++) {
-                const segment = pathSegments[i];
-                
-                // Check if player is on this segment
-                if (isPlayerOnSegment(segment)) {
-                    currentSegmentIndex = i;
-                    break;
-                }
-            }
-            
-            if (currentSegmentIndex === -1) return;
-            
-            const currentSegment = pathSegments[currentSegmentIndex];
-            
-            // Check if player has reached a turn point
-            const distanceToEnd = Math.sqrt(
-                Math.pow(player.x - currentSegment.endX, 2) + 
-                Math.pow(player.y - currentSegment.endY, 2)
-            );
-            
-            if (distanceToEnd < 0.2) {
-                // Check if there's a next segment
-                if (currentSegmentIndex < pathSegments.length - 1) {
-                    const nextSegment = pathSegments[currentSegmentIndex + 1];
-                    
-                    // If player has set a next direction, change to it
-                    if (player.nextDirection && player.nextDirection === nextSegment.direction) {
-                        player.direction = player.nextDirection;
-                        player.nextDirection = null;
-                        
-                        // Position player exactly at turn point to avoid drifting
-                        player.x = currentSegment.endX;
-                        player.y = currentSegment.endY;
-                        
-                        // Mark segment as passed
-                        if (!currentSegment.passed) {
-                            currentSegment.passed = true;
-                            updateScore(score + 1);
-                        }
-                        
-                        // Add new segment if we're close to the end
-                        if (currentSegmentIndex >= pathSegments.length - 3) {
-                            addNewSegment();
-                        }
-                    } else {
-                        // Player didn't tap to turn - game over
-                        gameOver();
-                    }
-                }
-            }
-        }
-
-        // Check if player is on a path segment
-        function isPlayerOnSegment(segment) {
-            // For horizontal segments
-            if (segment.startX !== segment.endX) {
-                const minX = Math.min(segment.startX, segment.endX);
-                const maxX = Math.max(segment.startX, segment.endX);
-                
-                return (
-                    player.x >= minX && 
-                    player.x <= maxX && 
-                    Math.abs(player.y - segment.startY) < 0.5
-                );
-            } 
-            // For vertical segments
-            else {
-                const minY = Math.min(segment.startY, segment.endY);
-                const maxY = Math.max(segment.startY, segment.endY);
-                
-                return (
-                    player.y >= minY && 
-                    player.y <= maxY && 
-                    Math.abs(player.x - segment.startX) < 0.5
-                );
-            }
-        }
-
         // Draw the path
         function drawPath() {
-            pathSegments.forEach(segment => {
-                // Convert logical coordinates to screen coordinates
-                const start = isoToScreen(segment.startX, segment.startY);
-                const end = isoToScreen(segment.endX, segment.endY);
+            path.forEach(segment => {
+                // Draw path segment with 3D effect
+                // Main path
+                ctx.fillStyle = COLORS.path;
+                ctx.fillRect(segment.x, segment.y, segment.width, segment.height);
                 
-                // Draw path segment
-                ctx.beginPath();
-                ctx.moveTo(start.x, start.y);
-                ctx.lineTo(end.x, end.y);
-                ctx.lineWidth = ISO.tileWidth;
-                ctx.strokeStyle = COLORS.path;
-                ctx.stroke();
+                // Bottom edge (darker)
+                ctx.fillStyle = '#b3b3b3';
+                ctx.fillRect(segment.x, segment.y + segment.height, segment.width, segment.height * 0.1);
                 
-                // Draw path edges
-                ctx.beginPath();
-                ctx.moveTo(start.x, start.y);
-                ctx.lineTo(end.x, end.y);
-                ctx.lineWidth = ISO.tileWidth + 2;
-                ctx.strokeStyle = COLORS.pathEdge;
-                ctx.globalCompositeOperation = 'destination-over';
-                ctx.stroke();
-                ctx.globalCompositeOperation = 'source-over';
+                // Right edge (darker)
+                ctx.fillStyle = '#b3b3b3';
+                ctx.fillRect(segment.x + segment.width, segment.y, segment.width * 0.05, segment.height);
             });
         }
 
         // Draw the player
         function drawPlayer() {
-            const playerPos = isoToScreen(player.x, player.y);
-            
-            // Draw player cube
-            ctx.fillStyle = COLORS.player;
-            
-            // Draw a 3D cube
             const cubeSize = player.size;
             
+            // Draw a 3D cube
             // Top face (lighter)
-            ctx.beginPath();
-            ctx.moveTo(playerPos.x, playerPos.y - cubeSize/2);
-            ctx.lineTo(playerPos.x + cubeSize/2, playerPos.y - cubeSize/4);
-            ctx.lineTo(playerPos.x, playerPos.y);
-            ctx.lineTo(playerPos.x - cubeSize/2, playerPos.y - cubeSize/4);
-            ctx.closePath();
             ctx.fillStyle = '#777777';
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y - cubeSize/2);
+            ctx.lineTo(player.x + cubeSize/2, player.y - cubeSize/4);
+            ctx.lineTo(player.x, player.y);
+            ctx.lineTo(player.x - cubeSize/2, player.y - cubeSize/4);
+            ctx.closePath();
             ctx.fill();
             
             // Right face (medium)
-            ctx.beginPath();
-            ctx.moveTo(playerPos.x, playerPos.y);
-            ctx.lineTo(playerPos.x + cubeSize/2, playerPos.y - cubeSize/4);
-            ctx.lineTo(playerPos.x + cubeSize/2, playerPos.y + cubeSize/4);
-            ctx.lineTo(playerPos.x, playerPos.y + cubeSize/2);
-            ctx.closePath();
             ctx.fillStyle = '#666666';
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y);
+            ctx.lineTo(player.x + cubeSize/2, player.y - cubeSize/4);
+            ctx.lineTo(player.x + cubeSize/2, player.y + cubeSize/4);
+            ctx.lineTo(player.x, player.y + cubeSize/2);
+            ctx.closePath();
             ctx.fill();
             
             // Left face (darkest)
-            ctx.beginPath();
-            ctx.moveTo(playerPos.x, playerPos.y);
-            ctx.lineTo(playerPos.x - cubeSize/2, playerPos.y - cubeSize/4);
-            ctx.lineTo(playerPos.x - cubeSize/2, playerPos.y + cubeSize/4);
-            ctx.lineTo(playerPos.x, playerPos.y + cubeSize/2);
-            ctx.closePath();
             ctx.fillStyle = '#555555';
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y);
+            ctx.lineTo(player.x - cubeSize/2, player.y - cubeSize/4);
+            ctx.lineTo(player.x - cubeSize/2, player.y + cubeSize/4);
+            ctx.lineTo(player.x, player.y + cubeSize/2);
+            ctx.closePath();
             ctx.fill();
-        }
-
-        // Check for collisions
-        function checkCollisions() {
-            // Check if player is on any path segment
-            let onPath = false;
-            
-            for (let i = 0; i < pathSegments.length; i++) {
-                if (isPlayerOnSegment(pathSegments[i])) {
-                    onPath = true;
-                    break;
-                }
-            }
-            
-            // If player is not on any path segment, game over
-            if (!onPath) {
-                gameOver();
-            }
         }
 
         // Update score
@@ -553,24 +365,8 @@
         function handleTap() {
             if (!gameRunning) return;
             
-            // Find current segment player is on
-            let currentSegmentIndex = -1;
-            
-            for (let i = 0; i < pathSegments.length; i++) {
-                const segment = pathSegments[i];
-                
-                // Check if player is on this segment
-                if (isPlayerOnSegment(segment)) {
-                    currentSegmentIndex = i;
-                    break;
-                }
-            }
-            
-            if (currentSegmentIndex === -1 || currentSegmentIndex >= pathSegments.length - 1) return;
-            
-            // Get next segment direction
-            const nextSegment = pathSegments[currentSegmentIndex + 1];
-            player.nextDirection = nextSegment.direction;
+            // In the static demo, we don't need to handle taps
+            // This would be implemented for the actual game
         }
 
         // Event listeners
@@ -596,6 +392,12 @@
                 e.preventDefault();
             }
         }, { passive: false });
+        
+        // Start the game automatically for the demo
+        window.addEventListener('load', function() {
+            startScreen.style.display = 'none';
+            initGame();
+        });
     </script>
 </body>
 </html>
