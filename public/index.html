@@ -13,7 +13,7 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #00FF9D;
+            background-color: #000;
             overflow: hidden;
         }
         .container {
@@ -25,11 +25,11 @@
             border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-            background-color: #1a1a2e;
+            background-color: #000;
             border: 10px solid #000;
         }
         #game-canvas {
-            background-color: #1a1a2e;
+            background-color: #000;
             display: block;
             width: 100%;
             height: 100%;
@@ -130,17 +130,17 @@
             canvas.height = canvas.offsetHeight;
             
             // Initialize ball
-            ball.radius = canvas.width * 0.03;
+            ball.radius = canvas.width * 0.025;
             ball.y = canvas.height * 0.7;
             ball.x = canvas.width / 2;
-            ball.speed = canvas.width * 0.003;
+            ball.speed = canvas.width * 0.0015; // Slower speed
             ball.direction = 1;
             
             // Initialize line
             line.width = canvas.width * 0.3;
-            line.height = canvas.height * 0.01;
+            line.height = canvas.height * 0.015;
             line.x = (canvas.width - line.width) / 2;
-            line.y = ball.y + ball.radius - line.height / 2;
+            line.y = ball.y;
             
             // Reset game state
             squares = [];
@@ -185,17 +185,20 @@
                 squareInterval = Math.max(300, squareInterval - 5);
             }
             
+            // Draw line (before squares to ensure it's behind)
+            drawLine();
+            
             // Update and draw squares
             updateSquares(deltaTime);
-            
-            // Draw line
-            drawLine();
             
             // Draw ball
             drawBall();
             
             // Check for collisions
             checkCollisions();
+            
+            // Draw score at the bottom
+            drawScore();
             
             // Continue game loop
             requestAnimationFrame(gameLoop);
@@ -211,8 +214,10 @@
                 x: x,
                 y: -size,
                 size: size,
-                speed: canvas.height * 0.002 * (1 + score * 0.05),
-                isGreen: isGreen
+                speed: canvas.height * 0.0015 * (1 + score * 0.03),
+                isGreen: isGreen,
+                rotation: 0,
+                rotationSpeed: (Math.random() * 0.05 + 0.02) * (Math.random() > 0.5 ? 1 : -1)
             });
         }
 
@@ -224,15 +229,22 @@
                 // Move square down
                 square.y += square.speed * deltaTime;
                 
+                // Update rotation
+                square.rotation += square.rotationSpeed * deltaTime;
+                
                 // Remove squares that are off-screen
                 if (square.y > canvas.height) {
                     squares.splice(i, 1);
                     continue;
                 }
                 
-                // Draw square
+                // Draw rotating square
+                ctx.save();
+                ctx.translate(square.x + square.size/2, square.y + square.size/2);
+                ctx.rotate(square.rotation);
                 ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF';
-                ctx.fillRect(square.x, square.y, square.size, square.size);
+                ctx.fillRect(-square.size/2, -square.size/2, square.size, square.size);
+                ctx.restore();
             }
         }
 
@@ -247,8 +259,22 @@
 
         // Draw the line
         function drawLine() {
+            // Draw shadow effect for the line
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(line.x, line.y + line.height, line.width, line.height * 2);
+            
+            // Draw the actual line
             ctx.fillStyle = '#333333';
             ctx.fillRect(line.x, line.y, line.width, line.height);
+        }
+        
+        // Draw score at the bottom
+        function drawScore() {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold ' + (canvas.width * 0.15) + 'px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(score.toString(), canvas.width / 2, canvas.height * 0.85);
         }
 
         // Check for collisions between ball and squares
@@ -286,11 +312,13 @@
             if (score > bestScore) {
                 bestScore = score;
                 localStorage.setItem('bestScore', bestScore);
+                bestScoreDisplay.textContent = `NEW BEST!`;
+            } else {
+                bestScoreDisplay.textContent = `Best: ${bestScore}`;
             }
             
             // Show game over screen
             scoreDisplay.textContent = score;
-            bestScoreDisplay.textContent = `Best: ${bestScore}`;
             gameOverScreen.style.display = 'flex';
         }
 
@@ -299,6 +327,9 @@
             if (gameRunning) {
                 // Change ball direction
                 ball.direction *= -1;
+            } else {
+                // Restart game if on game over screen
+                initGame();
             }
         }
 
