@@ -67,22 +67,11 @@
             border-radius: 5px;
             cursor: pointer;
         }
-        #score-counter {
-            position: absolute;
-            top: 20px;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            color: white;
-            font-size: 2rem;
-            z-index: 5;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <canvas id="game-canvas"></canvas>
-        <div id="score-counter">0</div>
         <div id="game-over">
             <div id="score-display">0</div>
             <div id="best-score">Best: 0</div>
@@ -98,7 +87,6 @@
         const scoreDisplay = document.getElementById('score-display');
         const bestScoreDisplay = document.getElementById('best-score');
         const playAgainBtn = document.getElementById('play-again');
-        const scoreCounter = document.getElementById('score-counter');
 
         // Game variables
         let gameRunning = false;
@@ -133,11 +121,11 @@
             ball.radius = canvas.width * 0.025;
             ball.y = canvas.height * 0.7;
             ball.x = canvas.width / 2;
-            ball.speed = canvas.width * 0.0015; // Slower speed
+            ball.speed = canvas.width * 0.0005; // Much slower speed
             ball.direction = 1;
             
-            // Initialize line
-            line.width = canvas.width * 0.3;
+            // Initialize line - 80% of width
+            line.width = canvas.width * 0.8;
             line.height = canvas.height * 0.015;
             line.x = (canvas.width - line.width) / 2;
             line.y = ball.y;
@@ -145,7 +133,6 @@
             // Reset game state
             squares = [];
             score = 0;
-            scoreCounter.textContent = score;
             gameOverScreen.style.display = 'none';
             gameRunning = true;
             
@@ -293,7 +280,6 @@
                     if (square.isGreen) {
                         // Collect green square
                         score++;
-                        scoreCounter.textContent = score;
                         squares.splice(i, 1);
                     } else {
                         // Game over on white square collision
