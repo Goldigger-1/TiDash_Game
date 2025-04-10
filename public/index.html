@@ -13,7 +13,7 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f5f5f5;
+            background-color: #ffffff;
             overflow: hidden;
             touch-action: manipulation;
         }
@@ -26,7 +26,7 @@
             overflow: hidden;
         }
         #game-canvas {
-            background-color: #f5f5f5;
+            background-color: #ffffff;
             display: block;
             width: 100%;
             height: 100%;
@@ -45,7 +45,7 @@
         }
         .score {
             font-size: 4rem;
-            color: #333;
+            color: #000000;
             font-weight: bold;
         }
         .game-over {
@@ -54,7 +54,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(245, 245, 245, 0.9);
+            background-color: rgba(255, 255, 255, 0.9);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -92,12 +92,13 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: #f5f5f5;
+            background-color: #ffffff;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 30;
+            display: none;
         }
         .start-screen h2 {
             font-size: 3rem;
@@ -177,19 +178,17 @@
         // Game state
         let gameRunning = false;
         let score = 9; 
-        let speed = 2;
         let path = [];
         let player = {
             x: 0,
             y: 0,
             size: 20,
-            direction: 'right',
-            nextDirection: null
+            direction: 'right'
         };
 
         // Colors exactly matching the wireframe
         const COLORS = {
-            background: '#f5f5f5',
+            background: '#ffffff',
             path: '#cccccc',
             pathEdge: '#bbbbbb',
             player: '#555555',
@@ -228,53 +227,48 @@
         function createIsometricPath() {
             // Calculate center position for the path
             const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
+            const centerY = canvas.height / 2 + 50; // Adjust to match wireframe position
             
             // Define the isometric path segments as in the wireframe
             // These are logical coordinates in the isometric space
-            const isometricSegments = [
-                { x: -3, y: 1, length: 2, direction: 'right' },
-                { x: -1, y: 0, length: 3, direction: 'right' },
-                { x: 2, y: -1, length: 2, direction: 'right' }
+            const pathPoints = [
+                { x: -2, y: 2 },
+                { x: -1, y: 1 },
+                { x: 0, y: 0 },
+                { x: 1, y: -1 },
+                { x: 2, y: -2 }
             ];
             
             path = [];
             
             // Convert logical isometric coordinates to screen coordinates
-            isometricSegments.forEach(segment => {
-                const startX = centerX + (segment.x * ISO.tileWidth * ISO.scaleX);
-                const startY = centerY + (segment.x + segment.y) * ISO.tileWidth * ISO.scaleY;
+            for (let i = 0; i < pathPoints.length - 1; i++) {
+                const startX = centerX + (pathPoints[i].x * ISO.tileWidth * ISO.scaleX);
+                const startY = centerY + (pathPoints[i].x + pathPoints[i].y) * ISO.tileWidth * ISO.scaleY;
                 
-                let endX, endY;
-                
-                if (segment.direction === 'right') {
-                    endX = startX + (segment.length * ISO.tileWidth * ISO.scaleX);
-                    endY = startY + (segment.length * ISO.tileWidth * ISO.scaleY);
-                }
+                const endX = centerX + (pathPoints[i+1].x * ISO.tileWidth * ISO.scaleX);
+                const endY = centerY + (pathPoints[i+1].x + pathPoints[i+1].y) * ISO.tileWidth * ISO.scaleY;
                 
                 path.push({
                     startX: startX,
                     startY: startY,
                     endX: endX,
                     endY: endY,
-                    length: segment.length,
-                    direction: segment.direction
+                    direction: 'right'
                 });
-            });
+            }
         }
 
         // Position player exactly as in the wireframe
         function positionPlayerAsInWireframe() {
-            // Place player on the first segment, as shown in the wireframe
-            const segment = path[0];
+            // Place player on the third segment, as shown in the wireframe
+            const segment = path[2]; // The third segment
             
-            // Calculate position 1/3 along the first segment
-            const t = 0.6; 
-            player.x = segment.startX + t * (segment.endX - segment.startX);
-            player.y = segment.startY + t * (segment.endY - segment.startY);
+            // Calculate position at the start of the third segment
+            player.x = segment.startX;
+            player.y = segment.startY;
             
-            player.direction = segment.direction;
-            player.nextDirection = null;
+            player.direction = 'right';
         }
 
         // Game loop
@@ -403,7 +397,6 @@
 
         // Start the game automatically to show the wireframe state
         window.addEventListener('load', function() {
-            startScreen.style.display = 'none';
             initGame();
         });
     </script>
