@@ -64,7 +64,7 @@
         // Colors
         const COLORS = {
             path: '#d3d3d3',        // Light gray for path
-            cube: '#555555',        // Dark gray for cube
+            cube: '#333333',        // Black cube
             background: '#ffffff'   // White background
         };
 
@@ -73,7 +73,7 @@
             scale: 1,
             angle: Math.PI / 6,     // 30 degrees
             pathWidth: 40,          // Width of the path
-            cubeSize: 25            // Size of the cube
+            cubeSize: 20            // Size of the cube
         };
 
         // Draw the scene
@@ -84,7 +84,7 @@
 
             // Set the origin to the center of the canvas
             const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
+            const centerY = canvas.height / 2 + 40; // Adjust to match reference
             
             // Draw the zigzag path
             drawIsometricPath(centerX, centerY);
@@ -97,14 +97,14 @@
         function drawIsometricPath(centerX, centerY) {
             ctx.fillStyle = COLORS.path;
             
-            // Calculate path points for a zigzag
+            // Calculate path points for a zigzag matching the reference image
             const pathSegments = [
-                { x: -100, y: 100 },   // Start point
-                { x: 0, y: 100 },      // First segment
-                { x: 0, y: 0 },        // Second segment (turn)
+                { x: -140, y: 80 },    // Start point
+                { x: -20, y: 80 },     // First segment
+                { x: -20, y: 0 },      // Second segment (turn)
                 { x: -100, y: 0 },     // Third segment (turn)
-                { x: -100, y: -100 },  // Fourth segment (turn)
-                { x: 0, y: -100 }      // End point
+                { x: -100, y: -80 },   // Fourth segment (turn)
+                { x: 20, y: -80 }      // End point
             ];
             
             // Draw each path segment
@@ -142,12 +142,12 @@
         
         // Draw the isometric cube
         function drawIsometricCube(centerX, centerY) {
-            // Position the cube at the second turn point
+            // Position the cube at the third turn point to match reference
             const cubeX = centerX + toIsoX(-100, 0);
             const cubeY = centerY + toIsoY(-100, 0);
             const size = ISO.cubeSize;
             
-            // Draw a dark gray cube
+            // Draw a black cube
             ctx.fillStyle = COLORS.cube;
             
             // Top face
