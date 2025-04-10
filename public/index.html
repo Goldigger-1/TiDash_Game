@@ -7,26 +7,142 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: white;
+            background-color: #f5f5f5;
+            overflow: hidden;
+            touch-action: manipulation;
         }
         .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            max-height: 800px;
+            overflow: hidden;
+        }
+        #game-canvas {
+            background-color: #222;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .score {
+            font-size: 2rem;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            font-weight: bold;
+        }
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            display: none;
+        }
+        .game-over h2 {
+            font-size: 3rem;
+            color: white;
+            margin-bottom: 10px;
+        }
+        .game-over p {
+            font-size: 1.5rem;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .restart-btn {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1.2rem;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 25px;
+            pointer-events: auto;
+        }
+        .start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #222;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+        }
+        .start-screen h2 {
+            font-size: 3rem;
+            color: white;
+            margin-bottom: 20px;
             text-align: center;
         }
-        h1 {
-            font-size: 3rem;
-            color: #333;
+        .start-screen p {
+            font-size: 1.2rem;
+            color: white;
+            margin-bottom: 30px;
+            text-align: center;
+            padding: 0 20px;
+            line-height: 1.5;
+        }
+        .start-btn {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1.2rem;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 25px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>HELLO</h1>
+        <canvas id="game-canvas"></canvas>
+        <div class="ui-container">
+            <div class="score">Score: 0</div>
+        </div>
+        <div class="game-over">
+            <h2>Game Over!</h2>
+            <p>Your score: <span class="final-score">0</span></p>
+            <button class="restart-btn">Play Again</button>
+        </div>
+        <div class="start-screen">
+            <h2>TiDash Game</h2>
+            <p>Tap to turn at each corner. Don't fall off the path!</p>
+            <button class="start-btn">Start Game</button>
+        </div>
     </div>
 
     <script>
@@ -38,6 +154,395 @@
         
         // Activate the app
         tg.ready();
+
+        // Game variables
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.querySelector('.score');
+        const gameOverScreen = document.querySelector('.game-over');
+        const finalScoreElement = document.querySelector('.final-score');
+        const restartButton = document.querySelector('.restart-btn');
+        const startScreen = document.querySelector('.start-screen');
+        const startButton = document.querySelector('.start-btn');
+
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Game state
+        let gameRunning = false;
+        let score = 0;
+        let speed = 3;
+        let roadSegments = [];
+        let player = {
+            x: 0,
+            y: 0,
+            size: 15,
+            direction: 'right',
+            nextDirection: null
+        };
+
+        // Colors
+        const COLORS = {
+            background: '#222',
+            road: '#aaa',
+            player: '#4CAF50',
+            roadEdge: '#777'
+        };
+
+        // Initialize the game
+        function initGame() {
+            score = 0;
+            speed = 3;
+            roadSegments = [];
+            player.direction = 'right';
+            player.nextDirection = null;
+            
+            // Create initial road
+            const segmentWidth = canvas.width * 0.15;
+            const segmentHeight = segmentWidth;
+            
+            // Start with a horizontal segment
+            roadSegments.push({
+                x: 0,
+                y: canvas.height / 2 - segmentHeight / 2,
+                width: canvas.width / 2,
+                height: segmentHeight,
+                direction: 'right'
+            });
+            
+            // Add a turn
+            addNewSegment();
+            
+            // Position player at start
+            player.x = segmentWidth / 2;
+            player.y = canvas.height / 2;
+            player.size = segmentHeight * 0.3;
+            
+            // Update score display
+            updateScore(0);
+            
+            // Start game loop
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Add a new road segment with a turn
+        function addNewSegment() {
+            const lastSegment = roadSegments[roadSegments.length - 1];
+            const segmentWidth = canvas.width * 0.15;
+            const segmentHeight = segmentWidth;
+            
+            let newDirection;
+            let newSegment = {};
+            
+            // Determine end point of last segment
+            let endX, endY;
+            if (lastSegment.direction === 'right') {
+                endX = lastSegment.x + lastSegment.width;
+                endY = lastSegment.y;
+            } else if (lastSegment.direction === 'left') {
+                endX = lastSegment.x;
+                endY = lastSegment.y;
+            } else if (lastSegment.direction === 'up') {
+                endX = lastSegment.x;
+                endY = lastSegment.y;
+            } else if (lastSegment.direction === 'down') {
+                endX = lastSegment.x;
+                endY = lastSegment.y + lastSegment.height;
+            }
+            
+            // Randomly choose new direction (not the opposite of current direction)
+            const possibleDirections = ['right', 'left', 'up', 'down'].filter(dir => {
+                if (lastSegment.direction === 'right' && dir === 'left') return false;
+                if (lastSegment.direction === 'left' && dir === 'right') return false;
+                if (lastSegment.direction === 'up' && dir === 'down') return false;
+                if (lastSegment.direction === 'down' && dir === 'up') return false;
+                return true;
+            });
+            
+            // Choose a random direction from possible directions
+            newDirection = possibleDirections[Math.floor(Math.random() * possibleDirections.length)];
+            
+            // Create new segment based on direction
+            if (newDirection === 'right') {
+                newSegment = {
+                    x: endX,
+                    y: endY,
+                    width: canvas.width * 0.5,
+                    height: segmentHeight,
+                    direction: 'right'
+                };
+            } else if (newDirection === 'left') {
+                newSegment = {
+                    x: endX - canvas.width * 0.5,
+                    y: endY,
+                    width: canvas.width * 0.5,
+                    height: segmentHeight,
+                    direction: 'left'
+                };
+            } else if (newDirection === 'up') {
+                newSegment = {
+                    x: endX,
+                    y: endY - canvas.height * 0.5,
+                    width: segmentWidth,
+                    height: canvas.height * 0.5,
+                    direction: 'up'
+                };
+            } else if (newDirection === 'down') {
+                newSegment = {
+                    x: endX,
+                    y: endY,
+                    width: segmentWidth,
+                    height: canvas.height * 0.5,
+                    direction: 'down'
+                };
+            }
+            
+            roadSegments.push(newSegment);
+            
+            // Remove old segments if there are too many
+            if (roadSegments.length > 10) {
+                roadSegments.shift();
+            }
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Clear canvas
+            ctx.fillStyle = COLORS.background;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update player position
+            movePlayer();
+            
+            // Draw road
+            drawRoad();
+            
+            // Draw player
+            drawPlayer();
+            
+            // Check for collisions
+            checkCollisions();
+            
+            // Request next frame
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Move player
+        function movePlayer() {
+            // Check if player needs to change direction at a turn
+            checkTurns();
+            
+            // Move player based on current direction
+            if (player.direction === 'right') {
+                player.x += speed;
+            } else if (player.direction === 'left') {
+                player.x -= speed;
+            } else if (player.direction === 'up') {
+                player.y -= speed;
+            } else if (player.direction === 'down') {
+                player.y += speed;
+            }
+            
+            // Increase speed gradually
+            if (score > 0 && score % 5 === 0) {
+                speed = 3 + (score / 20);
+            }
+        }
+
+        // Check if player needs to turn
+        function checkTurns() {
+            // Find current segment player is on
+            let currentSegment = null;
+            for (let i = 0; i < roadSegments.length; i++) {
+                const segment = roadSegments[i];
+                if (isPlayerOnSegment(segment)) {
+                    currentSegment = segment;
+                    break;
+                }
+            }
+            
+            if (!currentSegment) return;
+            
+            // Check if player is at a turn point
+            if (currentSegment !== roadSegments[roadSegments.length - 1]) {
+                const nextSegment = roadSegments[roadSegments.indexOf(currentSegment) + 1];
+                
+                // Calculate turn point
+                let turnX, turnY;
+                if (currentSegment.direction === 'right') {
+                    turnX = currentSegment.x + currentSegment.width;
+                    turnY = currentSegment.y + currentSegment.height / 2;
+                } else if (currentSegment.direction === 'left') {
+                    turnX = currentSegment.x;
+                    turnY = currentSegment.y + currentSegment.height / 2;
+                } else if (currentSegment.direction === 'up') {
+                    turnX = currentSegment.x + currentSegment.width / 2;
+                    turnY = currentSegment.y;
+                } else if (currentSegment.direction === 'down') {
+                    turnX = currentSegment.x + currentSegment.width / 2;
+                    turnY = currentSegment.y + currentSegment.height;
+                }
+                
+                // Check if player is at turn point
+                const distanceToTurn = Math.sqrt(
+                    Math.pow(player.x - turnX, 2) + 
+                    Math.pow(player.y - turnY, 2)
+                );
+                
+                if (distanceToTurn < speed * 2) {
+                    // If player has set a next direction, change to it
+                    if (player.nextDirection) {
+                        player.direction = player.nextDirection;
+                        player.nextDirection = null;
+                        
+                        // Position player exactly at turn point to avoid drifting
+                        player.x = turnX;
+                        player.y = turnY;
+                        
+                        // Add score for successful turn
+                        updateScore(score + 1);
+                        
+                        // Add new segment if we're on the last segment
+                        if (currentSegment === roadSegments[roadSegments.length - 2]) {
+                            addNewSegment();
+                        }
+                    } else {
+                        // Player didn't tap to turn - game over
+                        gameOver();
+                    }
+                }
+            }
+        }
+
+        // Check if player is on a road segment
+        function isPlayerOnSegment(segment) {
+            return (
+                player.x + player.size / 2 >= segment.x &&
+                player.x - player.size / 2 <= segment.x + segment.width &&
+                player.y + player.size / 2 >= segment.y &&
+                player.y - player.size / 2 <= segment.y + segment.height
+            );
+        }
+
+        // Draw the road
+        function drawRoad() {
+            roadSegments.forEach(segment => {
+                // Draw road segment
+                ctx.fillStyle = COLORS.road;
+                ctx.fillRect(segment.x, segment.y, segment.width, segment.height);
+                
+                // Draw road edges
+                ctx.strokeStyle = COLORS.roadEdge;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(segment.x, segment.y, segment.width, segment.height);
+            });
+        }
+
+        // Draw the player
+        function drawPlayer() {
+            ctx.fillStyle = COLORS.player;
+            ctx.fillRect(
+                player.x - player.size / 2,
+                player.y - player.size / 2,
+                player.size,
+                player.size
+            );
+        }
+
+        // Check for collisions
+        function checkCollisions() {
+            // Check if player is on any road segment
+            let onRoad = false;
+            for (let i = 0; i < roadSegments.length; i++) {
+                if (isPlayerOnSegment(roadSegments[i])) {
+                    onRoad = true;
+                    break;
+                }
+            }
+            
+            // If player is not on any road segment, game over
+            if (!onRoad) {
+                gameOver();
+            }
+        }
+
+        // Update score
+        function updateScore(newScore) {
+            score = newScore;
+            scoreElement.textContent = `Score: ${score}`;
+        }
+
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            gameOverScreen.style.display = 'flex';
+            
+            // Send score to Telegram if available
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                tg.sendData(JSON.stringify({
+                    event: 'game_over',
+                    score: score
+                }));
+            }
+        }
+
+        // Handle tap/click
+        function handleTap() {
+            if (!gameRunning) return;
+            
+            // Find current segment player is on
+            let currentSegment = null;
+            for (let i = 0; i < roadSegments.length; i++) {
+                const segment = roadSegments[i];
+                if (isPlayerOnSegment(segment)) {
+                    currentSegment = segment;
+                    break;
+                }
+            }
+            
+            if (!currentSegment) return;
+            
+            // Check if there's a next segment
+            if (currentSegment !== roadSegments[roadSegments.length - 1]) {
+                const nextSegment = roadSegments[roadSegments.indexOf(currentSegment) + 1];
+                
+                // Set next direction based on next segment
+                player.nextDirection = nextSegment.direction;
+            }
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', handleTap);
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            handleTap();
+        });
+
+        restartButton.addEventListener('click', function() {
+            gameOverScreen.style.display = 'none';
+            initGame();
+        });
+
+        startButton.addEventListener('click', function() {
+            startScreen.style.display = 'none';
+            initGame();
+        });
+
+        // Prevent scrolling on touch devices
+        document.body.addEventListener('touchmove', function(e) {
+            if (gameRunning) {
+                e.preventDefault();
+            }
+        }, { passive: false });
     </script>
 </body>
 </html>
