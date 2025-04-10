@@ -84,7 +84,7 @@ bot.launch()
 
 // Créer un serveur Express simple
 const app = express();
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 3000;
 
 // Servir les fichiers statiques du dossier public
 app.use(express.static(path.join(__dirname, 'public')));
