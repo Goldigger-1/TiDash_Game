@@ -121,6 +121,7 @@
         let squareInterval = 1100; // Intervalle augmenté pour réduire la difficulté
         let lastFrameTime = 0;
         let greenSquareChance = 0.2; // 20% chance for green squares
+        let lineProximityThreshold = 0; // Distance minimale entre les carrés et la ligne
 
         // Initialize the game
         function initGame() {
@@ -223,6 +224,27 @@
 
         // Spawn a new square
         function spawnSquare() {
+            // Vérifier si un carré est trop proche de la ligne horizontale
+            const lineY = line.y;
+            const proximityThreshold = canvas.height * 0.25; // 25% de la hauteur de l'écran
+            
+            // Vérifier si un carré existant est trop proche de la ligne
+            let tooCloseToLine = false;
+            for (let i = 0; i < squares.length; i++) {
+                const square = squares[i];
+                const distanceToLine = Math.abs(square.y - lineY);
+                
+                if (distanceToLine < proximityThreshold) {
+                    tooCloseToLine = true;
+                    break;
+                }
+            }
+            
+            // Ne pas générer de nouveau carré si un autre est trop proche de la ligne
+            if (tooCloseToLine) {
+                return;
+            }
+            
             // Larger squares
             const size = canvas.width * 0.07;
             
@@ -263,12 +285,12 @@
                 velocityY: Math.cos(limitedAngle)
             });
             
-            // Occasionally spawn multiple squares at once
-            if (Math.random() < 0.15 && score > 8) { // Réduit la probabilité et augmente le seuil de score
-                setTimeout(() => {
-                    if (gameRunning) spawnSquare();
-                }, 300);
-            }
+            // Désactivation de l'apparition multiple de carrés
+            // if (Math.random() < 0.15 && score > 8) {
+            //     setTimeout(() => {
+            //         if (gameRunning) spawnSquare();
+            //     }, 300);
+            // }
         }
 
         // Update squares positions
