@@ -90,7 +90,7 @@ const PORT = process.env.PORT || 80;
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Route par défaut qui renvoie index.html
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
