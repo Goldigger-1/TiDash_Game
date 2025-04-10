@@ -187,11 +187,23 @@
             nextDirection: null
         };
 
-        // Colors
+        // Colors exactly matching the wireframe
         const COLORS = {
             background: '#f5f5f5',
             path: '#cccccc',
-            player: '#555555'
+            pathEdge: '#bbbbbb',
+            player: '#555555',
+            playerTop: '#777777',
+            playerRight: '#666666',
+            playerLeft: '#555555'
+        };
+
+        // Isometric projection constants
+        const ISO = {
+            scaleX: 0.866, 
+            scaleY: 0.5,   
+            tileWidth: 60,
+            tileDepth: 10  
         };
 
         // Initialize the game
@@ -199,13 +211,10 @@
             score = 9; 
             
             // Create the exact path from the wireframe
-            createExactPath();
+            createIsometricPath();
             
             // Position player at the position shown in wireframe
-            player.x = path[2].x + path[2].width / 2;
-            player.y = path[2].y + path[2].height / 2;
-            player.direction = 'right';
-            player.nextDirection = null;
+            positionPlayerAsInWireframe();
             
             // Update score display
             updateScore(score);
@@ -215,57 +224,57 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Create the exact path layout from the wireframe
-        function createExactPath() {
-            const pathWidth = Math.min(canvas.width, canvas.height) * 0.1;
-            
+        // Create the exact isometric path layout from the wireframe
+        function createIsometricPath() {
             // Calculate center position for the path
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             
-            // Create path segments exactly as in the wireframe
-            path = [
-                // Bottom segment (going right)
-                {
-                    x: centerX - pathWidth * 5,
-                    y: centerY + pathWidth * 2,
-                    width: pathWidth * 2,
-                    height: pathWidth,
-                    direction: 'right'
-                },
-                // Middle-bottom segment (going right)
-                {
-                    x: centerX - pathWidth * 3,
-                    y: centerY + pathWidth,
-                    width: pathWidth * 5,
-                    height: pathWidth,
-                    direction: 'right'
-                },
-                // Middle segment (going left)
-                {
-                    x: centerX - pathWidth * 3,
-                    y: centerY,
-                    width: pathWidth * 3,
-                    height: pathWidth,
-                    direction: 'left'
-                },
-                // Middle-top segment (going right)
-                {
-                    x: centerX,
-                    y: centerY - pathWidth,
-                    width: pathWidth * 3,
-                    height: pathWidth,
-                    direction: 'right'
-                },
-                // Top segment (going right)
-                {
-                    x: centerX + pathWidth * 3,
-                    y: centerY - pathWidth * 2,
-                    width: pathWidth * 2,
-                    height: pathWidth,
-                    direction: 'right'
-                }
+            // Define the isometric path segments as in the wireframe
+            // These are logical coordinates in the isometric space
+            const isometricSegments = [
+                { x: -3, y: 1, length: 2, direction: 'right' },
+                { x: -1, y: 0, length: 3, direction: 'right' },
+                { x: 2, y: -1, length: 2, direction: 'right' }
             ];
+            
+            path = [];
+            
+            // Convert logical isometric coordinates to screen coordinates
+            isometricSegments.forEach(segment => {
+                const startX = centerX + (segment.x * ISO.tileWidth * ISO.scaleX);
+                const startY = centerY + (segment.x + segment.y) * ISO.tileWidth * ISO.scaleY;
+                
+                let endX, endY;
+                
+                if (segment.direction === 'right') {
+                    endX = startX + (segment.length * ISO.tileWidth * ISO.scaleX);
+                    endY = startY + (segment.length * ISO.tileWidth * ISO.scaleY);
+                }
+                
+                path.push({
+                    startX: startX,
+                    startY: startY,
+                    endX: endX,
+                    endY: endY,
+                    length: segment.length,
+                    direction: segment.direction
+                });
+            });
+        }
+
+        // Position player exactly as in the wireframe
+        function positionPlayerAsInWireframe() {
+            // Place player on the first segment, as shown in the wireframe
+            const segment = path[0];
+            
+            // Calculate position 1/3 along the first segment
+            const t = 0.6; 
+            player.x = segment.startX + t * (segment.endX - segment.startX);
+            player.y = segment.startY + t * (segment.endY - segment.startY);
+            
+            player.direction = segment.direction;
+            player.nextDirection = null;
         }
 
         // Game loop
@@ -276,41 +285,61 @@
             ctx.fillStyle = COLORS.background;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw path
-            drawPath();
+            // Draw isometric path
+            drawIsometricPath();
             
-            // Draw player
-            drawPlayer();
+            // Draw isometric player
+            drawIsometricPlayer();
             
             // Request next frame
             requestAnimationFrame(gameLoop);
         }
 
-        // Draw the path
-        function drawPath() {
-            path.forEach(segment => {
-                // Draw path segment with 3D effect
-                // Main path
+        // Draw the isometric path
+        function drawIsometricPath() {
+            // Draw path segments in reverse order (back to front)
+            for (let i = path.length - 1; i >= 0; i--) {
+                const segment = path[i];
+                
+                // Draw the top surface of the path
                 ctx.fillStyle = COLORS.path;
-                ctx.fillRect(segment.x, segment.y, segment.width, segment.height);
+                ctx.beginPath();
+                ctx.moveTo(segment.startX, segment.startY);
+                ctx.lineTo(segment.endX, segment.endY);
+                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth);
+                ctx.lineTo(segment.startX + ISO.tileWidth * 0.5, segment.startY + ISO.tileDepth);
+                ctx.closePath();
+                ctx.fill();
                 
-                // Bottom edge (darker)
-                ctx.fillStyle = '#b3b3b3';
-                ctx.fillRect(segment.x, segment.y + segment.height, segment.width, segment.height * 0.1);
+                // Draw the right edge of the path
+                ctx.fillStyle = COLORS.pathEdge;
+                ctx.beginPath();
+                ctx.moveTo(segment.endX, segment.endY);
+                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth);
+                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth + ISO.tileWidth * 0.2);
+                ctx.lineTo(segment.endX, segment.endY + ISO.tileWidth * 0.2);
+                ctx.closePath();
+                ctx.fill();
                 
-                // Right edge (darker)
-                ctx.fillStyle = '#b3b3b3';
-                ctx.fillRect(segment.x + segment.width, segment.y, segment.width * 0.05, segment.height);
-            });
+                // Draw the front edge of the path
+                ctx.fillStyle = COLORS.pathEdge;
+                ctx.beginPath();
+                ctx.moveTo(segment.startX + ISO.tileWidth * 0.5, segment.startY + ISO.tileDepth);
+                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth);
+                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth + ISO.tileWidth * 0.2);
+                ctx.lineTo(segment.startX + ISO.tileWidth * 0.5, segment.startY + ISO.tileDepth + ISO.tileWidth * 0.2);
+                ctx.closePath();
+                ctx.fill();
+            }
         }
 
-        // Draw the player
-        function drawPlayer() {
+        // Draw the isometric player (cube)
+        function drawIsometricPlayer() {
             const cubeSize = player.size;
             
-            // Draw a 3D cube
+            // Draw a 3D isometric cube
             // Top face (lighter)
-            ctx.fillStyle = '#777777';
+            ctx.fillStyle = COLORS.playerTop;
             ctx.beginPath();
             ctx.moveTo(player.x, player.y - cubeSize/2);
             ctx.lineTo(player.x + cubeSize/2, player.y - cubeSize/4);
@@ -320,7 +349,7 @@
             ctx.fill();
             
             // Right face (medium)
-            ctx.fillStyle = '#666666';
+            ctx.fillStyle = COLORS.playerRight;
             ctx.beginPath();
             ctx.moveTo(player.x, player.y);
             ctx.lineTo(player.x + cubeSize/2, player.y - cubeSize/4);
@@ -330,7 +359,7 @@
             ctx.fill();
             
             // Left face (darkest)
-            ctx.fillStyle = '#555555';
+            ctx.fillStyle = COLORS.playerLeft;
             ctx.beginPath();
             ctx.moveTo(player.x, player.y);
             ctx.lineTo(player.x - cubeSize/2, player.y - cubeSize/4);
@@ -361,21 +390,7 @@
             }
         }
 
-        // Handle tap/click
-        function handleTap() {
-            if (!gameRunning) return;
-            
-            // In the static demo, we don't need to handle taps
-            // This would be implemented for the actual game
-        }
-
         // Event listeners
-        canvas.addEventListener('click', handleTap);
-        canvas.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            handleTap();
-        });
-
         restartButton.addEventListener('click', function() {
             gameOverScreen.style.display = 'none';
             initGame();
@@ -386,14 +401,7 @@
             initGame();
         });
 
-        // Prevent scrolling on touch devices
-        document.body.addEventListener('touchmove', function(e) {
-            if (gameRunning) {
-                e.preventDefault();
-            }
-        }, { passive: false });
-        
-        // Start the game automatically for the demo
+        // Start the game automatically to show the wireframe state
         window.addEventListener('load', function() {
             startScreen.style.display = 'none';
             initGame();
