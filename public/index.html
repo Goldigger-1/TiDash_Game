@@ -45,9 +45,11 @@
         // Set canvas size
         function resizeCanvas() {
             const container = document.querySelector('.container');
-            const size = Math.min(window.innerWidth, window.innerHeight) * 0.8;
-            canvas.width = size;
-            canvas.height = size;
+            // Utiliser un ratio 16:9 pour mieux correspondre à un écran mobile
+            const width = window.innerWidth * 0.9;
+            const height = width * 9 / 16;
+            canvas.width = width;
+            canvas.height = height;
             drawScene();
         }
 
@@ -61,20 +63,26 @@
             const unit = canvas.width * 0.08;
             
             // Draw the zigzag path
-            drawPath(unit);
+            const segments = createPath(unit);
             
-            // Draw the cube
-            drawCube(unit);
+            // Draw the cube at the beginning of the path
+            drawCube(unit, segments[0]);
         }
         
-        // Draw the zigzag path
-        function drawPath(unit) {
+        // Create and draw the zigzag path
+        function createPath(unit) {
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             
             // Path colors
             const pathTopColor = '#d3d3d3';    // Light gray for top surface
             const pathSideColor = '#c4c4c4';   // Slightly darker for sides
+            
+            // Define path segments in screen space with isometric perspective
+            // Angle de 30° pour l'isométrie
+            const isoAngle = Math.PI / 6; // 30 degrés
+            const isoOffsetX = Math.cos(isoAngle) * unit;
+            const isoOffsetY = Math.sin(isoAngle) * unit;
             
             // Define path segments in screen space - carefully measured from reference
             const segments = [
@@ -105,6 +113,8 @@
             segments.forEach(segment => {
                 drawPathSegment(segment, unit, pathTopColor, pathSideColor);
             });
+            
+            return segments;
         }
         
         // Draw a single path segment with 3D effect
@@ -121,7 +131,10 @@
             const perpX = -dy / length * pathWidth / 2;
             const perpY = dx / length * pathWidth / 2;
             
-            // Top face (main surface)
+            // Calculate angle to determine orientation
+            const angle = Math.atan2(dy, dx);
+            
+            // Draw top face
             ctx.fillStyle = topColor;
             ctx.beginPath();
             ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
@@ -131,11 +144,32 @@
             ctx.closePath();
             ctx.fill();
             
-            // Side face (for 3D effect)
+            // Draw sides based on orientation
             ctx.fillStyle = sideColor;
             
-            // Only draw the visible side face based on segment direction
-            if (Math.abs(dx) > Math.abs(dy)) {
+            // Check if diagonal segment (both dx and dy are significant)
+            if (Math.abs(dx) > 0.1 * length && Math.abs(dy) > 0.1 * length) {
+                // Diagonal segment - determine which side to show based on angle
+                if (angle > 0 && angle < Math.PI) {
+                    // Draw bottom side for segments going down-right or down-left
+                    ctx.beginPath();
+                    ctx.moveTo(segment.x1 - perpX, segment.y1 - perpY);
+                    ctx.lineTo(segment.x2 - perpX, segment.y2 - perpY);
+                    ctx.lineTo(segment.x2 - perpX, segment.y2 - perpY + pathHeight);
+                    ctx.lineTo(segment.x1 - perpX, segment.y1 - perpY + pathHeight);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Draw top side for segments going up-right or up-left
+                    ctx.beginPath();
+                    ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
+                    ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);
+                    ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY + pathHeight);
+                    ctx.lineTo(segment.x1 + perpX, segment.y1 + perpY + pathHeight);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else if (Math.abs(dx) > Math.abs(dy)) {
                 // Horizontal segment
                 if (dy > 0 || (dy === 0 && dx < 0)) {
                     // Draw bottom side
@@ -181,12 +215,10 @@
         }
         
         // Draw the cube
-        function drawCube(unit) {
-            // Position the cube at the bottom left of the path
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const cubeX = centerX - unit * 3.5;
-            const cubeY = centerY + unit * 2;
+        function drawCube(unit, startSegment) {
+            // Position the cube dynamiquement au début du chemin
+            const cubeX = startSegment.x1;
+            const cubeY = startSegment.y1;
             
             // Cube size
             const cubeSize = unit * 0.8;
