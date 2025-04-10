@@ -118,7 +118,7 @@
         let gameOverAnimation = false;
         let gameOverAnimationComplete = false;
         let lastSquareTime = 0;
-        let squareInterval = 100; // Intervalle augmenté (était 700ms) - fréquence réduite
+        let squareInterval = 1100; // Intervalle augmenté pour réduire la difficulté
         let lastFrameTime = 0;
         let greenSquareChance = 0.2; // 20% chance for green squares
 
@@ -264,10 +264,10 @@
             });
             
             // Occasionally spawn multiple squares at once
-            if (Math.random() < 0.3 && score > 5) {
+            if (Math.random() < 0.15 && score > 8) { // Réduit la probabilité et augmente le seuil de score
                 setTimeout(() => {
                     if (gameRunning) spawnSquare();
-                }, 200);
+                }, 300);
             }
         }
 
