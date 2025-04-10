@@ -7,7 +7,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -15,7 +15,6 @@
             margin: 0;
             background-color: #ffffff;
             overflow: hidden;
-            touch-action: manipulation;
         }
         .container {
             position: relative;
@@ -24,588 +23,181 @@
             max-width: 500px;
             max-height: 800px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         #game-canvas {
             background-color: #ffffff;
             display: block;
-            width: 100%;
-            height: 100%;
-        }
-        .ui-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 15px;
-            box-sizing: border-box;
-            z-index: 10;
-            pointer-events: none;
-            display: flex;
-            justify-content: center;
         }
         .score {
+            position: absolute;
+            top: 20px;
             font-size: 4rem;
             color: #000000;
-            font-weight: bold;
-        }
-        .game-over {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.9);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 20;
-            display: none;
-        }
-        .game-over h2 {
-            font-size: 3rem;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .game-over p {
-            font-size: 1.5rem;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .restart-btn {
-            background-color: #4CAF50;
-            border: none;
-            color: white;
-            padding: 15px 30px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 1.2rem;
-            margin: 4px 2px;
-            cursor: pointer;
-            border-radius: 25px;
-            pointer-events: auto;
-        }
-        .start-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 30;
-        }
-        .start-screen h2 {
-            font-size: 3rem;
-            color: #333;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .start-screen p {
-            font-size: 1.2rem;
-            color: #333;
-            margin-bottom: 30px;
-            text-align: center;
-            padding: 0 20px;
-            line-height: 1.5;
-        }
-        .start-btn {
-            background-color: #4CAF50;
-            border: none;
-            color: white;
-            padding: 15px 30px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 1.2rem;
-            margin: 4px 2px;
-            cursor: pointer;
-            border-radius: 25px;
+            font-weight: normal;
+            font-family: Arial, Helvetica, sans-serif;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="score">9</div>
         <canvas id="game-canvas"></canvas>
-        <div class="ui-container">
-            <div class="score">9</div>
-        </div>
-        <div class="game-over">
-            <h2>Game Over!</h2>
-            <p>Your score: <span class="final-score">0</span></p>
-            <button class="restart-btn">Play Again</button>
-        </div>
-        <div class="start-screen">
-            <h2>TiDash Game</h2>
-            <p>Tap to turn at each corner. Don't fall off the path!</p>
-            <button class="start-btn">Start Game</button>
-        </div>
     </div>
 
     <script>
-        // Initialize Telegram app
-        const tg = window.Telegram.WebApp;
-        
-        // Expand the app to fill the entire screen
-        tg.expand();
-        
-        // Activate the app
-        tg.ready();
-
-        // Game variables
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
-        const scoreElement = document.querySelector('.score');
-        const gameOverScreen = document.querySelector('.game-over');
-        const finalScoreElement = document.querySelector('.final-score');
-        const restartButton = document.querySelector('.restart-btn');
-        const startScreen = document.querySelector('.start-screen');
-        const startButton = document.querySelector('.start-btn');
+        const tg = window.Telegram.WebApp;
 
         // Set canvas size
         function resizeCanvas() {
-            canvas.width = canvas.clientWidth;
-            canvas.height = canvas.clientHeight;
+            const container = document.querySelector('.container');
+            const size = Math.min(container.clientWidth, container.clientHeight) * 0.8;
+            canvas.width = size;
+            canvas.height = size;
+            drawScene();
         }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
 
-        // Game state
-        let gameRunning = false;
-        let score = 0;
-        let speed = 2;
-        let path = [];
-        let player = {
-            x: 0,
-            y: 0,
-            size: 20,
-            direction: 'right',
-            targetDirection: null,
-            turning: false,
-            progress: 0,
-            currentSegment: 0
-        };
-
-        // Colors exactly matching the wireframe
+        // Colors
         const COLORS = {
-            background: '#ffffff',
-            path: '#cccccc',
-            pathEdge: '#bbbbbb',
-            player: '#555555',
-            playerTop: '#777777',
-            playerRight: '#666666',
-            playerLeft: '#555555'
+            path: '#d3d3d3',        // Light gray for path
+            cube: '#555555',        // Dark gray for cube
+            background: '#ffffff'   // White background
         };
 
-        // Isometric projection constants
+        // Isometric settings
         const ISO = {
-            scaleX: 0.866, 
-            scaleY: 0.5,   
-            tileWidth: 60,
-            tileDepth: 10  
+            scale: 1,
+            angle: Math.PI / 6,     // 30 degrees
+            pathWidth: 40,          // Width of the path
+            cubeSize: 25            // Size of the cube
         };
 
-        // Game constants
-        const MAX_VISIBLE_SEGMENTS = 8;
-        const TURN_THRESHOLD = 0.9;  // When player needs to turn
-        const SPEED_INCREMENT = 0.05; // How much to increase speed after each turn
-
-        // Initialize the game
-        function initGame() {
-            score = 0;
-            speed = 2;
-            
-            // Create the initial path
-            createInitialPath();
-            
-            // Position player at the start
-            positionPlayerAtStart();
-            
-            // Update score display
-            updateScore(score);
-            
-            // Start game loop
-            gameRunning = true;
-            lastTime = Date.now();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // Create the initial path
-        function createInitialPath() {
-            path = [];
-            
-            // Calculate center position for the path
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 50;
-            
-            // Start with a straight segment
-            let currentX = -2;
-            let currentY = 2;
-            let nextX, nextY;
-            
-            // Create initial segments
-            for (let i = 0; i < MAX_VISIBLE_SEGMENTS; i++) {
-                // Determine next point
-                if (i === 0) {
-                    // First segment is always straight
-                    nextX = currentX + 1;
-                    nextY = currentY - 1;
-                } else {
-                    // Random turn direction
-                    const direction = Math.random() < 0.5 ? 'left' : 'right';
-                    
-                    if (direction === 'left') {
-                        nextX = currentX - 1;
-                        nextY = currentY - 1;
-                    } else {
-                        nextX = currentX + 1;
-                        nextY = currentY - 1;
-                    }
-                }
-                
-                // Convert to screen coordinates
-                const startX = centerX + (currentX * ISO.tileWidth * ISO.scaleX);
-                const startY = centerY + (currentX + currentY) * ISO.tileWidth * ISO.scaleY;
-                
-                const endX = centerX + (nextX * ISO.tileWidth * ISO.scaleX);
-                const endY = centerY + (nextX + nextY) * ISO.tileWidth * ISO.scaleY;
-                
-                // Determine turn direction
-                let turnDirection = 'none';
-                if (i > 0) {
-                    const prevSegment = path[i-1];
-                    const prevDirX = prevSegment.endX - prevSegment.startX;
-                    const prevDirY = prevSegment.endY - prevSegment.startY;
-                    
-                    const currDirX = endX - startX;
-                    const currDirY = endY - startY;
-                    
-                    if (prevDirX * currDirY - prevDirY * currDirX > 0) {
-                        turnDirection = 'left';
-                    } else if (prevDirX * currDirY - prevDirY * currDirX < 0) {
-                        turnDirection = 'right';
-                    }
-                }
-                
-                path.push({
-                    startX: startX,
-                    startY: startY,
-                    endX: endX,
-                    endY: endY,
-                    turnDirection: turnDirection,
-                    logicalStartX: currentX,
-                    logicalStartY: currentY,
-                    logicalEndX: nextX,
-                    logicalEndY: nextY
-                });
-                
-                // Update current position for next segment
-                currentX = nextX;
-                currentY = nextY;
-            }
-        }
-
-        // Add a new segment to the path
-        function addNewSegment() {
-            const lastSegment = path[path.length - 1];
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 50;
-            
-            let currentX = lastSegment.logicalEndX;
-            let currentY = lastSegment.logicalEndY;
-            
-            // Determine next point with random turn
-            const direction = Math.random() < 0.5 ? 'left' : 'right';
-            let nextX, nextY;
-            
-            if (direction === 'left') {
-                nextX = currentX - 1;
-                nextY = currentY - 1;
-            } else {
-                nextX = currentX + 1;
-                nextY = currentY - 1;
-            }
-            
-            // Convert to screen coordinates
-            const startX = centerX + (currentX * ISO.tileWidth * ISO.scaleX);
-            const startY = centerY + (currentX + currentY) * ISO.tileWidth * ISO.scaleY;
-            
-            const endX = centerX + (nextX * ISO.tileWidth * ISO.scaleX);
-            const endY = centerY + (nextX + nextY) * ISO.tileWidth * ISO.scaleY;
-            
-            // Determine turn direction
-            const prevSegment = path[path.length - 1];
-            const prevDirX = prevSegment.endX - prevSegment.startX;
-            const prevDirY = prevSegment.endY - prevSegment.startY;
-            
-            const currDirX = endX - startX;
-            const currDirY = endY - startY;
-            
-            let turnDirection = 'none';
-            if (prevDirX * currDirY - prevDirY * currDirX > 0) {
-                turnDirection = 'left';
-            } else if (prevDirX * currDirY - prevDirY * currDirX < 0) {
-                turnDirection = 'right';
-            }
-            
-            // Add new segment
-            path.push({
-                startX: startX,
-                startY: startY,
-                endX: endX,
-                endY: endY,
-                turnDirection: turnDirection,
-                logicalStartX: currentX,
-                logicalStartY: currentY,
-                logicalEndX: nextX,
-                logicalEndY: nextY
-            });
-            
-            // Remove first segment if we have too many
-            if (path.length > MAX_VISIBLE_SEGMENTS) {
-                path.shift();
-            }
-        }
-
-        // Position player at the start
-        function positionPlayerAtStart() {
-            const segment = path[0];
-            
-            player.x = segment.startX;
-            player.y = segment.startY;
-            player.direction = 'right';
-            player.targetDirection = null;
-            player.turning = false;
-            player.progress = 0;
-            player.currentSegment = 0;
-        }
-
-        // Time tracking
-        let lastTime = 0;
-
-        // Game loop
-        function gameLoop(timestamp) {
-            if (!gameRunning) return;
-            
-            // Calculate delta time
-            const deltaTime = timestamp - lastTime;
-            lastTime = timestamp;
-            
-            // Clear canvas
+        // Draw the scene
+        function drawScene() {
+            // Clear the canvas
             ctx.fillStyle = COLORS.background;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Set the origin to the center of the canvas
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
             
-            // Update player position
-            updatePlayer(deltaTime);
+            // Draw the zigzag path
+            drawIsometricPath(centerX, centerY);
             
-            // Draw isometric path
-            drawIsometricPath();
-            
-            // Draw isometric player
-            drawIsometricPlayer();
-            
-            // Request next frame
-            requestAnimationFrame(gameLoop);
+            // Draw the cube
+            drawIsometricCube(centerX, centerY);
         }
 
-        // Update player position
-        function updatePlayer(deltaTime) {
-            // Calculate movement speed based on game speed
-            const moveSpeed = speed * 0.05;
+        // Draw the isometric zigzag path
+        function drawIsometricPath(centerX, centerY) {
+            ctx.fillStyle = COLORS.path;
             
-            // Get current segment
-            const segment = path[player.currentSegment];
+            // Calculate path points for a zigzag
+            const pathSegments = [
+                { x: -100, y: 100 },   // Start point
+                { x: 0, y: 100 },      // First segment
+                { x: 0, y: 0 },        // Second segment (turn)
+                { x: -100, y: 0 },     // Third segment (turn)
+                { x: -100, y: -100 },  // Fourth segment (turn)
+                { x: 0, y: -100 }      // End point
+            ];
             
-            // Calculate direction vector of current segment
-            const dirX = segment.endX - segment.startX;
-            const dirY = segment.endY - segment.startY;
-            
-            // Calculate segment length
-            const segmentLength = Math.sqrt(dirX * dirX + dirY * dirY);
-            
-            // Update player progress along segment
-            player.progress += moveSpeed;
-            
-            // Calculate normalized progress (0 to 1)
-            const normalizedProgress = player.progress / segmentLength;
-            
-            // Check if player needs to turn
-            if (normalizedProgress >= TURN_THRESHOLD && segment.turnDirection !== 'none' && !player.turning) {
-                // Player needs to turn
-                if (player.targetDirection === segment.turnDirection) {
-                    // Player turned correctly
-                    player.turning = true;
-                } else {
-                    // Player didn't turn in time
-                    gameOver();
-                    return;
-                }
-            }
-            
-            // Check if player has reached the end of the segment
-            if (normalizedProgress >= 1) {
-                // Move to next segment
-                player.currentSegment++;
-                player.progress = 0;
-                player.turning = false;
-                player.targetDirection = null;
+            // Draw each path segment
+            for (let i = 0; i < pathSegments.length - 1; i++) {
+                const startX = centerX + toIsoX(pathSegments[i].x, pathSegments[i].y);
+                const startY = centerY + toIsoY(pathSegments[i].x, pathSegments[i].y);
+                const endX = centerX + toIsoX(pathSegments[i+1].x, pathSegments[i+1].y);
+                const endY = centerY + toIsoY(pathSegments[i+1].x, pathSegments[i+1].y);
                 
-                // Add score for completing a segment
-                if (segment.turnDirection !== 'none') {
-                    updateScore(score + 1);
-                    
-                    // Increase speed
-                    speed += SPEED_INCREMENT;
-                }
-                
-                // Check if we need to add a new segment
-                if (player.currentSegment >= path.length - 3) {
-                    addNewSegment();
-                }
-                
-                // Check if we've run out of segments
-                if (player.currentSegment >= path.length) {
-                    gameOver();
-                    return;
-                }
-            }
-            
-            // Update player position based on progress
-            player.x = segment.startX + dirX * normalizedProgress;
-            player.y = segment.startY + dirY * normalizedProgress;
-        }
-
-        // Draw the isometric path
-        function drawIsometricPath() {
-            // Draw path segments in reverse order (back to front)
-            for (let i = path.length - 1; i >= 0; i--) {
-                const segment = path[i];
-                
-                // Draw the top surface of the path
-                ctx.fillStyle = COLORS.path;
-                ctx.beginPath();
-                ctx.moveTo(segment.startX, segment.startY);
-                ctx.lineTo(segment.endX, segment.endY);
-                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth);
-                ctx.lineTo(segment.startX + ISO.tileWidth * 0.5, segment.startY + ISO.tileDepth);
-                ctx.closePath();
-                ctx.fill();
-                
-                // Draw the right edge of the path
-                ctx.fillStyle = COLORS.pathEdge;
-                ctx.beginPath();
-                ctx.moveTo(segment.endX, segment.endY);
-                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth);
-                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth + ISO.tileWidth * 0.2);
-                ctx.lineTo(segment.endX, segment.endY + ISO.tileWidth * 0.2);
-                ctx.closePath();
-                ctx.fill();
-                
-                // Draw the front edge of the path
-                ctx.fillStyle = COLORS.pathEdge;
-                ctx.beginPath();
-                ctx.moveTo(segment.startX + ISO.tileWidth * 0.5, segment.startY + ISO.tileDepth);
-                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth);
-                ctx.lineTo(segment.endX + ISO.tileWidth * 0.5, segment.endY + ISO.tileDepth + ISO.tileWidth * 0.2);
-                ctx.lineTo(segment.startX + ISO.tileWidth * 0.5, segment.startY + ISO.tileDepth + ISO.tileWidth * 0.2);
-                ctx.closePath();
-                ctx.fill();
+                drawPathSegment(startX, startY, endX, endY);
             }
         }
-
-        // Draw the isometric player (cube)
-        function drawIsometricPlayer() {
-            const cubeSize = player.size;
+        
+        // Draw a single path segment
+        function drawPathSegment(startX, startY, endX, endY) {
+            const width = ISO.pathWidth;
+            const halfWidth = width / 2;
             
-            // Draw a 3D isometric cube
-            // Top face (lighter)
-            ctx.fillStyle = COLORS.playerTop;
-            ctx.beginPath();
-            ctx.moveTo(player.x, player.y - cubeSize/2);
-            ctx.lineTo(player.x + cubeSize/2, player.y - cubeSize/4);
-            ctx.lineTo(player.x, player.y);
-            ctx.lineTo(player.x - cubeSize/2, player.y - cubeSize/4);
-            ctx.closePath();
-            ctx.fill();
+            // Calculate perpendicular vector
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const perpX = -dy / length * halfWidth;
+            const perpY = dx / length * halfWidth;
             
-            // Right face (medium)
-            ctx.fillStyle = COLORS.playerRight;
+            // Draw the path segment
             ctx.beginPath();
-            ctx.moveTo(player.x, player.y);
-            ctx.lineTo(player.x + cubeSize/2, player.y - cubeSize/4);
-            ctx.lineTo(player.x + cubeSize/2, player.y + cubeSize/4);
-            ctx.lineTo(player.x, player.y + cubeSize/2);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Left face (darkest)
-            ctx.fillStyle = COLORS.playerLeft;
-            ctx.beginPath();
-            ctx.moveTo(player.x, player.y);
-            ctx.lineTo(player.x - cubeSize/2, player.y - cubeSize/4);
-            ctx.lineTo(player.x - cubeSize/2, player.y + cubeSize/4);
-            ctx.lineTo(player.x, player.y + cubeSize/2);
+            ctx.moveTo(startX + perpX, startY + perpY);
+            ctx.lineTo(endX + perpX, endY + perpY);
+            ctx.lineTo(endX - perpX, endY - perpY);
+            ctx.lineTo(startX - perpX, startY - perpY);
             ctx.closePath();
             ctx.fill();
         }
-
-        // Update score
-        function updateScore(newScore) {
-            score = newScore;
-            scoreElement.textContent = `${score}`;
+        
+        // Draw the isometric cube
+        function drawIsometricCube(centerX, centerY) {
+            // Position the cube at the second turn point
+            const cubeX = centerX + toIsoX(-100, 0);
+            const cubeY = centerY + toIsoY(-100, 0);
+            const size = ISO.cubeSize;
+            
+            // Draw a dark gray cube
+            ctx.fillStyle = COLORS.cube;
+            
+            // Top face
+            ctx.beginPath();
+            ctx.moveTo(cubeX, cubeY - size/2);
+            ctx.lineTo(cubeX + size/2, cubeY - size/4);
+            ctx.lineTo(cubeX, cubeY);
+            ctx.lineTo(cubeX - size/2, cubeY - size/4);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Right face
+            ctx.beginPath();
+            ctx.moveTo(cubeX, cubeY);
+            ctx.lineTo(cubeX + size/2, cubeY - size/4);
+            ctx.lineTo(cubeX + size/2, cubeY + size/4);
+            ctx.lineTo(cubeX, cubeY + size/2);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Left face
+            ctx.beginPath();
+            ctx.moveTo(cubeX, cubeY);
+            ctx.lineTo(cubeX - size/2, cubeY - size/4);
+            ctx.lineTo(cubeX - size/2, cubeY + size/4);
+            ctx.lineTo(cubeX, cubeY + size/2);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // Convert Cartesian to Isometric X
+        function toIsoX(x, y) {
+            return (x - y) * Math.cos(ISO.angle) * ISO.scale;
+        }
+        
+        // Convert Cartesian to Isometric Y
+        function toIsoY(x, y) {
+            return (x + y) * Math.sin(ISO.angle) * ISO.scale;
         }
 
-        // Game over
-        function gameOver() {
-            gameRunning = false;
-            finalScoreElement.textContent = score;
-            gameOverScreen.style.display = 'flex';
+        // Initialize
+        window.addEventListener('load', function() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
             
-            // Send score to Telegram if available
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                tg.sendData(JSON.stringify({
-                    event: 'game_over',
-                    score: score
-                }));
+            // Initialize Telegram WebApp if available
+            if (tg) {
+                tg.ready();
+                tg.expand();
             }
-        }
-
-        // Handle tap/click
-        function handleTap() {
-            if (!gameRunning) return;
-            
-            // Get current segment
-            const segment = path[player.currentSegment];
-            
-            // Only allow turning if we're approaching a turn and haven't already turned
-            if (player.progress / Math.sqrt(Math.pow(segment.endX - segment.startX, 2) + Math.pow(segment.endY - segment.startY, 2)) >= 0.5 && 
-                segment.turnDirection !== 'none' && 
-                !player.turning) {
-                
-                // Set the target direction
-                player.targetDirection = segment.turnDirection;
-            }
-        }
-
-        // Event listeners
-        canvas.addEventListener('click', handleTap);
-        canvas.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            handleTap();
-        });
-
-        restartButton.addEventListener('click', function() {
-            gameOverScreen.style.display = 'none';
-            initGame();
-        });
-
-        startButton.addEventListener('click', function() {
-            startScreen.style.display = 'none';
-            initGame();
         });
     </script>
 </body>
