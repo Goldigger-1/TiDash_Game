@@ -119,16 +119,16 @@
             
             // Initialize ball
             ball.radius = canvas.width * 0.025;
-            ball.y = canvas.height * 0.7;
+            ball.y = canvas.height * 0.5; // Middle of the screen vertically
             ball.x = canvas.width / 2;
             ball.speed = canvas.width * 0.0005; // Much slower speed
             ball.direction = 1;
             
-            // Initialize line - 80% of width
-            line.width = canvas.width * 0.8;
-            line.height = canvas.height * 0.015;
+            // Initialize line - 90% of width and same height as ball
+            line.width = canvas.width * 0.9;
+            line.height = ball.radius * 2; // Same height as the ball diameter
             line.x = (canvas.width - line.width) / 2;
-            line.y = ball.y;
+            line.y = ball.y - ball.radius; // Center the ball on the line
             
             // Reset game state
             squares = [];
@@ -197,14 +197,21 @@
             const x = Math.random() * (canvas.width - size);
             const isGreen = Math.random() < greenSquareChance;
             
+            // Random diagonal angle for falling
+            const angleRange = Math.PI / 4; // 45 degrees max angle
+            const angle = (Math.random() * angleRange * 2) - angleRange; // Random angle between -45 and +45 degrees
+            
             squares.push({
                 x: x,
                 y: -size,
                 size: size,
-                speed: canvas.height * 0.0015 * (1 + score * 0.03),
+                speed: canvas.height * 0.001, // Slower falling speed
                 isGreen: isGreen,
                 rotation: 0,
-                rotationSpeed: (Math.random() * 0.05 + 0.02) * (Math.random() > 0.5 ? 1 : -1)
+                rotationSpeed: (Math.random() * 0.05 + 0.02) * (Math.random() > 0.5 ? 1 : -1),
+                angle: angle,
+                velocityX: Math.sin(angle),
+                velocityY: Math.cos(angle)
             });
         }
 
@@ -213,14 +220,15 @@
             for (let i = squares.length - 1; i >= 0; i--) {
                 const square = squares[i];
                 
-                // Move square down
-                square.y += square.speed * deltaTime;
+                // Move square diagonally
+                square.x += square.velocityX * square.speed * deltaTime;
+                square.y += square.velocityY * square.speed * deltaTime;
                 
                 // Update rotation
                 square.rotation += square.rotationSpeed * deltaTime;
                 
                 // Remove squares that are off-screen
-                if (square.y > canvas.height) {
+                if (square.y > canvas.height || square.x < -square.size || square.x > canvas.width) {
                     squares.splice(i, 1);
                     continue;
                 }
@@ -248,11 +256,25 @@
         function drawLine() {
             // Draw shadow effect for the line
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(line.x, line.y + line.height, line.width, line.height * 2);
+            ctx.fillRect(line.x, line.y + line.height, line.width, line.height * 0.5);
             
-            // Draw the actual line
+            // Draw the actual line with rounded corners
             ctx.fillStyle = '#333333';
-            ctx.fillRect(line.x, line.y, line.width, line.height);
+            
+            // Use rounded rectangle
+            const radius = line.height / 2;
+            ctx.beginPath();
+            ctx.moveTo(line.x + radius, line.y);
+            ctx.lineTo(line.x + line.width - radius, line.y);
+            ctx.arcTo(line.x + line.width, line.y, line.x + line.width, line.y + radius, radius);
+            ctx.lineTo(line.x + line.width, line.y + line.height - radius);
+            ctx.arcTo(line.x + line.width, line.y + line.height, line.x + line.width - radius, line.y + line.height, radius);
+            ctx.lineTo(line.x + radius, line.y + line.height);
+            ctx.arcTo(line.x, line.y + line.height, line.x, line.y + line.height - radius, radius);
+            ctx.lineTo(line.x, line.y + radius);
+            ctx.arcTo(line.x, line.y, line.x + radius, line.y, radius);
+            ctx.closePath();
+            ctx.fill();
         }
         
         // Draw score at the bottom
