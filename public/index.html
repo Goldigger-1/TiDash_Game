@@ -182,12 +182,32 @@
                     ball.direction = -1;
                 }
                 
-                // Spawn new squares
-                if (timestamp - lastSquareTime > squareInterval) {
+                // Vérifier si un nouveau carré doit être généré
+                let shouldSpawnNewSquare = false;
+                
+                // Si aucun carré n'existe, en créer un
+                if (squares.length === 0) {
+                    shouldSpawnNewSquare = true;
+                } else {
+                    // Vérifier si le carré le plus avancé a dépassé un certain seuil
+                    let lowestSquareY = -Infinity;
+                    for (let i = 0; i < squares.length; i++) {
+                        if (squares[i].y > lowestSquareY) {
+                            lowestSquareY = squares[i].y;
+                        }
+                    }
+                    
+                    // Générer un nouveau carré lorsque le carré le plus bas atteint 35% de la hauteur de l'écran
+                    const spawnThreshold = canvas.height * 0.35;
+                    if (lowestSquareY > spawnThreshold) {
+                        shouldSpawnNewSquare = true;
+                    }
+                }
+                
+                // Spawn new squares based on time interval or position threshold
+                if ((timestamp - lastSquareTime > squareInterval) || shouldSpawnNewSquare) {
                     spawnSquare();
                     lastSquareTime = timestamp;
-                    // Gradually decrease interval to increase difficulty
-                    squareInterval = Math.max(300, squareInterval - 5);
                 }
             }
             
@@ -224,27 +244,6 @@
 
         // Spawn a new square
         function spawnSquare() {
-            // Vérifier si un carré est trop proche de la ligne horizontale
-            const lineY = line.y;
-            const proximityThreshold = canvas.height * 0.25; // 25% de la hauteur de l'écran
-            
-            // Vérifier si un carré existant est trop proche de la ligne
-            let tooCloseToLine = false;
-            for (let i = 0; i < squares.length; i++) {
-                const square = squares[i];
-                const distanceToLine = Math.abs(square.y - lineY);
-                
-                if (distanceToLine < proximityThreshold) {
-                    tooCloseToLine = true;
-                    break;
-                }
-            }
-            
-            // Ne pas générer de nouveau carré si un autre est trop proche de la ligne
-            if (tooCloseToLine) {
-                return;
-            }
-            
             // Larger squares
             const size = canvas.width * 0.07;
             
@@ -284,13 +283,6 @@
                 velocityX: Math.sin(limitedAngle),
                 velocityY: Math.cos(limitedAngle)
             });
-            
-            // Désactivation de l'apparition multiple de carrés
-            // if (Math.random() < 0.15 && score > 8) {
-            //     setTimeout(() => {
-            //         if (gameRunning) spawnSquare();
-            //     }, 300);
-            // }
         }
 
         // Update squares positions
