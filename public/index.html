@@ -264,7 +264,7 @@
                 square.rotation += square.rotationSpeed * deltaTime;
                 
                 // Check if square has reached the bottom area (above score)
-                const scoreAreaY = canvas.height * 0.8; // Just above where the score is displayed
+                const scoreAreaY = canvas.height * 0.7; // Position plus haute (70% au lieu de 80%)
                 
                 if (square.y > scoreAreaY) {
                     // Add to fading squares and remove from regular squares
