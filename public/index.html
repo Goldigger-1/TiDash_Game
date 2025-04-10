@@ -113,6 +113,7 @@
             height: 0
         };
         let squares = [];
+        let fadingSquares = []; // Squares that are fading out
         let lastSquareTime = 0;
         let squareInterval = 700; // milliseconds - increased frequency
         let lastFrameTime = 0;
@@ -139,6 +140,7 @@
             
             // Reset game state
             squares = [];
+            fadingSquares = [];
             score = 0;
             gameOverScreen.style.display = 'none';
             gameRunning = true;
@@ -250,6 +252,7 @@
 
         // Update squares positions
         function updateSquares(deltaTime) {
+            // Update regular squares
             for (let i = squares.length - 1; i >= 0; i--) {
                 const square = squares[i];
                 
@@ -260,8 +263,21 @@
                 // Update rotation
                 square.rotation += square.rotationSpeed * deltaTime;
                 
-                // Remove squares that are off-screen
-                if (square.y > canvas.height || square.x < -square.size || square.x > canvas.width) {
+                // Check if square has reached the bottom area (above score)
+                const scoreAreaY = canvas.height * 0.8; // Just above where the score is displayed
+                
+                if (square.y > scoreAreaY) {
+                    // Add to fading squares and remove from regular squares
+                    square.fadeStartTime = Date.now();
+                    square.fadeTime = 1500; // 1.5 seconds for fade animation
+                    square.originalSize = square.size;
+                    fadingSquares.push(square);
+                    squares.splice(i, 1);
+                    continue;
+                }
+                
+                // Remove squares that are off-screen horizontally
+                if (square.x < -square.size || square.x > canvas.width) {
                     squares.splice(i, 1);
                     continue;
                 }
@@ -272,6 +288,37 @@
                 ctx.rotate(square.rotation);
                 ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF';
                 ctx.fillRect(-square.size/2, -square.size/2, square.size, square.size);
+                ctx.restore();
+            }
+            
+            // Update fading squares
+            for (let i = fadingSquares.length - 1; i >= 0; i--) {
+                const square = fadingSquares[i];
+                
+                // Calculate how much time has passed since fade started
+                const fadeElapsed = Date.now() - square.fadeStartTime;
+                const fadeProgress = Math.min(fadeElapsed / square.fadeTime, 1);
+                
+                // Update rotation (continue rotating while fading)
+                square.rotation += square.rotationSpeed * deltaTime;
+                
+                // Calculate new size based on fade progress (shrink to nothing)
+                const newSize = square.originalSize * (1 - fadeProgress);
+                
+                // Remove if fade is complete
+                if (fadeProgress >= 1) {
+                    fadingSquares.splice(i, 1);
+                    continue;
+                }
+                
+                // Draw fading square
+                ctx.save();
+                ctx.translate(square.x + square.originalSize/2, square.y + square.originalSize/2);
+                ctx.rotate(square.rotation);
+                ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF';
+                ctx.globalAlpha = 1 - fadeProgress; // Also fade opacity
+                ctx.fillRect(-newSize/2, -newSize/2, newSize, newSize);
+                ctx.globalAlpha = 1;
                 ctx.restore();
             }
         }
