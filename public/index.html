@@ -20,12 +20,11 @@
             position: relative;
             width: 100%;
             height: 100%;
-            max-width: 500px;
-            max-height: 800px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
         }
         #game-canvas {
             background-color: #ffffff;
@@ -33,8 +32,8 @@
         }
         .score {
             position: absolute;
-            top: 20px;
-            font-size: 4rem;
+            top: 15%;
+            font-size: 5rem;
             color: #000000;
             font-weight: normal;
             font-family: Arial, Helvetica, sans-serif;
@@ -55,137 +54,199 @@
         // Set canvas size
         function resizeCanvas() {
             const container = document.querySelector('.container');
-            const size = Math.min(container.clientWidth, container.clientHeight) * 0.8;
+            const size = Math.min(window.innerWidth, window.innerHeight) * 0.8;
             canvas.width = size;
             canvas.height = size;
             drawScene();
         }
 
-        // Colors
-        const COLORS = {
-            path: '#d3d3d3',        // Light gray for path
-            cube: '#333333',        // Black cube
-            background: '#ffffff'   // White background
-        };
-
-        // Isometric settings
-        const ISO = {
-            scale: 1,
-            angle: Math.PI / 6,     // 30 degrees
-            pathWidth: 40,          // Width of the path
-            cubeSize: 20            // Size of the cube
-        };
-
         // Draw the scene
         function drawScene() {
             // Clear the canvas
-            ctx.fillStyle = COLORS.background;
+            ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Set the origin to the center of the canvas
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 40; // Adjust to match reference
+            
+            // Calculate base unit for scaling
+            const unit = canvas.width * 0.08;
             
             // Draw the zigzag path
-            drawIsometricPath(centerX, centerY);
+            drawPath(unit);
             
             // Draw the cube
-            drawIsometricCube(centerX, centerY);
+            drawCube(unit);
         }
-
-        // Draw the isometric zigzag path
-        function drawIsometricPath(centerX, centerY) {
-            ctx.fillStyle = COLORS.path;
+        
+        // Draw the zigzag path
+        function drawPath(unit) {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
             
-            // Calculate path points for a zigzag matching the reference image
-            const pathSegments = [
-                { x: -140, y: 80 },    // Start point
-                { x: -20, y: 80 },     // First segment
-                { x: -20, y: 0 },      // Second segment (turn)
-                { x: -100, y: 0 },     // Third segment (turn)
-                { x: -100, y: -80 },   // Fourth segment (turn)
-                { x: 20, y: -80 }      // End point
+            // Path color - light gray
+            ctx.fillStyle = '#d3d3d3';
+            
+            // Define path segments in screen space
+            // Carefully measured from the reference image
+            const segments = [
+                // First segment (top right to first turn)
+                {
+                    x1: centerX + unit * 3.5,
+                    y1: centerY - unit * 2,
+                    x2: centerX - unit * 0.5,
+                    y2: centerY - unit * 2
+                },
+                // Second segment (first turn to second turn)
+                {
+                    x1: centerX - unit * 0.5,
+                    y1: centerY - unit * 2,
+                    x2: centerX - unit * 0.5,
+                    y2: centerY
+                },
+                // Third segment (second turn to third turn)
+                {
+                    x1: centerX - unit * 0.5,
+                    y1: centerY,
+                    x2: centerX - unit * 3.5,
+                    y2: centerY
+                },
+                // Fourth segment (third turn to bottom)
+                {
+                    x1: centerX - unit * 3.5,
+                    y1: centerY,
+                    x2: centerX - unit * 3.5,
+                    y2: centerY + unit * 2
+                },
+                // Fifth segment (bottom to end)
+                {
+                    x1: centerX - unit * 3.5,
+                    y1: centerY + unit * 2,
+                    x2: centerX,
+                    y2: centerY + unit * 2
+                }
             ];
             
-            // Draw each path segment
-            for (let i = 0; i < pathSegments.length - 1; i++) {
-                const startX = centerX + toIsoX(pathSegments[i].x, pathSegments[i].y);
-                const startY = centerY + toIsoY(pathSegments[i].x, pathSegments[i].y);
-                const endX = centerX + toIsoX(pathSegments[i+1].x, pathSegments[i+1].y);
-                const endY = centerY + toIsoY(pathSegments[i+1].x, pathSegments[i+1].y);
-                
-                drawPathSegment(startX, startY, endX, endY);
-            }
+            // Draw each segment with 3D effect
+            segments.forEach(segment => {
+                drawPathSegment(segment, unit);
+            });
         }
         
-        // Draw a single path segment
-        function drawPathSegment(startX, startY, endX, endY) {
-            const width = ISO.pathWidth;
-            const halfWidth = width / 2;
+        // Draw a single path segment with 3D effect
+        function drawPathSegment(segment, unit) {
+            const pathWidth = unit * 1.5;
+            const pathHeight = unit * 0.2;
             
-            // Calculate perpendicular vector
-            const dx = endX - startX;
-            const dy = endY - startY;
+            // Calculate direction vector
+            const dx = segment.x2 - segment.x1;
+            const dy = segment.y2 - segment.y1;
             const length = Math.sqrt(dx * dx + dy * dy);
-            const perpX = -dy / length * halfWidth;
-            const perpY = dx / length * halfWidth;
             
-            // Draw the path segment
+            // Normalize and scale to get perpendicular vector
+            const perpX = -dy / length * pathWidth / 2;
+            const perpY = dx / length * pathWidth / 2;
+            
+            // Top face (main surface)
             ctx.beginPath();
-            ctx.moveTo(startX + perpX, startY + perpY);
-            ctx.lineTo(endX + perpX, endY + perpY);
-            ctx.lineTo(endX - perpX, endY - perpY);
-            ctx.lineTo(startX - perpX, startY - perpY);
+            ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
+            ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);
+            ctx.lineTo(segment.x2 - perpX, segment.y2 - perpY);
+            ctx.lineTo(segment.x1 - perpX, segment.y1 - perpY);
             ctx.closePath();
             ctx.fill();
+            
+            // Side face (for 3D effect)
+            const sideColor = '#c4c4c4'; // Slightly darker for side
+            ctx.fillStyle = sideColor;
+            
+            // Only draw the visible side face based on segment direction
+            if (Math.abs(dx) > Math.abs(dy)) {
+                // Horizontal segment
+                if (dy > 0 || (dy === 0 && dx < 0)) {
+                    // Draw bottom side
+                    ctx.beginPath();
+                    ctx.moveTo(segment.x1 - perpX, segment.y1 - perpY);
+                    ctx.lineTo(segment.x2 - perpX, segment.y2 - perpY);
+                    ctx.lineTo(segment.x2 - perpX, segment.y2 - perpY + pathHeight);
+                    ctx.lineTo(segment.x1 - perpX, segment.y1 - perpY + pathHeight);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Draw top side
+                    ctx.beginPath();
+                    ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
+                    ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);
+                    ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY + pathHeight);
+                    ctx.lineTo(segment.x1 + perpX, segment.y1 + perpY + pathHeight);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else {
+                // Vertical segment
+                if (dx > 0 || (dx === 0 && dy < 0)) {
+                    // Draw right side
+                    ctx.beginPath();
+                    ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
+                    ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);
+                    ctx.lineTo(segment.x2 + perpX + pathHeight, segment.y2 + perpY);
+                    ctx.lineTo(segment.x1 + perpX + pathHeight, segment.y1 + perpY);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Draw left side
+                    ctx.beginPath();
+                    ctx.moveTo(segment.x1 - perpX, segment.y1 - perpY);
+                    ctx.lineTo(segment.x2 - perpX, segment.y2 - perpY);
+                    ctx.lineTo(segment.x2 - perpX - pathHeight, segment.y2 - perpY);
+                    ctx.lineTo(segment.x1 - perpX - pathHeight, segment.y1 - perpY);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+            
+            // Reset fill color
+            ctx.fillStyle = '#d3d3d3';
         }
         
-        // Draw the isometric cube
-        function drawIsometricCube(centerX, centerY) {
-            // Position the cube at the third turn point to match reference
-            const cubeX = centerX + toIsoX(-100, 0);
-            const cubeY = centerY + toIsoY(-100, 0);
-            const size = ISO.cubeSize;
+        // Draw the cube
+        function drawCube(unit) {
+            // Position the cube at the third turn point
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const cubeX = centerX - unit * 3.5;
+            const cubeY = centerY;
             
-            // Draw a black cube
-            ctx.fillStyle = COLORS.cube;
+            // Cube size
+            const cubeSize = unit * 0.8;
             
-            // Top face
+            // Cube color - dark gray
+            const cubeColor = '#4d4d4d';
+            
+            // Draw top face
+            ctx.fillStyle = cubeColor;
             ctx.beginPath();
-            ctx.moveTo(cubeX, cubeY - size/2);
-            ctx.lineTo(cubeX + size/2, cubeY - size/4);
+            ctx.moveTo(cubeX, cubeY - cubeSize/2);
+            ctx.lineTo(cubeX + cubeSize/2, cubeY - cubeSize/4);
             ctx.lineTo(cubeX, cubeY);
-            ctx.lineTo(cubeX - size/2, cubeY - size/4);
+            ctx.lineTo(cubeX - cubeSize/2, cubeY - cubeSize/4);
             ctx.closePath();
             ctx.fill();
             
-            // Right face
+            // Draw right face
             ctx.beginPath();
             ctx.moveTo(cubeX, cubeY);
-            ctx.lineTo(cubeX + size/2, cubeY - size/4);
-            ctx.lineTo(cubeX + size/2, cubeY + size/4);
-            ctx.lineTo(cubeX, cubeY + size/2);
+            ctx.lineTo(cubeX + cubeSize/2, cubeY - cubeSize/4);
+            ctx.lineTo(cubeX + cubeSize/2, cubeY + cubeSize/4);
+            ctx.lineTo(cubeX, cubeY + cubeSize/2);
             ctx.closePath();
             ctx.fill();
             
-            // Left face
+            // Draw left face
             ctx.beginPath();
             ctx.moveTo(cubeX, cubeY);
-            ctx.lineTo(cubeX - size/2, cubeY - size/4);
-            ctx.lineTo(cubeX - size/2, cubeY + size/4);
-            ctx.lineTo(cubeX, cubeY + size/2);
+            ctx.lineTo(cubeX - cubeSize/2, cubeY - cubeSize/4);
+            ctx.lineTo(cubeX - cubeSize/2, cubeY + cubeSize/4);
+            ctx.lineTo(cubeX, cubeY + cubeSize/2);
             ctx.closePath();
             ctx.fill();
-        }
-        
-        // Convert Cartesian to Isometric X
-        function toIsoX(x, y) {
-            return (x - y) * Math.cos(ISO.angle) * ISO.scale;
-        }
-        
-        // Convert Cartesian to Isometric Y
-        function toIsoY(x, y) {
-            return (x + y) * Math.sin(ISO.angle) * ISO.scale;
         }
 
         // Initialize
