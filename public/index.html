@@ -114,6 +114,9 @@
         };
         let squares = [];
         let fadingSquares = []; // Squares that are fading out
+        let particles = []; // Particles for ball explosion
+        let gameOverAnimation = false;
+        let gameOverAnimationComplete = false;
         let lastSquareTime = 0;
         let squareInterval = 700; // milliseconds - increased frequency
         let lastFrameTime = 0;
@@ -141,6 +144,9 @@
             // Reset game state
             squares = [];
             fadingSquares = [];
+            particles = [];
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
             score = 0;
             gameOverScreen.style.display = 'none';
             gameRunning = true;
@@ -151,7 +157,7 @@
 
         // Game loop
         function gameLoop(timestamp) {
-            if (!gameRunning) return;
+            if (!gameRunning && !gameOverAnimation) return;
             
             // Calculate delta time for smooth animation
             if (!lastFrameTime) lastFrameTime = timestamp;
@@ -161,24 +167,27 @@
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Update ball position
-            ball.x += ball.speed * ball.direction * deltaTime;
-            
-            // Check if ball hits the edge of the line
-            if (ball.x - ball.radius < line.x) {
-                ball.x = line.x + ball.radius;
-                ball.direction = 1;
-            } else if (ball.x + ball.radius > line.x + line.width) {
-                ball.x = line.x + line.width - ball.radius;
-                ball.direction = -1;
-            }
-            
-            // Spawn new squares
-            if (timestamp - lastSquareTime > squareInterval) {
-                spawnSquare();
-                lastSquareTime = timestamp;
-                // Gradually decrease interval to increase difficulty
-                squareInterval = Math.max(300, squareInterval - 5);
+            if (!gameOverAnimation) {
+                // Normal game updates
+                // Update ball position
+                ball.x += ball.speed * ball.direction * deltaTime;
+                
+                // Check if ball hits the edge of the line
+                if (ball.x - ball.radius < line.x) {
+                    ball.x = line.x + ball.radius;
+                    ball.direction = 1;
+                } else if (ball.x + ball.radius > line.x + line.width) {
+                    ball.x = line.x + line.width - ball.radius;
+                    ball.direction = -1;
+                }
+                
+                // Spawn new squares
+                if (timestamp - lastSquareTime > squareInterval) {
+                    spawnSquare();
+                    lastSquareTime = timestamp;
+                    // Gradually decrease interval to increase difficulty
+                    squareInterval = Math.max(300, squareInterval - 5);
+                }
             }
             
             // Draw line (before squares to ensure it's behind)
@@ -187,11 +196,25 @@
             // Update and draw squares
             updateSquares(deltaTime);
             
-            // Draw ball
-            drawBall();
-            
-            // Check for collisions
-            checkCollisions();
+            if (!gameOverAnimation) {
+                // Draw ball only if not in game over animation
+                drawBall();
+                
+                // Check for collisions
+                checkCollisions();
+            } else {
+                // Update and draw particles
+                updateParticles(deltaTime);
+                
+                // Check if all animations are complete
+                if (fadingSquares.length === 0 && particles.length === 0 && !gameOverAnimationComplete) {
+                    gameOverAnimationComplete = true;
+                    // Show game over screen after all animations complete
+                    setTimeout(() => {
+                        showGameOverScreen();
+                    }, 500);
+                }
+            }
             
             // Draw score at the bottom
             drawScore();
@@ -256,9 +279,11 @@
             for (let i = squares.length - 1; i >= 0; i--) {
                 const square = squares[i];
                 
-                // Move square diagonally
-                square.x += square.velocityX * square.speed * deltaTime;
-                square.y += square.velocityY * square.speed * deltaTime;
+                if (!gameOverAnimation) {
+                    // Move square diagonally
+                    square.x += square.velocityX * square.speed * deltaTime;
+                    square.y += square.velocityY * square.speed * deltaTime;
+                }
                 
                 // Update rotation
                 square.rotation += square.rotationSpeed * deltaTime;
@@ -266,7 +291,7 @@
                 // Check if square has reached the bottom area (above score)
                 const scoreAreaY = canvas.height * 0.7; // Position plus haute (70% au lieu de 80%)
                 
-                if (square.y > scoreAreaY) {
+                if (square.y > scoreAreaY && !gameOverAnimation) {
                     // Add to fading squares and remove from regular squares
                     square.fadeStartTime = Date.now();
                     square.fadeTime = 1500; // 1.5 seconds for fade animation
@@ -277,7 +302,7 @@
                 }
                 
                 // Remove squares that are off-screen horizontally
-                if (square.x < -square.size || square.x > canvas.width) {
+                if ((square.x < -square.size || square.x > canvas.width) && !gameOverAnimation) {
                     squares.splice(i, 1);
                     continue;
                 }
@@ -320,6 +345,34 @@
                 ctx.fillRect(-newSize/2, -newSize/2, newSize, newSize);
                 ctx.globalAlpha = 1;
                 ctx.restore();
+            }
+        }
+        
+        // Update particles
+        function updateParticles(deltaTime) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                
+                // Move particle
+                particle.x += particle.vx * deltaTime;
+                particle.y += particle.vy * deltaTime;
+                
+                // Update size and opacity
+                particle.size -= particle.decay * deltaTime;
+                particle.opacity -= particle.decay * 0.01 * deltaTime;
+                
+                // Remove if too small or transparent
+                if (particle.size <= 0 || particle.opacity <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                
+                // Draw particle
+                ctx.beginPath();
+                ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 255, 157, ${particle.opacity})`;
+                ctx.fill();
+                ctx.closePath();
             }
         }
 
@@ -395,7 +448,46 @@
         // Game over
         function gameOver() {
             gameRunning = false;
+            gameOverAnimation = true;
             
+            // Convert all squares to fading squares
+            for (let i = squares.length - 1; i >= 0; i--) {
+                const square = squares[i];
+                square.fadeStartTime = Date.now();
+                square.fadeTime = 1500;
+                square.originalSize = square.size;
+                fadingSquares.push(square);
+            }
+            squares = [];
+            
+            // Create explosion particles from the ball
+            createBallExplosion();
+        }
+        
+        // Create explosion particles from the ball
+        function createBallExplosion() {
+            const particleCount = 30;
+            const particleSize = ball.radius / 3;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 0.3 + 0.1;
+                const distance = Math.random() * ball.radius;
+                
+                particles.push({
+                    x: ball.x + Math.cos(angle) * distance,
+                    y: ball.y + Math.sin(angle) * distance,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: particleSize * (Math.random() * 0.5 + 0.5),
+                    opacity: 1,
+                    decay: 0.05
+                });
+            }
+        }
+        
+        // Show game over screen
+        function showGameOverScreen() {
             // Update best score
             if (score > bestScore) {
                 bestScore = score;
