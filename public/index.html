@@ -98,7 +98,6 @@
             justify-content: center;
             align-items: center;
             z-index: 30;
-            display: none;
         }
         .start-screen h2 {
             font-size: 3rem;
@@ -177,13 +176,18 @@
 
         // Game state
         let gameRunning = false;
-        let score = 9; 
+        let score = 0;
+        let speed = 2;
         let path = [];
         let player = {
             x: 0,
             y: 0,
             size: 20,
-            direction: 'right'
+            direction: 'right',
+            targetDirection: null,
+            turning: false,
+            progress: 0,
+            currentSegment: 0
         };
 
         // Colors exactly matching the wireframe
@@ -205,79 +209,198 @@
             tileDepth: 10  
         };
 
+        // Game constants
+        const MAX_VISIBLE_SEGMENTS = 8;
+        const TURN_THRESHOLD = 0.9;  // When player needs to turn
+        const SPEED_INCREMENT = 0.05; // How much to increase speed after each turn
+
         // Initialize the game
         function initGame() {
-            score = 9; 
+            score = 0;
+            speed = 2;
             
-            // Create the exact path from the wireframe
-            createIsometricPath();
+            // Create the initial path
+            createInitialPath();
             
-            // Position player at the position shown in wireframe
-            positionPlayerAsInWireframe();
+            // Position player at the start
+            positionPlayerAtStart();
             
             // Update score display
             updateScore(score);
             
             // Start game loop
             gameRunning = true;
+            lastTime = Date.now();
             requestAnimationFrame(gameLoop);
         }
 
-        // Create the exact isometric path layout from the wireframe
-        function createIsometricPath() {
-            // Calculate center position for the path
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 50; // Adjust to match wireframe position
-            
-            // Define the isometric path segments as in the wireframe
-            // These are logical coordinates in the isometric space
-            const pathPoints = [
-                { x: -2, y: 2 },
-                { x: -1, y: 1 },
-                { x: 0, y: 0 },
-                { x: 1, y: -1 },
-                { x: 2, y: -2 }
-            ];
-            
+        // Create the initial path
+        function createInitialPath() {
             path = [];
             
-            // Convert logical isometric coordinates to screen coordinates
-            for (let i = 0; i < pathPoints.length - 1; i++) {
-                const startX = centerX + (pathPoints[i].x * ISO.tileWidth * ISO.scaleX);
-                const startY = centerY + (pathPoints[i].x + pathPoints[i].y) * ISO.tileWidth * ISO.scaleY;
+            // Calculate center position for the path
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2 + 50;
+            
+            // Start with a straight segment
+            let currentX = -2;
+            let currentY = 2;
+            let nextX, nextY;
+            
+            // Create initial segments
+            for (let i = 0; i < MAX_VISIBLE_SEGMENTS; i++) {
+                // Determine next point
+                if (i === 0) {
+                    // First segment is always straight
+                    nextX = currentX + 1;
+                    nextY = currentY - 1;
+                } else {
+                    // Random turn direction
+                    const direction = Math.random() < 0.5 ? 'left' : 'right';
+                    
+                    if (direction === 'left') {
+                        nextX = currentX - 1;
+                        nextY = currentY - 1;
+                    } else {
+                        nextX = currentX + 1;
+                        nextY = currentY - 1;
+                    }
+                }
                 
-                const endX = centerX + (pathPoints[i+1].x * ISO.tileWidth * ISO.scaleX);
-                const endY = centerY + (pathPoints[i+1].x + pathPoints[i+1].y) * ISO.tileWidth * ISO.scaleY;
+                // Convert to screen coordinates
+                const startX = centerX + (currentX * ISO.tileWidth * ISO.scaleX);
+                const startY = centerY + (currentX + currentY) * ISO.tileWidth * ISO.scaleY;
+                
+                const endX = centerX + (nextX * ISO.tileWidth * ISO.scaleX);
+                const endY = centerY + (nextX + nextY) * ISO.tileWidth * ISO.scaleY;
+                
+                // Determine turn direction
+                let turnDirection = 'none';
+                if (i > 0) {
+                    const prevSegment = path[i-1];
+                    const prevDirX = prevSegment.endX - prevSegment.startX;
+                    const prevDirY = prevSegment.endY - prevSegment.startY;
+                    
+                    const currDirX = endX - startX;
+                    const currDirY = endY - startY;
+                    
+                    if (prevDirX * currDirY - prevDirY * currDirX > 0) {
+                        turnDirection = 'left';
+                    } else if (prevDirX * currDirY - prevDirY * currDirX < 0) {
+                        turnDirection = 'right';
+                    }
+                }
                 
                 path.push({
                     startX: startX,
                     startY: startY,
                     endX: endX,
                     endY: endY,
-                    direction: 'right'
+                    turnDirection: turnDirection,
+                    logicalStartX: currentX,
+                    logicalStartY: currentY,
+                    logicalEndX: nextX,
+                    logicalEndY: nextY
                 });
+                
+                // Update current position for next segment
+                currentX = nextX;
+                currentY = nextY;
             }
         }
 
-        // Position player exactly as in the wireframe
-        function positionPlayerAsInWireframe() {
-            // Place player on the third segment, as shown in the wireframe
-            const segment = path[2]; // The third segment
+        // Add a new segment to the path
+        function addNewSegment() {
+            const lastSegment = path[path.length - 1];
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2 + 50;
             
-            // Calculate position at the start of the third segment
-            player.x = segment.startX;
-            player.y = segment.startY;
+            let currentX = lastSegment.logicalEndX;
+            let currentY = lastSegment.logicalEndY;
             
-            player.direction = 'right';
+            // Determine next point with random turn
+            const direction = Math.random() < 0.5 ? 'left' : 'right';
+            let nextX, nextY;
+            
+            if (direction === 'left') {
+                nextX = currentX - 1;
+                nextY = currentY - 1;
+            } else {
+                nextX = currentX + 1;
+                nextY = currentY - 1;
+            }
+            
+            // Convert to screen coordinates
+            const startX = centerX + (currentX * ISO.tileWidth * ISO.scaleX);
+            const startY = centerY + (currentX + currentY) * ISO.tileWidth * ISO.scaleY;
+            
+            const endX = centerX + (nextX * ISO.tileWidth * ISO.scaleX);
+            const endY = centerY + (nextX + nextY) * ISO.tileWidth * ISO.scaleY;
+            
+            // Determine turn direction
+            const prevSegment = path[path.length - 1];
+            const prevDirX = prevSegment.endX - prevSegment.startX;
+            const prevDirY = prevSegment.endY - prevSegment.startY;
+            
+            const currDirX = endX - startX;
+            const currDirY = endY - startY;
+            
+            let turnDirection = 'none';
+            if (prevDirX * currDirY - prevDirY * currDirX > 0) {
+                turnDirection = 'left';
+            } else if (prevDirX * currDirY - prevDirY * currDirX < 0) {
+                turnDirection = 'right';
+            }
+            
+            // Add new segment
+            path.push({
+                startX: startX,
+                startY: startY,
+                endX: endX,
+                endY: endY,
+                turnDirection: turnDirection,
+                logicalStartX: currentX,
+                logicalStartY: currentY,
+                logicalEndX: nextX,
+                logicalEndY: nextY
+            });
+            
+            // Remove first segment if we have too many
+            if (path.length > MAX_VISIBLE_SEGMENTS) {
+                path.shift();
+            }
         }
 
+        // Position player at the start
+        function positionPlayerAtStart() {
+            const segment = path[0];
+            
+            player.x = segment.startX;
+            player.y = segment.startY;
+            player.direction = 'right';
+            player.targetDirection = null;
+            player.turning = false;
+            player.progress = 0;
+            player.currentSegment = 0;
+        }
+
+        // Time tracking
+        let lastTime = 0;
+
         // Game loop
-        function gameLoop() {
+        function gameLoop(timestamp) {
             if (!gameRunning) return;
+            
+            // Calculate delta time
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
             
             // Clear canvas
             ctx.fillStyle = COLORS.background;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update player position
+            updatePlayer(deltaTime);
             
             // Draw isometric path
             drawIsometricPath();
@@ -287,6 +410,73 @@
             
             // Request next frame
             requestAnimationFrame(gameLoop);
+        }
+
+        // Update player position
+        function updatePlayer(deltaTime) {
+            // Calculate movement speed based on game speed
+            const moveSpeed = speed * 0.05;
+            
+            // Get current segment
+            const segment = path[player.currentSegment];
+            
+            // Calculate direction vector of current segment
+            const dirX = segment.endX - segment.startX;
+            const dirY = segment.endY - segment.startY;
+            
+            // Calculate segment length
+            const segmentLength = Math.sqrt(dirX * dirX + dirY * dirY);
+            
+            // Update player progress along segment
+            player.progress += moveSpeed;
+            
+            // Calculate normalized progress (0 to 1)
+            const normalizedProgress = player.progress / segmentLength;
+            
+            // Check if player needs to turn
+            if (normalizedProgress >= TURN_THRESHOLD && segment.turnDirection !== 'none' && !player.turning) {
+                // Player needs to turn
+                if (player.targetDirection === segment.turnDirection) {
+                    // Player turned correctly
+                    player.turning = true;
+                } else {
+                    // Player didn't turn in time
+                    gameOver();
+                    return;
+                }
+            }
+            
+            // Check if player has reached the end of the segment
+            if (normalizedProgress >= 1) {
+                // Move to next segment
+                player.currentSegment++;
+                player.progress = 0;
+                player.turning = false;
+                player.targetDirection = null;
+                
+                // Add score for completing a segment
+                if (segment.turnDirection !== 'none') {
+                    updateScore(score + 1);
+                    
+                    // Increase speed
+                    speed += SPEED_INCREMENT;
+                }
+                
+                // Check if we need to add a new segment
+                if (player.currentSegment >= path.length - 3) {
+                    addNewSegment();
+                }
+                
+                // Check if we've run out of segments
+                if (player.currentSegment >= path.length) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            // Update player position based on progress
+            player.x = segment.startX + dirX * normalizedProgress;
+            player.y = segment.startY + dirY * normalizedProgress;
         }
 
         // Draw the isometric path
@@ -384,7 +574,30 @@
             }
         }
 
+        // Handle tap/click
+        function handleTap() {
+            if (!gameRunning) return;
+            
+            // Get current segment
+            const segment = path[player.currentSegment];
+            
+            // Only allow turning if we're approaching a turn and haven't already turned
+            if (player.progress / Math.sqrt(Math.pow(segment.endX - segment.startX, 2) + Math.pow(segment.endY - segment.startY, 2)) >= 0.5 && 
+                segment.turnDirection !== 'none' && 
+                !player.turning) {
+                
+                // Set the target direction
+                player.targetDirection = segment.turnDirection;
+            }
+        }
+
         // Event listeners
+        canvas.addEventListener('click', handleTap);
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            handleTap();
+        });
+
         restartButton.addEventListener('click', function() {
             gameOverScreen.style.display = 'none';
             initGame();
@@ -392,11 +605,6 @@
 
         startButton.addEventListener('click', function() {
             startScreen.style.display = 'none';
-            initGame();
-        });
-
-        // Start the game automatically to show the wireframe state
-        window.addEventListener('load', function() {
             initGame();
         });
     </script>
