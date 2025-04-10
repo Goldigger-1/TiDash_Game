@@ -107,7 +107,7 @@
         };
         let squares = [];
         let lastSquareTime = 0;
-        let squareInterval = 1000; // milliseconds
+        let squareInterval = 700; // milliseconds - increased frequency
         let lastFrameTime = 0;
         let greenSquareChance = 0.2; // 20% chance for green squares
 
@@ -121,11 +121,11 @@
             ball.radius = canvas.width * 0.025;
             ball.y = canvas.height * 0.5; // Middle of the screen vertically
             ball.x = canvas.width / 2;
-            ball.speed = canvas.width * 0.0005; // Much slower speed
+            ball.speed = canvas.width * 0.0008; // Slightly faster speed
             ball.direction = 1;
             
-            // Initialize line - 90% of width and same height as ball
-            line.width = canvas.width * 0.9;
+            // Initialize line - 80% of width and same height as ball
+            line.width = canvas.width * 0.8;
             line.height = ball.radius * 2; // Same height as the ball diameter
             line.x = (canvas.width - line.width) / 2;
             line.y = ball.y - ball.radius; // Center the ball on the line
@@ -194,12 +194,30 @@
         // Spawn a new square
         function spawnSquare() {
             const size = canvas.width * 0.05;
-            const x = Math.random() * (canvas.width - size);
+            
+            // Make sure squares pass through the horizontal line
+            // Calculate a position that will ensure the square passes through the line
+            const lineCenter = line.x + line.width / 2;
+            const lineWidth = line.width;
+            
+            // Random position that ensures passing through the line
+            const minX = Math.max(0, line.x - size);
+            const maxX = Math.min(canvas.width - size, line.x + line.width);
+            const x = minX + Math.random() * (maxX - minX);
+            
             const isGreen = Math.random() < greenSquareChance;
             
-            // Random diagonal angle for falling
-            const angleRange = Math.PI / 4; // 45 degrees max angle
-            const angle = (Math.random() * angleRange * 2) - angleRange; // Random angle between -45 and +45 degrees
+            // Random diagonal angle for falling, but ensure it passes through the line
+            const targetX = line.x + Math.random() * line.width;
+            const targetY = line.y;
+            
+            // Calculate angle to ensure it passes through the line
+            const dx = targetX - (x + size/2);
+            const dy = targetY - (-size/2);
+            const angle = Math.atan2(dx, dy);
+            
+            // Limit the angle to prevent too horizontal trajectories
+            const limitedAngle = Math.max(Math.min(angle, Math.PI/4), -Math.PI/4);
             
             squares.push({
                 x: x,
@@ -209,10 +227,17 @@
                 isGreen: isGreen,
                 rotation: 0,
                 rotationSpeed: (Math.random() * 0.05 + 0.02) * (Math.random() > 0.5 ? 1 : -1),
-                angle: angle,
-                velocityX: Math.sin(angle),
-                velocityY: Math.cos(angle)
+                angle: limitedAngle,
+                velocityX: Math.sin(limitedAngle),
+                velocityY: Math.cos(limitedAngle)
             });
+            
+            // Occasionally spawn multiple squares at once
+            if (Math.random() < 0.3 && score > 5) {
+                setTimeout(() => {
+                    if (gameRunning) spawnSquare();
+                }, 200);
+            }
         }
 
         // Update squares positions
