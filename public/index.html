@@ -197,8 +197,8 @@
                         }
                     }
                     
-                    // Générer un nouveau carré lorsque le carré le plus bas atteint 35% de la hauteur de l'écran
-                    const spawnThreshold = canvas.height * 0.35;
+                    // Générer un nouveau carré lorsque le carré le plus bas atteint 15% de la hauteur de l'écran
+                    const spawnThreshold = canvas.height * 0.15;
                     if (lowestSquareY > spawnThreshold) {
                         shouldSpawnNewSquare = true;
                     }
@@ -206,8 +206,11 @@
                 
                 // Spawn new squares based on time interval or position threshold
                 if ((timestamp - lastSquareTime > squareInterval) || shouldSpawnNewSquare) {
-                    spawnSquare();
-                    lastSquareTime = timestamp;
+                    // Ajouter un délai minimum entre les apparitions pour éviter les doublons
+                    if (timestamp - lastSquareTime > 300) {
+                        spawnSquare();
+                        lastSquareTime = timestamp;
+                    }
                 }
             }
             
