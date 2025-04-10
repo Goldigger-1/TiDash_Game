@@ -59,18 +59,18 @@
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Calculate base unit for scaling
-            const unit = canvas.width * 0.08;
+            // Set fixed dimensions for exact reproduction
+            const unit = Math.min(canvas.width, canvas.height) * 0.06;
             
-            // Center the scene
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 - unit * 0.5;
+            // Position for exact reproduction
+            const centerX = canvas.width * 0.55;
+            const centerY = canvas.height * 0.45;
             
             // Draw the zigzag path
-            const segments = createPath(unit, centerX, centerY);
+            createPath(unit, centerX, centerY);
             
             // Draw the cube on the zigzag path
-            drawCube(unit, segments[0]);
+            drawCube(unit, centerX, centerY);
         }
         
         // Create and draw the zigzag path
@@ -78,109 +78,65 @@
             // Path color - exact light gray as in wireframe
             const pathColor = '#d9d9d9';
             
-            // Define path segments in true isometric perspective
-            const segments = [
-                // First segment (bottom)
-                {
-                    x1: centerX - unit * 3,
-                    y1: centerY + unit * 1,
-                    x2: centerX - unit * 1,
-                    y2: centerY + unit * 1
-                },
-                // Second segment (middle - diagonal)
-                {
-                    x1: centerX - unit * 1,
-                    y1: centerY + unit * 1,
-                    x2: centerX + unit * 1,
-                    y2: centerY
-                },
-                // Third segment (top)
-                {
-                    x1: centerX + unit * 1,
-                    y1: centerY,
-                    x2: centerX + unit * 3,
-                    y2: centerY
-                }
-            ];
+            // Path thickness - exact as in wireframe
+            const thickness = unit * 0.12;
             
-            // Draw the zigzag platform as a single shape
+            // Draw the zigzag path
             ctx.fillStyle = pathColor;
             
-            // Draw the zigzag platform with thickness
-            const thickness = unit * 0.15;
+            // Starting point (bottom left)
+            const startX = centerX - unit * 3.5;
+            const startY = centerY + unit * 1.5;
             
-            // Draw the complete zigzag path
+            // First segment (horizontal)
+            const x1 = centerX - unit * 1.5;
+            const y1 = startY;
+            
+            // Second segment (diagonal)
+            const x2 = centerX + unit * 0.5;
+            const y2 = centerY - unit * 0.5;
+            
+            // Third segment (horizontal)
+            const x3 = centerX + unit * 3.5;
+            const y3 = y2;
+            
+            // Draw path with 3D effect
             ctx.beginPath();
             
             // Top surface
-            ctx.moveTo(segments[0].x1, segments[0].y1);
-            ctx.lineTo(segments[0].x2, segments[0].y2);
-            ctx.lineTo(segments[1].x2, segments[1].y2);
-            ctx.lineTo(segments[2].x2, segments[2].y2);
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.lineTo(x3, y3);
             
-            // Right side
-            ctx.lineTo(segments[2].x2, segments[2].y2 + thickness);
+            // Right edge
+            ctx.lineTo(x3, y3 + thickness);
             
             // Bottom surface
-            ctx.lineTo(segments[2].x1, segments[2].y1 + thickness);
-            ctx.lineTo(segments[1].x1, segments[1].y1 + thickness);
-            ctx.lineTo(segments[0].x1, segments[0].y1 + thickness);
+            ctx.lineTo(x2, y2 + thickness);
+            ctx.lineTo(x1, y1 + thickness);
+            ctx.lineTo(startX, startY + thickness);
             
             // Close the path
             ctx.closePath();
             ctx.fill();
-            
-            return segments;
         }
         
         // Draw the cube
-        function drawCube(unit, startSegment) {
-            // Position the cube at the beginning of the zigzag
-            const cubeX = startSegment.x1 + unit * 0.35;
-            const cubeY = startSegment.y1 - unit * 0.15;
+        function drawCube(unit, centerX, centerY) {
+            // Cube position - exact as in wireframe
+            const cubeX = centerX - unit * 3;
+            const cubeY = centerY + unit * 1.2;
             
-            // Cube size - exact match to wireframe
+            // Cube size - exact as in wireframe
             const cubeSize = unit * 0.3;
             
-            // Cube colors - exact shades as in wireframe
-            const cubeTopColor = '#666666';    // Top face
-            const cubeRightColor = '#5a5a5a';  // Right face
-            const cubeLeftColor = '#4d4d4d';   // Left face
+            // Cube color - exact as in wireframe
+            const cubeColor = '#666666';
             
-            // Draw cube in true isometric view
-            const isoAngle = Math.PI / 6; // 30 degrees
-            const cosIso = Math.cos(isoAngle);
-            const sinIso = Math.sin(isoAngle);
-            
-            // Draw left face
-            ctx.fillStyle = cubeLeftColor;
-            ctx.beginPath();
-            ctx.moveTo(cubeX, cubeY);
-            ctx.lineTo(cubeX - cubeSize * cosIso, cubeY + cubeSize * sinIso);
-            ctx.lineTo(cubeX - cubeSize * cosIso, cubeY + cubeSize * sinIso + cubeSize);
-            ctx.lineTo(cubeX, cubeY + cubeSize);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Draw right face
-            ctx.fillStyle = cubeRightColor;
-            ctx.beginPath();
-            ctx.moveTo(cubeX, cubeY);
-            ctx.lineTo(cubeX + cubeSize * cosIso, cubeY + cubeSize * sinIso);
-            ctx.lineTo(cubeX + cubeSize * cosIso, cubeY + cubeSize * sinIso + cubeSize);
-            ctx.lineTo(cubeX, cubeY + cubeSize);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Draw top face
-            ctx.fillStyle = cubeTopColor;
-            ctx.beginPath();
-            ctx.moveTo(cubeX, cubeY);
-            ctx.lineTo(cubeX - cubeSize * cosIso, cubeY + cubeSize * sinIso);
-            ctx.lineTo(cubeX, cubeY + cubeSize * sinIso * 2);
-            ctx.lineTo(cubeX + cubeSize * cosIso, cubeY + cubeSize * sinIso);
-            ctx.closePath();
-            ctx.fill();
+            // Draw cube
+            ctx.fillStyle = cubeColor;
+            ctx.fillRect(cubeX, cubeY, cubeSize, cubeSize);
         }
 
         // Initialize
