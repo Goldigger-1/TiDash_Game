@@ -3,103 +3,103 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 
-// Vérifier que le token Telegram est configuré
+// Check that the Telegram token is configured
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
-  console.error('TELEGRAM_BOT_TOKEN manquant dans les variables d\'environnement');
+  console.error('TELEGRAM_BOT_TOKEN missing in environment variables');
   process.exit(1);
 }
 
-// Initialiser le bot Telegram
+// Initialize the Telegram bot
 const bot = new Telegraf(token);
 
-// Configuration du menu du bot
+// Bot menu configuration
 bot.telegram.setMyCommands([
-  { command: 'start', description: 'Démarrer le jeu' },
-  { command: 'help', description: 'Afficher l\'aide' }
+  { command: 'start', description: 'Start the game' },
+  { command: 'help', description: 'Show help' }
 ]);
 
-// Commande de démarrage
+// Start command
 bot.start((ctx) => {
-  ctx.reply('Bienvenue sur TiDash Game! 🎮', {
+  ctx.reply('Welcome to TiDash Game! 🎮', {
     reply_markup: {
       inline_keyboard: [
-        [{ text: '🎮 Jouer maintenant', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
+        [{ text: '🎮 Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
       ]
     }
   });
 });
 
-// Commande d'aide
+// Help command
 bot.help((ctx) => {
   ctx.reply(
-    'Voici les commandes disponibles:\n' +
-    '/start - Démarrer le bot et jouer\n' +
-    '/help - Afficher l\'aide',
+    'Here are the available commands:\n' +
+    '/start - Start the bot and play\n' +
+    '/help - Show help',
     {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🎮 Jouer maintenant', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
+          [{ text: '🎮 Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
         ]
       }
     }
   );
 });
 
-// Gestionnaire pour les messages texte
+// Text message handler
 bot.on('text', (ctx) => {
-  if (ctx.message.text.toLowerCase() === 'jouer') {
-    // Si l'utilisateur envoie "jouer", on lui propose de lancer le jeu
-    return ctx.reply('Lancez le jeu!', {
+  if (ctx.message.text.toLowerCase() === 'play') {
+    // If the user sends "play", offer to launch the game
+    return ctx.reply('Launch the game!', {
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Jouer maintenant', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
+          [{ text: 'Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
         ]
       }
     });
   }
   
-  ctx.reply('Utilisez /start pour lancer le jeu ou /help pour voir les commandes disponibles.');
+  ctx.reply('Use /start to launch the game or /help to see available commands.');
 });
 
-// Gestionnaire pour l'ouverture de la WebApp
+// Handler for WebApp opening
 bot.command('play', (ctx) => {
-  ctx.reply('Lancez le jeu!', {
+  ctx.reply('Launch the game!', {
     reply_markup: {
       inline_keyboard: [
-        [{ text: '🎮 Jouer maintenant', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
+        [{ text: '🎮 Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
       ]
     }
   });
 });
 
-// Démarrer le bot
+// Start the bot
 bot.launch()
   .then(() => {
-    console.log('Bot démarré avec succès!');
+    console.log('Bot started successfully!');
   })
   .catch((err) => {
-    console.error('Erreur au démarrage du bot:', err);
+    console.error('Error starting the bot:', err);
   });
 
-// Créer un serveur Express simple
+// Create a simple Express server
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Servir les fichiers statiques du dossier public
+// Serve static files from the public folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Route par défaut qui renvoie index.html
+// Default route that returns index.html
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Démarrer le serveur
+// Start the server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Serveur démarré sur le port ${PORT}`);
+  console.log(`Server started on port ${PORT}`);
 });
 
-// Gestion de l'arrêt gracieux
+// Graceful shutdown handling
 process.once('SIGINT', () => {
   bot.stop('SIGINT');
   process.exit(0);
@@ -109,4 +109,4 @@ process.once('SIGTERM', () => {
   process.exit(0);
 });
 
-console.log('TiDash Game Bot est en cours d\'exécution...');
+console.log('TiDash Game Bot is running...');
