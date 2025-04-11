@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TiDash Game</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Préchargement des sons -->
+    <audio id="borderTouchSound" src="sounds/BorderTouch.mp3" preload="auto"></audio>
+    <audio id="userTapSound" src="sounds/UserTap.mp3" preload="auto"></audio>
+    <audio id="successSound" src="sounds/Success.mp3" preload="auto"></audio>
+    <audio id="gameOverSound" src="sounds/Termine.mp3" preload="auto"></audio>
+    <audio id="showScoreSound" src="sounds/Show_GameOver.mp3" preload="auto"></audio>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
         
@@ -263,7 +271,14 @@
         
         // Variables pour les étoiles
         let stars = [];
-        const maxStars = 40; // Augmenté de 40 à 60
+        const maxStars = 40; // Nombre d'étoiles
+        
+        // Éléments audio
+        const borderTouchSound = document.getElementById('borderTouchSound');
+        const userTapSound = document.getElementById('userTapSound');
+        const successSound = document.getElementById('successSound');
+        const gameOverSound = document.getElementById('gameOverSound');
+        const showScoreSound = document.getElementById('showScoreSound');
         
         let ball = {
             x: 0,
@@ -436,9 +451,15 @@
                 if (ball.x - ball.radius < line.x) {
                     ball.x = line.x + ball.radius;
                     ball.direction = 1;
+                    // Jouer le son quand la balle touche le bord gauche
+                    borderTouchSound.currentTime = 0;
+                    borderTouchSound.play();
                 } else if (ball.x + ball.radius > line.x + line.width) {
                     ball.x = line.x + line.width - ball.radius;
                     ball.direction = -1;
+                    // Jouer le son quand la balle touche le bord droit
+                    borderTouchSound.currentTime = 0;
+                    borderTouchSound.play();
                 }
             }
             
@@ -710,99 +731,72 @@
 
         // Check for collisions between ball and squares
         function checkCollisions() {
-            for (let i = squares.length - 1; i >= 0; i--) {
+            for (let i = 0; i < squares.length; i++) {
                 const square = squares[i];
                 
-                // Calculate distance between ball center and square center
-                const squareCenterX = square.x + square.size / 2;
-                const squareCenterY = square.y + square.size / 2;
-                const dx = Math.abs(ball.x - squareCenterX);
-                const dy = Math.abs(ball.y - squareCenterY);
+                // Calculate distance between ball and square center
+                const dx = ball.x - (square.x + square.size / 2);
+                const dy = ball.y - (square.y + square.size / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
                 // Check if ball collides with square
-                if (dx < (square.size / 2 + ball.radius) && dy < (square.size / 2 + ball.radius)) {
+                if (distance < ball.radius + square.size / 2) {
+                    // If it's a green square, collect it
                     if (square.isGreen) {
-                        // Collect green square
-                        score++;
+                        // Jouer le son quand la balle touche un carré vert
+                        successSound.currentTime = 0;
+                        successSound.play();
+                        
+                        // Remove the square
                         squares.splice(i, 1);
+                        
+                        // Increment score
+                        score++;
+                        
+                        // Create explosion effect
+                        createExplosion(square.x + square.size / 2, square.y + square.size / 2, '#00FF9D');
+                        
+                        // Update best score if needed
+                        if (score > bestScore) {
+                            bestScore = score;
+                            localStorage.setItem('bestScore', bestScore);
+                        }
+                        
+                        return false;
                     } else {
-                        // Game over on white square collision
-                        gameOver();
+                        // Game over if it's a white square
+                        // Jouer le son quand la balle touche un carré blanc
+                        gameOverSound.currentTime = 0;
+                        gameOverSound.play();
+                        
+                        // Create explosion effect
+                        createExplosion(ball.x, ball.y, '#00FF9D');
+                        
+                        // Set game over mode
+                        gameMode = 'gameOver';
+                        gameOverAnimation = true;
+                        
+                        // Afficher l'écran de game over avec un court délai
+                        setTimeout(() => {
+                            showGameOverScreen();
+                        }, 300); // Délai de 300ms
+                        
                         return true;
                     }
                 }
             }
             return false;
         }
-
-        // Game over
-        function gameOver() {
-            if (gameOverAnimation) return;
-            
-            gameMode = 'gameOver';
-            gameOverAnimation = true;
-            gameRunning = false; // Arrêter la boucle de jeu
-            
-            // Vider d'abord les particules existantes pour éviter tout conflit
-            particles = [];
-            
-            // Convert all squares to fading squares
-            for (let i = squares.length - 1; i >= 0; i--) {
-                const square = squares[i];
-                square.fadeStartTime = Date.now();
-                square.fadeTime = 1000; // Réduit à 1 seconde
-                square.originalSize = square.size;
-                fadingSquares.push(square);
-            }
-            squares = [];
-            
-            // Créer des particules pour l'effet d'explosion
-            createExplosion(ball.x, ball.y, '#00FF9D'); // Spécifier explicitement la couleur
-            
-            // Afficher l'écran de game over avec un court délai
-            setTimeout(() => {
-                showGameOverScreen();
-            }, 300); // Délai de 300ms
-            
-            // Continuer l'animation pour l'effet d'explosion
-            let animationFrameId;
-            const animateExplosion = function(timestamp) {
-                // Clear canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Draw the line
-                drawLine();
-                
-                // Update and draw particles
-                updateParticles(16); // Utiliser une valeur fixe pour deltaTime
-                
-                // Update and draw fading squares
-                updateFadingSquares(16); // Utiliser une valeur fixe pour deltaTime
-                
-                if (particles.length > 0 || fadingSquares.length > 0) {
-                    animationFrameId = requestAnimationFrame(animateExplosion);
-                } else {
-                    cancelAnimationFrame(animationFrameId);
-                }
-            };
-            
-            // Démarrer l'animation d'explosion
-            animationFrameId = requestAnimationFrame(animateExplosion);
-        }
         
-        // Show game over screen
+        // Function to show game over screen
         function showGameOverScreen() {
-            // Update best score
-            if (score > bestScore) {
-                bestScore = score;
-                localStorage.setItem('bestScore', bestScore);
-                bestScoreDisplay.textContent = `NEW BEST!`;
-            } else {
-                bestScoreDisplay.textContent = `Best: ${bestScore}`;
-            }
+            // Jouer le son quand le popup de score s'affiche
+            showScoreSound.currentTime = 0;
+            showScoreSound.play();
             
-            // Mettre à jour le score
-            scoreDisplay.textContent = score;
+            // Update score display
+            document.getElementById('score-display').textContent = score;
+            document.getElementById('best-score').textContent = `Best: ${bestScore}`;
             
             // Afficher l'écran de game over
             gameOverScreen.style.display = 'flex';
@@ -828,6 +822,10 @@
             if (gameMode === 'game') {
                 // Change ball direction
                 ball.direction *= -1;
+                
+                // Jouer le son quand l'utilisateur touche l'écran
+                userTapSound.currentTime = 0;
+                userTapSound.play();
             }
         }
 
