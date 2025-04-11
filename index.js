@@ -1,102 +1,140 @@
-const { Telegraf } = require('telegraf');
-require('dotenv').config();
 const express = require('express');
+const { Telegraf } = require('telegraf');
 const path = require('path');
 const fs = require('fs');
+const { Sequelize, DataTypes, Op } = require('sequelize');
+require('dotenv').config();
 
-// Check that the Telegram token is configured
-const token = process.env.TELEGRAM_BOT_TOKEN;
-if (!token) {
-  console.error('TELEGRAM_BOT_TOKEN missing in environment variables');
-  process.exit(1);
+// Initialiser la base de données SQLite
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: path.join(__dirname, 'database.sqlite'),
+  logging: false // Désactiver les logs SQL pour la production
+});
+
+// Définir le modèle utilisateur
+const User = sequelize.define('User', {
+  gameId: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  gameUsername: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  telegramId: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  telegramUsername: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  paypalEmail: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  bestScore: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  registrationDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  lastLogin: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  }
+});
+
+// Initialiser la base de données
+(async () => {
+  try {
+    await sequelize.sync();
+    console.log('Base de données initialisée avec succès');
+    
+    // Migrer les données existantes si nécessaire
+    migrateExistingData();
+  } catch (error) {
+    console.error('Erreur lors de l\'initialisation de la base de données:', error);
+  }
+})();
+
+// Fonction pour migrer les données existantes du fichier JSON vers la base de données
+async function migrateExistingData() {
+  try {
+    const dataDir = path.join(__dirname, 'data');
+    const usersFile = path.join(dataDir, 'users.json');
+    
+    if (fs.existsSync(usersFile)) {
+      const usersData = fs.readFileSync(usersFile, 'utf8');
+      const users = JSON.parse(usersData);
+      
+      console.log(`Migration de ${users.length} utilisateurs vers la base de données...`);
+      
+      for (const user of users) {
+        // Vérifier si l'utilisateur existe déjà
+        const [existingUser] = await User.findOrCreate({
+          where: {
+            [Op.or]: [
+              { gameId: user.gameId },
+              { telegramId: user.telegramId !== "N/A" ? user.telegramId : null }
+            ]
+          },
+          defaults: {
+            gameId: user.gameId,
+            gameUsername: user.gameUsername,
+            telegramId: user.telegramId !== "N/A" ? user.telegramId : null,
+            telegramUsername: user.telegramUsername !== "N/A" ? user.telegramUsername : null,
+            paypalEmail: user.paypalEmail || "",
+            bestScore: parseInt(user.bestScore) || 0,
+            registrationDate: user.registrationDate || new Date().toISOString().split('T')[0],
+            lastLogin: user.lastLogin || new Date().toISOString().split('T')[0]
+          }
+        });
+      }
+      
+      console.log('Migration terminée avec succès');
+      
+      // Créer une sauvegarde du fichier JSON
+      fs.copyFileSync(usersFile, path.join(dataDir, 'users_backup.json'));
+    }
+  } catch (error) {
+    console.error('Erreur lors de la migration des données:', error);
+  }
 }
 
-// Initialize the Telegram bot
-const bot = new Telegraf(token);
-
-// Bot menu configuration
-bot.telegram.setMyCommands([
-  { command: 'start', description: 'Start the game' },
-  { command: 'help', description: 'Show help' }
-]);
-
-// Start command
-bot.start((ctx) => {
-  ctx.reply('Welcome to TiDash Game! 🎮', {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🎮 Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
-      ]
-    }
-  });
-});
-
-// Help command
-bot.help((ctx) => {
-  ctx.reply(
-    'Here are the available commands:\n' +
-    '/start - Start the bot and play\n' +
-    '/help - Show help',
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🎮 Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
-        ]
-      }
-    }
-  );
-});
-
-// Text message handler
-bot.on('text', (ctx) => {
-  if (ctx.message.text.toLowerCase() === 'play') {
-    // If the user sends "play", offer to launch the game
-    return ctx.reply('Launch the game!', {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
-        ]
-      }
-    });
-  }
-  
-  ctx.reply('Use /start to launch the game or /help to see available commands.');
-});
-
-// Handler for WebApp opening
-bot.command('play', (ctx) => {
-  ctx.reply('Launch the game!', {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🎮 Play now', web_app: { url: process.env.WEBAPP_URL || 'http://194.163.152.175' } }]
-      ]
-    }
-  });
-});
-
-// Start the bot
-bot.launch()
-  .then(() => {
-    console.log('Bot started successfully!');
-  })
-  .catch((err) => {
-    console.error('Error starting the bot:', err);
-  });
-
-// Create a simple Express server
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
+const botToken = process.env.BOT_TOKEN;
+const webAppUrl = process.env.WEBAPP_URL;
 
 // Middleware pour parser le JSON
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from the public folder
+// Servir les fichiers statiques
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Default route that returns index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Initialiser le bot Telegram
+const bot = new Telegraf(botToken);
+
+// Commande /start
+bot.start((ctx) => {
+  ctx.reply('Bienvenue sur TiDash Game!', {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: 'Jouer', web_app: { url: webAppUrl } }]
+      ]
+    }
+  });
+});
+
+// Lancer le bot
+bot.launch().then(() => {
+  console.log('Bot Telegram démarré');
+}).catch((err) => {
+  console.error('Erreur lors du démarrage du bot:', err);
 });
 
 // Route pour le panneau d'administration
@@ -104,76 +142,69 @@ app.get('/admin754774', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin754774', 'index.html'));
 });
 
-// Fonction pour récupérer les données utilisateurs depuis les fichiers de localStorage
-function getUsersFromLocalStorage() {
+// API pour récupérer les données utilisateurs avec pagination
+app.get('/api/users', async (req, res) => {
   try {
-    // Créer un dossier pour stocker les données utilisateurs si nécessaire
-    const dataDir = path.join(__dirname, 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+    const search = req.query.search || '';
+    
+    let whereClause = {};
+    
+    if (search) {
+      whereClause = {
+        [Op.or]: [
+          { gameUsername: { [Op.like]: `%${search}%` } },
+          { gameId: { [Op.like]: `%${search}%` } },
+          { telegramUsername: { [Op.like]: `%${search}%` } },
+          { telegramId: { [Op.like]: `%${search}%` } },
+          { paypalEmail: { [Op.like]: `%${search}%` } }
+        ]
+      };
     }
     
-    const usersFile = path.join(dataDir, 'users.json');
+    const { count, rows } = await User.findAndCountAll({
+      where: whereClause,
+      order: [['bestScore', 'DESC']],
+      limit,
+      offset
+    });
     
-    // Si le fichier existe, le lire
-    if (fs.existsSync(usersFile)) {
-      const usersData = fs.readFileSync(usersFile, 'utf8');
-      return JSON.parse(usersData);
-    }
-    
-    // Sinon retourner un tableau vide
-    return [];
+    res.json({
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      users: rows
+    });
   } catch (error) {
-    console.error('Erreur lors de la lecture des données utilisateurs:', error);
-    return [];
+    console.error('Erreur lors de la récupération des utilisateurs:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
-}
-
-// Fonction pour sauvegarder les données utilisateurs
-function saveUsers(users) {
-  try {
-    const dataDir = path.join(__dirname, 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir);
-    }
-    
-    const usersFile = path.join(dataDir, 'users.json');
-    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde des données utilisateurs:', error);
-    return false;
-  }
-}
-
-// API pour récupérer les données utilisateurs
-app.get('/api/users', (req, res) => {
-  const users = getUsersFromLocalStorage();
-  res.json(users);
 });
 
 // API pour supprimer un utilisateur
-app.delete('/api/users/:id', (req, res) => {
-  const userId = req.params.id;
-  const users = getUsersFromLocalStorage();
-  
-  const updatedUsers = users.filter(user => user.gameId !== userId);
-  
-  if (users.length === updatedUsers.length) {
-    return res.status(404).json({ error: 'Utilisateur non trouvé' });
-  }
-  
-  const success = saveUsers(updatedUsers);
-  
-  if (success) {
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    const result = await User.destroy({
+      where: { gameId: userId }
+    });
+    
+    if (result === 0) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
     res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
-  } else {
-    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
 // API pour enregistrer un nouvel utilisateur ou mettre à jour un utilisateur existant
-app.post('/api/users', (req, res) => {
+app.post('/api/users', async (req, res) => {
   try {
     const userData = req.body;
     
@@ -181,35 +212,43 @@ app.post('/api/users', (req, res) => {
       return res.status(400).json({ error: 'Données utilisateur invalides' });
     }
     
-    const users = getUsersFromLocalStorage();
+    // Préparer les données utilisateur
+    const userToSave = {
+      gameId: userData.gameId,
+      gameUsername: userData.gameUsername,
+      telegramId: userData.telegramId !== "N/A" ? userData.telegramId : null,
+      telegramUsername: userData.telegramUsername !== "N/A" ? userData.telegramUsername : null,
+      paypalEmail: userData.paypalEmail || "",
+      bestScore: parseInt(userData.bestScore) || 0,
+      registrationDate: userData.registrationDate || new Date().toISOString().split('T')[0],
+      lastLogin: userData.lastLogin || new Date().toISOString().split('T')[0]
+    };
     
-    // Vérifier si l'utilisateur existe déjà, d'abord par ID Telegram s'il est disponible
-    let existingUserIndex = -1;
+    // Vérifier si l'utilisateur existe déjà
+    let existingUser = null;
     
     if (userData.telegramId && userData.telegramId !== "N/A") {
       // Chercher par ID Telegram
-      existingUserIndex = users.findIndex(user => user.telegramId === userData.telegramId);
+      existingUser = await User.findOne({
+        where: { telegramId: userData.telegramId }
+      });
     }
     
     // Si non trouvé par ID Telegram, chercher par ID de jeu
-    if (existingUserIndex === -1) {
-      existingUserIndex = users.findIndex(user => user.gameId === userData.gameId);
+    if (!existingUser) {
+      existingUser = await User.findOne({
+        where: { gameId: userData.gameId }
+      });
     }
     
-    if (existingUserIndex !== -1) {
+    if (existingUser) {
       // Mettre à jour l'utilisateur existant
-      users[existingUserIndex] = { ...users[existingUserIndex], ...userData };
+      await existingUser.update(userToSave);
+      res.status(200).json({ message: 'Utilisateur mis à jour avec succès' });
     } else {
-      // Ajouter un nouvel utilisateur
-      users.push(userData);
-    }
-    
-    const success = saveUsers(users);
-    
-    if (success) {
-      res.status(200).json({ message: 'Utilisateur enregistré avec succès' });
-    } else {
-      res.status(500).json({ error: 'Erreur lors de l\'enregistrement de l\'utilisateur' });
+      // Créer un nouvel utilisateur
+      await User.create(userToSave);
+      res.status(201).json({ message: 'Utilisateur créé avec succès' });
     }
   } catch (error) {
     console.error('Erreur lors de l\'enregistrement de l\'utilisateur:', error);
@@ -217,9 +256,9 @@ app.post('/api/users', (req, res) => {
   }
 });
 
-// Start the server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server started on port ${PORT}`);
+// Démarrer le serveur
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Serveur démarré sur le port ${port}`);
 });
 
 // Graceful shutdown handling
