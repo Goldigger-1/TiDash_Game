@@ -209,21 +209,28 @@
                 starsCtx.beginPath();
                 
                 // Effet de lueur (halo)
+                const glowRadius = star.isBright ? star.radius * 4 : star.radius * 2;
                 const gradient = starsCtx.createRadialGradient(
                     star.x, star.y, 0,
-                    star.x, star.y, star.radius * 2
+                    star.x, star.y, glowRadius
                 );
-                gradient.addColorStop(0, `rgba(255, 255, 255, ${star.brightness})`);
+                
+                // Couleur légèrement bleutée pour les étoiles brillantes
+                const starColor = star.isBright ? 
+                    `rgba(200, 220, 255, ${star.brightness})` : 
+                    `rgba(255, 255, 255, ${star.brightness})`;
+                    
+                gradient.addColorStop(0, starColor);
                 gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
                 
                 starsCtx.fillStyle = gradient;
-                starsCtx.arc(star.x, star.y, star.radius * 2, 0, Math.PI * 2);
+                starsCtx.arc(star.x, star.y, glowRadius, 0, Math.PI * 2);
                 starsCtx.fill();
                 
                 // Étoile centrale
                 starsCtx.beginPath();
                 starsCtx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                starsCtx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
+                starsCtx.fillStyle = starColor;
                 starsCtx.fill();
                 starsCtx.closePath();
             }
