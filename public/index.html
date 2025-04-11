@@ -31,14 +31,6 @@
             background-color: #000;
             border: 10px solid #000;
         }
-        #game-canvas {
-            background-color: #000;
-            display: block;
-            width: 100%;
-            height: 100%;
-            position: relative;
-            z-index: 1;
-        }
         #stars-canvas {
             position: absolute;
             top: 0;
@@ -46,6 +38,15 @@
             width: 100%;
             height: 100%;
             z-index: 0;
+            background-color: transparent;
+        }
+        #game-canvas {
+            background-color: transparent;
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            z-index: 1;
         }
         #game-over {
             position: absolute;
@@ -130,7 +131,7 @@
 
         // Étoiles pour l'effet d'espace
         let stars = [];
-        const starCount = 100;
+        const starCount = 200; // Augmentation du nombre d'étoiles
 
         // Game variables
         let gameRunning = false;
@@ -165,13 +166,17 @@
         function initStars() {
             stars = [];
             for (let i = 0; i < starCount; i++) {
+                // Créer quelques étoiles plus brillantes (environ 10%)
+                const isBright = Math.random() < 0.1;
+                
                 stars.push({
                     x: Math.random() * starsCanvas.width,
                     y: Math.random() * starsCanvas.height,
-                    radius: Math.random() * 1.5 + 0.5,
+                    radius: isBright ? Math.random() * 3.5 + 1.5 : Math.random() * 2.5 + 0.8, // Étoiles plus grandes
                     speed: Math.random() * 0.3 + 0.1,
-                    brightness: Math.random(),
-                    brightnessDelta: (Math.random() * 0.01 + 0.005) * (Math.random() > 0.5 ? 1 : -1)
+                    brightness: isBright ? Math.random() * 0.3 + 0.7 : Math.random() * 0.5 + 0.5, // Luminosité minimale plus élevée
+                    brightnessDelta: (Math.random() * 0.01 + 0.005) * (Math.random() > 0.5 ? 1 : -1),
+                    isBright: isBright
                 });
             }
         }
@@ -179,8 +184,6 @@
         // Dessiner et animer les étoiles
         function updateStars(deltaTime) {
             starsCtx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
-            starsCtx.fillStyle = '#000';
-            starsCtx.fillRect(0, 0, starsCanvas.width, starsCanvas.height);
             
             for (let i = 0; i < stars.length; i++) {
                 const star = stars[i];
@@ -202,7 +205,22 @@
                     star.brightnessDelta *= -1;
                 }
                 
-                // Dessiner l'étoile
+                // Dessiner l'étoile avec un effet de lueur
+                starsCtx.beginPath();
+                
+                // Effet de lueur (halo)
+                const gradient = starsCtx.createRadialGradient(
+                    star.x, star.y, 0,
+                    star.x, star.y, star.radius * 2
+                );
+                gradient.addColorStop(0, `rgba(255, 255, 255, ${star.brightness})`);
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                
+                starsCtx.fillStyle = gradient;
+                starsCtx.arc(star.x, star.y, star.radius * 2, 0, Math.PI * 2);
+                starsCtx.fill();
+                
+                // Étoile centrale
                 starsCtx.beginPath();
                 starsCtx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
                 starsCtx.fillStyle = `rgba(255, 255, 255, ${star.brightness})`;
