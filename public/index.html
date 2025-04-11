@@ -1591,10 +1591,12 @@
             
             // Si l'utilisateur est connecté via Telegram, vérifier s'il a déjà un profil associé à cet ID Telegram
             if (telegramId) {
+                console.log("Initialisation du profil pour l'utilisateur Telegram:", telegramId);
                 const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
                 const storedProfile = localStorage.getItem(telegramProfileKey);
                 
                 if (storedProfile) {
+                    console.log("Profil Telegram existant trouvé");
                     // Récupérer l'ID du jeu associé à ce compte Telegram
                     const profileData = JSON.parse(storedProfile);
                     userId = profileData.userId;
@@ -1617,6 +1619,7 @@
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     localStorage.setItem(userBestScoreKey, bestScore);
                 } else {
+                    console.log("Création d'un nouveau profil Telegram");
                     // Créer un nouveau profil pour ce compte Telegram
                     username = generateRandomUsername();
                     userId = generateRandomUserId();
@@ -1639,6 +1642,9 @@
                     // Enregistrer la date d'inscription
                     localStorage.setItem(`tidashRegistrationDate_${userId}`, new Date().toISOString().split('T')[0]);
                 }
+                
+                // Envoyer immédiatement les données utilisateur au serveur pour s'assurer qu'elles sont enregistrées
+                setTimeout(sendUserDataToServer, 500);
             } else {
                 // Pas de Telegram, utiliser le comportement standard
                 if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
@@ -1722,6 +1728,8 @@
                 lastLogin: new Date().toISOString().split('T')[0]
             };
 
+            console.log("Envoi des données utilisateur au serveur:", userData);
+
             // Envoyer les données au serveur
             fetch('/api/users', {
                 method: 'POST',
@@ -1733,7 +1741,15 @@
             .then(response => {
                 if (!response.ok) {
                     console.error('Erreur lors de l\'envoi des données utilisateur');
+                    return response.text().then(text => {
+                        console.error('Détails de l\'erreur:', text);
+                        throw new Error(text);
+                    });
                 }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Données utilisateur envoyées avec succès:', data);
             })
             .catch(error => {
                 console.error('Erreur:', error);

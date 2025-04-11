@@ -46,12 +46,19 @@ const User = sequelize.define('User', {
     type: DataTypes.DATEONLY,
     allowNull: false
   }
+}, {
+  // Spécifier explicitement le nom de la table
+  tableName: 'users',
+  // Désactiver la conversion automatique des noms de tables en pluriel
+  freezeTableName: false
 });
 
 // Initialiser la base de données
 (async () => {
   try {
-    await sequelize.sync();
+    // Forcer la création des tables (attention: cela supprime les tables existantes)
+    // À utiliser uniquement lors du premier déploiement
+    await sequelize.sync({ force: true });
     console.log('Base de données initialisée avec succès');
     
     // Migrer les données existantes si nécessaire
@@ -212,6 +219,8 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Données utilisateur invalides' });
     }
     
+    console.log("Données utilisateur reçues:", userData);
+    
     // Préparer les données utilisateur
     const userToSave = {
       gameId: userData.gameId,
@@ -227,8 +236,9 @@ app.post('/api/users', async (req, res) => {
     // Vérifier si l'utilisateur existe déjà
     let existingUser = null;
     
+    // Si l'ID Telegram est disponible, chercher d'abord par ID Telegram
     if (userData.telegramId && userData.telegramId !== "N/A") {
-      // Chercher par ID Telegram
+      console.log("Recherche d'utilisateur par ID Telegram:", userData.telegramId);
       existingUser = await User.findOne({
         where: { telegramId: userData.telegramId }
       });
@@ -236,18 +246,22 @@ app.post('/api/users', async (req, res) => {
     
     // Si non trouvé par ID Telegram, chercher par ID de jeu
     if (!existingUser) {
+      console.log("Recherche d'utilisateur par ID de jeu:", userData.gameId);
       existingUser = await User.findOne({
         where: { gameId: userData.gameId }
       });
     }
     
     if (existingUser) {
+      console.log("Utilisateur existant trouvé, mise à jour:", existingUser.id);
       // Mettre à jour l'utilisateur existant
       await existingUser.update(userToSave);
       res.status(200).json({ message: 'Utilisateur mis à jour avec succès' });
     } else {
+      console.log("Nouvel utilisateur, création en cours");
       // Créer un nouvel utilisateur
-      await User.create(userToSave);
+      const newUser = await User.create(userToSave);
+      console.log("Nouvel utilisateur créé:", newUser.id);
       res.status(201).json({ message: 'Utilisateur créé avec succès' });
     }
   } catch (error) {
