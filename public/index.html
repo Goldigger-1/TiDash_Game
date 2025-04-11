@@ -468,50 +468,65 @@
         }
         
         .avatar-item {
-            width: 100%;
-            aspect-ratio: 1/1;
-            border-radius: 12px;
-            overflow: hidden;
             position: relative;
+            margin: 5px;
             cursor: pointer;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
         }
         
         .avatar-item img {
-            width: 100%;
-            height: 100%;
+            width: 60px;
+            height: 60px;
             object-fit: cover;
+            border-radius: 50%;
+            transition: transform 0.2s;
+            will-change: transform;
         }
         
-        .avatar-item.selected::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            border: 2px solid #00FF9D;
-            border-radius: 12px;
-            box-sizing: border-box;
+        .avatar-item.selected {
+            border: 3px solid #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+            border-radius: 50%;
+        }
+        
+        .avatar-item:hover img {
+            transform: scale(1.05);
         }
         
         .avatar-check {
             position: absolute;
-            top: 5px;
-            right: 5px;
+            bottom: 0;
+            right: 0;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 50%;
             width: 20px;
             height: 20px;
-            background-color: #00FF9D;
-            border-radius: 50%;
-            display: none;
+            display: flex;
             justify-content: center;
             align-items: center;
-            color: black;
-            font-weight: bold;
             font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
         }
         
         .avatar-item.selected .avatar-check {
-            display: flex;
+            opacity: 1;
+        }
+        
+        /* Optimisation des images d'avatar */
+        .preload-images {
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+            z-index: -1;
         }
         
         /* Styles pour le bouton de son */
@@ -551,6 +566,7 @@
     </style>
 </head>
 <body>
+    <div class="preload-images" id="preload-container"></div>
     <div class="container">
         <!-- Profil utilisateur -->
         <div class="user-profile" id="profile-button">
@@ -2037,18 +2053,31 @@
                     avatarsList.push(`avatar${i}.jpg`);
                 }
                 
+                // Précharger les images
+                const preloadContainer = document.getElementById('preload-container');
+                preloadContainer.innerHTML = '';
+                
                 // Vider la grille d'avatars
                 avatarsGrid.innerHTML = '';
+                
+                // Créer un fragment de document pour améliorer les performances
+                const fragment = document.createDocumentFragment();
                 
                 // Ajouter chaque avatar à la grille
                 avatarsList.forEach(avatarFile => {
                     const avatarPath = `avatars/${avatarFile}`;
                     const isSelected = avatarPath === avatarSrc;
                     
+                    // Précharger l'image
+                    const preloadImg = document.createElement('img');
+                    preloadImg.src = avatarPath;
+                    preloadContainer.appendChild(preloadImg);
+                    
+                    // Créer l'élément d'avatar avec image préchargée
                     const avatarItem = document.createElement('div');
                     avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
                     avatarItem.innerHTML = `
-                        <img src="${avatarPath}" alt="Avatar">
+                        <img src="${avatarPath}" alt="Avatar" loading="lazy">
                         <div class="avatar-check">✓</div>
                     `;
                     
@@ -2086,8 +2115,12 @@
                         sendUserDataToServer();
                     });
                     
-                    avatarsGrid.appendChild(avatarItem);
+                    // Ajouter au fragment au lieu de directement à la grille
+                    fragment.appendChild(avatarItem);
                 });
+                
+                // Ajouter le fragment à la grille en une seule opération
+                avatarsGrid.appendChild(fragment);
             }
         }
         
