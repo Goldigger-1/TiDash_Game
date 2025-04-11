@@ -278,12 +278,232 @@
             color: #aaa;
             margin: 0;
         }
+        
+        /* Styles pour la page de paramètres */
+        #settings-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: none;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+            overflow-y: auto;
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .settings-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .close-button {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .close-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .close-icon {
+            color: white;
+            font-size: 20px;
+        }
+        
+        .profile-card {
+            background-color: rgba(30, 30, 30, 0.8);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .profile-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 12px;
+            margin-right: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .profile-avatar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 12px;
+            border: 2px solid #00FF9D;
+            box-sizing: border-box;
+        }
+        
+        .profile-info {
+            flex: 1;
+        }
+        
+        .username-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .username-input {
+            background-color: transparent;
+            border: none;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            font-family: 'Orbitron', sans-serif;
+            padding: 5px 0;
+            width: calc(100% - 30px);
+            outline: none;
+        }
+        
+        .edit-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-left: 10px;
+        }
+        
+        .user-id-display {
+            font-size: 14px;
+            color: #aaa;
+        }
+        
+        .paypal-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            color: white;
+            margin-bottom: 15px;
+        }
+        
+        .paypal-input {
+            width: 100%;
+            background-color: rgba(30, 30, 30, 0.8);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            padding: 12px 15px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            outline: none;
+        }
+        
+        .input-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        
+        .input-edit-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+        }
+        
+        .description-text {
+            font-size: 12px;
+            color: #aaa;
+            line-height: 1.5;
+        }
+        
+        .avatars-section {
+            margin-bottom: 30px;
+        }
+        
+        .avatars-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        
+        .avatar-item {
+            width: 100%;
+            aspect-ratio: 1/1;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .avatar-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .avatar-item.selected::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px solid #00FF9D;
+            border-radius: 12px;
+            box-sizing: border-box;
+        }
+        
+        .avatar-check {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 20px;
+            height: 20px;
+            background-color: #00FF9D;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: black;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .avatar-item.selected .avatar-check {
+            display: flex;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Profil utilisateur -->
-        <div class="user-profile">
+        <div class="user-profile" id="profile-button">
             <div class="avatar-container">
                 <div class="avatar-border"></div>
                 <img id="avatarImg" class="avatar-img" src="avatars/avatar_default.jpg" alt="Avatar">
@@ -295,6 +515,7 @@
         </div>
         
         <canvas id="game-canvas"></canvas>
+        
         <div id="home-screen">
             <div id="game-title-container">
                 <div id="game-title">TiDash</div>
@@ -309,6 +530,55 @@
             <div class="button-container">
                 <button id="play-again" class="game-button">PLAY AGAIN</button>
                 <button id="home-button" class="game-button secondary">HOME</button>
+            </div>
+        </div>
+        
+        <!-- Page de paramètres -->
+        <div id="settings-screen">
+            <div class="settings-header">
+                <div class="settings-title">Settings</div>
+                <div class="close-button" id="close-settings">
+                    <span class="close-icon">✕</span>
+                </div>
+            </div>
+            
+            <div class="profile-card">
+                <div class="profile-avatar">
+                    <img id="settings-avatar" src="avatars/avatar_default.jpg" alt="Avatar">
+                </div>
+                <div class="profile-info">
+                    <div class="username-container">
+                        <input type="text" id="username-input" class="username-input" value="Username">
+                        <div class="edit-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M16.4745 5.40768L18.5917 7.52483M17.8358 3.54254L11.6002 9.77806C11.3979 9.98031 11.2619 10.2384 11.2104 10.5192L10.5798 13.4209L13.4816 12.7903C13.7624 12.7388 14.0205 12.6028 14.2227 12.4006L20.4582 6.16508C20.5844 6.03889 20.6846 5.88909 20.7536 5.72343C20.8226 5.55777 20.8589 5.37966 20.8605 5.19938C20.8621 5.01909 20.8289 4.84039 20.7628 4.6736C20.6967 4.50681 20.5991 4.35537 20.4749 4.22718C20.3507 4.09899 20.2022 3.99691 20.0374 3.92553C19.8726 3.85415 19.6951 3.81549 19.5157 3.81169C19.3364 3.8079 19.1574 3.83906 18.9899 3.90281C18.8224 3.96656 18.6698 4.06188 18.5401 4.18348L12.3046 10.419C12.1023 10.6212 11.9664 10.8793 11.9149 11.1601L11.2843 14.0619L14.186 13.4313C14.4668 13.3798 14.7249 13.2438 14.9272 13.0416L21.1627 6.80608C21.8106 6.15818 22.1655 5.28206 22.1529 4.36728C22.1403 3.45249 21.7612 2.58647 21.0961 1.9549C20.431 1.32333 19.5401 0.96993 18.6146 1.00182C17.689 1.03372 16.8179 1.44959 16.1974 2.12483L9.96196 8.36035C9.35302 8.96929 8.94371 9.74882 8.79747 10.5981L7.7655 15.2322C7.73328 15.3697 7.73471 15.5131 7.76969 15.6498C7.80467 15.7864 7.87221 15.9122 7.96643 16.0172C8.06066 16.1222 8.17871 16.2034 8.31082 16.2544C8.44293 16.3054 8.58559 16.3247 8.72856 16.3108L13.3627 15.2788C14.212 15.1326 14.9915 14.7233 15.6004 14.1143L21.8359 7.87877L16.4745 5.40768Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="user-id-display">ID : <span id="settings-user-id">0000000000</span></div>
+                </div>
+            </div>
+            
+            <div class="paypal-section">
+                <div class="section-title">Enter your PayPal email address</div>
+                <div class="input-container">
+                    <input type="email" id="paypal-email" class="paypal-input" placeholder="mypaypal@email.com">
+                    <div class="input-edit-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16.4745 5.40768L18.5917 7.52483M17.8358 3.54254L11.6002 9.77806C11.3979 9.98031 11.2619 10.2384 11.2104 10.5192L10.5798 13.4209L13.4816 12.7903C13.7624 12.7388 14.0205 12.6028 14.2227 12.4006L20.4582 6.16508C20.5844 6.03889 20.6846 5.88909 20.7536 5.72343C20.8226 5.55777 20.8589 5.37966 20.8605 5.19938C20.8621 5.01909 20.8289 4.84039 20.7628 4.6736C20.6967 4.50681 20.5991 4.35537 20.4749 4.22718C20.3507 4.09899 20.2022 3.99691 20.0374 3.92553C19.8726 3.85415 19.6951 3.81549 19.5157 3.81169C19.3364 3.8079 19.1574 3.83906 18.9899 3.90281C18.8224 3.96656 18.6698 4.06188 18.5401 4.18348L12.3046 10.419C12.1023 10.6212 11.9664 10.8793 11.9149 11.1601L11.2843 14.0619L14.186 13.4313C14.4668 13.3798 14.7249 13.2438 14.9272 13.0416L21.1627 6.80608C21.8106 6.15818 22.1655 5.28206 22.1529 4.36728C22.1403 3.45249 21.7612 2.58647 21.0961 1.9549C20.431 1.32333 19.5401 0.96993 18.6146 1.00182C17.689 1.03372 16.8179 1.44959 16.1974 2.12483L9.96196 8.36035C9.35302 8.96929 8.94371 9.74882 8.79747 10.5981L7.7655 15.2322C7.73328 15.3697 7.73471 15.5131 7.76969 15.6498C7.80467 15.7864 7.87221 15.9122 7.96643 16.0172C8.06066 16.1222 8.17871 16.2034 8.31082 16.2544C8.44293 16.3054 8.58559 16.3247 8.72856 16.3108L13.3627 15.2788C14.212 15.1326 14.9915 14.7233 15.6004 14.1143L21.8359 7.87877L16.4745 5.40768Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="description-text">
+                    This is where your prize money will be sent if you win 1st place in the season ranking. Make sure your PayPal account is active and the email entered is correct, as this is how we will transfer your winnings!
+                </div>
+            </div>
+            
+            <div class="avatars-section">
+                <div class="section-title">Select your avatar</div>
+                <div class="avatars-grid" id="avatars-grid">
+                    <!-- Les avatars seront ajoutés dynamiquement ici -->
+                </div>
             </div>
         </div>
     </div>
@@ -358,6 +628,7 @@
         let username = "";
         let userId = "";
         let avatarSrc = "avatars/avatar_default.jpg";
+        let paypalEmail = "";
         
         // Système audio optimisé pour mobile avec Web Audio API
         let audioContext;
@@ -1200,6 +1471,11 @@
                 if (localStorage.getItem("tidashAvatarSrc")) {
                     avatarSrc = localStorage.getItem("tidashAvatarSrc");
                 }
+                
+                // Récupérer l'email PayPal s'il existe
+                if (localStorage.getItem("tidashPaypalEmail")) {
+                    paypalEmail = localStorage.getItem("tidashPaypalEmail");
+                }
             } else {
                 // Générer un nouveau profil
                 username = generateRandomUsername();
@@ -1237,7 +1513,137 @@
             
             // Start with home screen
             goToHome();
+            
+            // Initialiser la page de paramètres
+            initSettingsScreen();
         });
+        
+        // Fonction pour afficher l'écran de paramètres
+        function showSettingsScreen() {
+            // Cacher les autres écrans
+            homeScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            // Mettre à jour les informations utilisateur dans les paramètres
+            document.getElementById("username-input").value = username;
+            document.getElementById("settings-user-id").textContent = userId;
+            document.getElementById("settings-avatar").src = avatarSrc;
+            document.getElementById("paypal-email").value = paypalEmail;
+            
+            // Afficher l'écran de paramètres
+            document.getElementById("settings-screen").style.display = 'flex';
+            
+            // Sauvegarder le mode de jeu précédent pour y revenir à la fermeture
+            settingsPreviousMode = gameMode;
+            gameMode = 'settings';
+        }
+        
+        // Fonction pour cacher l'écran de paramètres et revenir à l'écran précédent
+        function hideSettingsScreen() {
+            // Cacher l'écran de paramètres
+            document.getElementById("settings-screen").style.display = 'none';
+            
+            // Revenir à l'écran précédent
+            if (settingsPreviousMode === 'home') {
+                showHomeScreen();
+            } else if (settingsPreviousMode === 'game') {
+                // Reprendre le jeu
+                gameMode = 'game';
+            } else if (settingsPreviousMode === 'gameOver') {
+                // Afficher l'écran de game over
+                gameOverScreen.style.display = 'flex';
+                gameMode = 'gameOver';
+            }
+        }
+        
+        // Initialiser la page de paramètres
+        function initSettingsScreen() {
+            // Variable pour stocker le mode de jeu précédent
+            let settingsPreviousMode = 'home';
+            
+            const profileButton = document.getElementById('profile-button');
+            const closeSettings = document.getElementById('close-settings');
+            const usernameInput = document.getElementById('username-input');
+            const paypalEmailInput = document.getElementById('paypal-email');
+            const avatarsGrid = document.getElementById('avatars-grid');
+            
+            // Charger tous les avatars disponibles
+            loadAvatars();
+            
+            // Ouvrir la page de paramètres au clic sur le profil
+            profileButton.addEventListener('click', function() {
+                showSettingsScreen();
+            });
+            
+            // Fermer la page de paramètres
+            closeSettings.addEventListener('click', function() {
+                hideSettingsScreen();
+            });
+            
+            // Mettre à jour le username lors de la modification
+            usernameInput.addEventListener('input', function() {
+                username = this.value;
+                document.getElementById('username').textContent = username;
+                localStorage.setItem('tidashUsername', username);
+            });
+            
+            // Mettre à jour l'email PayPal lors de la modification
+            paypalEmailInput.addEventListener('input', function() {
+                paypalEmail = this.value;
+                localStorage.setItem('tidashPaypalEmail', paypalEmail);
+            });
+            
+            // Fonction pour charger tous les avatars disponibles
+            function loadAvatars() {
+                // Liste des avatars (de avatar1.jpg à avatar20.jpg + avatar_default.jpg)
+                const avatarsList = [];
+                
+                // Ajouter l'avatar par défaut
+                avatarsList.push('avatar_default.jpg');
+                
+                // Ajouter les avatars numérotés
+                for (let i = 1; i <= 20; i++) {
+                    avatarsList.push(`avatar${i}.jpg`);
+                }
+                
+                // Vider la grille d'avatars
+                avatarsGrid.innerHTML = '';
+                
+                // Ajouter chaque avatar à la grille
+                avatarsList.forEach(avatarFile => {
+                    const avatarPath = `avatars/${avatarFile}`;
+                    const isSelected = avatarPath === avatarSrc;
+                    
+                    const avatarItem = document.createElement('div');
+                    avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
+                    avatarItem.innerHTML = `
+                        <img src="${avatarPath}" alt="Avatar">
+                        <div class="avatar-check">✓</div>
+                    `;
+                    
+                    // Ajouter l'événement de clic pour sélectionner l'avatar
+                    avatarItem.addEventListener('click', function() {
+                        // Désélectionner tous les avatars
+                        document.querySelectorAll('.avatar-item').forEach(item => {
+                            item.classList.remove('selected');
+                        });
+                        
+                        // Sélectionner cet avatar
+                        this.classList.add('selected');
+                        
+                        // Mettre à jour l'avatar de l'utilisateur
+                        avatarSrc = avatarPath;
+                        document.getElementById('avatarImg').src = avatarSrc;
+                        document.getElementById('settings-avatar').src = avatarSrc;
+                        
+                        // Sauvegarder dans le localStorage
+                        localStorage.setItem('tidashAvatarSrc', avatarSrc);
+                    });
+                    
+                    avatarsGrid.appendChild(avatarItem);
+                });
+            }
+        }
     </script>
 </body>
 </html>
