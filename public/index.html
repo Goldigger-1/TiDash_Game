@@ -15,7 +15,7 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #051515; /* Vert-bleu très foncé - encore plus sombre */
+            background-color: #0A0A0A; /* Noir presque pur */
             overflow: hidden;
             touch-action: manipulation;
         }
@@ -28,11 +28,11 @@
             border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-            background-color: #072222; /* Vert-bleu foncé - encore plus sombre */
-            border: 10px solid #051515;
+            background-color: #121212; /* Gris très foncé */
+            border: 10px solid #0A0A0A;
         }
         #game-canvas {
-            background-color: #072222; /* Vert-bleu foncé - encore plus sombre */
+            background-color: #121212; /* Gris très foncé */
             display: block;
             width: 100%;
             height: 100%;
@@ -53,11 +53,100 @@
             color: white;
             z-index: 10;
             font-family: 'Orbitron', sans-serif;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+        
+        #game-over.visible {
+            opacity: 1;
+        }
+        
+        #score-display {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            color: #00FF9D; /* Vert original */
+            font-weight: bold;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            transition-delay: 0.3s;
+        }
+        
+        #best-score {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            transition-delay: 0.6s;
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            transition-delay: 0.9s;
+        }
+        
+        #game-over.visible #score-display,
+        #game-over.visible #best-score,
+        #game-over.visible .button-container {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        #home-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            box-sizing: border-box;
+            pointer-events: auto;
+            z-index: 5;
+            background-color: rgba(0, 0, 0, 0.3); /* Légèrement transparent */
+        }
+        #game-title-container {
+            text-align: center;
+            margin-bottom: 50px;
+            z-index: 6;
+        }
+        #game-button-container {
+            text-align: center;
+            margin-top: 50px;
+            z-index: 6;
+        }
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #game-title {
+            font-size: 4.5rem;
+            font-weight: bold;
+            color: #FFFFFF;
+            letter-spacing: 2px;
+            text-shadow: 
+                0 2px 0 rgba(0, 0, 0, 0.5),
+                0 4px 0 rgba(0, 255, 157, 0.3),
+                0 6px 10px rgba(0, 0, 0, 0.3);
+            transform: perspective(500px) rotateX(10deg);
+            margin-bottom: 10px;
         }
         #score-display {
             font-size: 4rem;
             margin-bottom: 10px;
-            color: #00FF9D;
+            color: #00FF9D; /* Vert original */
             font-weight: bold;
         }
         #best-score {
@@ -67,25 +156,68 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
-        #play-again {
-            padding: 10px 20px;
+        .game-button {
+            padding: 12px 24px;
             font-size: 1.2rem;
-            background-color: #00FF9D;
-            color: #1a1a2e;
+            background: linear-gradient(135deg, #00FF9D 0%, #00B38B 70%, #009E7F 100%);
+            color: #121212;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-family: 'Orbitron', sans-serif;
+            margin: 10px 0;
+            min-width: 150px;
+            text-align: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+        
+        .game-button:hover {
+            background: linear-gradient(135deg, #00FFB3 0%, #00C49C 70%, #00AF8F 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
+        }
+        
+        .game-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .game-button.secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+            box-shadow: none;
+        }
+        
+        .game-button.secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <canvas id="game-canvas"></canvas>
+        <div id="home-screen">
+            <div id="game-title-container">
+                <div id="game-title">TiDash</div>
+            </div>
+            <div id="game-button-container">
+                <button id="play-button" class="game-button">Tap to Start</button>
+            </div>
+        </div>
         <div id="game-over">
             <div id="score-display">0</div>
             <div id="best-score">Best: 0</div>
-            <button id="play-again">Play Again</button>
+            <div class="button-container">
+                <button id="play-again" class="game-button">PLAY AGAIN</button>
+                <button id="home-button" class="game-button secondary">HOME</button>
+            </div>
         </div>
     </div>
 
@@ -94,9 +226,12 @@
         const ctx = canvas.getContext('2d');
         const tg = window.Telegram.WebApp;
         const gameOverScreen = document.getElementById('game-over');
+        const homeScreen = document.getElementById('home-screen');
         const scoreDisplay = document.getElementById('score-display');
         const bestScoreDisplay = document.getElementById('best-score');
         const playAgainBtn = document.getElementById('play-again');
+        const homeBtn = document.getElementById('home-button');
+        const playBtn = document.getElementById('play-button');
 
         // Désactiver le zoom sur mobile
         document.addEventListener('touchmove', function (event) {
@@ -119,6 +254,7 @@
 
         // Game variables
         let gameRunning = false;
+        let gameMode = 'home'; // 'home', 'game', 'gameOver'
         let score = 0;
         let bestScore = localStorage.getItem('bestScore') || 0;
         let ball = {
@@ -146,6 +282,21 @@
         let lineProximityThreshold = 0; // Distance minimale entre les carrés et la ligne
         let canSpawnNewSquare = true; // Variable pour contrôler l'apparition des carrés
 
+        // Return to home screen
+        function goToHome() {
+            gameMode = 'home';
+            gameOverScreen.style.display = 'none';
+            homeScreen.style.display = 'flex';
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
+            
+            // Make sure the game loop is running for the home screen animation
+            if (!gameRunning) {
+                gameRunning = true;
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
         // Initialize the game
         function initGame() {
             // Set canvas size to match container
@@ -172,18 +323,49 @@
             gameOverAnimation = false;
             gameOverAnimationComplete = false;
             score = 0;
-            gameOverScreen.style.display = 'none';
-            gameRunning = true;
             
-            // Start game loop
+            // Start game loop if not already running
+            if (!gameRunning) {
+                gameRunning = true;
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Start the actual gameplay
+        function startGame() {
+            // Hide home screen
+            homeScreen.style.display = 'none';
+            
+            // Reset game state
+            resetGame();
+            
+            // Réinitialiser les variables de jeu
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
+            
+            // Set game mode to 'game'
+            gameMode = 'game';
+            
+            // Force restart game loop
+            gameRunning = true;
+            lastFrameTime = null;
+            
+            // Réinitialiser la position et la vitesse de la balle
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height * 0.5;
+            ball.direction = Math.random() > 0.5 ? 1 : -1;
+            ball.speed = canvas.width * 0.0008;
+            
+            // Réinitialiser la position de la ligne
+            line.x = (canvas.width - line.width) / 2;
+            line.y = ball.y - ball.radius;
+            
+            // Démarrer la boucle de jeu
             requestAnimationFrame(gameLoop);
         }
 
         // Game loop
         function gameLoop(timestamp) {
-            if (!gameRunning && !gameOverAnimation) return;
-            
-            // Calculate delta time for smooth animation
             if (!lastFrameTime) lastFrameTime = timestamp;
             const deltaTime = timestamp - lastFrameTime;
             lastFrameTime = timestamp;
@@ -191,9 +373,8 @@
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            if (!gameOverAnimation) {
-                // Normal game updates
-                // Update ball position
+            // Mettre à jour la position de la balle pour tous les modes
+            if (gameMode !== 'gameOver' || !gameOverAnimation) {
                 ball.x += ball.speed * ball.direction * deltaTime;
                 
                 // Check if ball hits the edge of the line
@@ -204,68 +385,52 @@
                     ball.x = line.x + line.width - ball.radius;
                     ball.direction = -1;
                 }
-                
-                // Vérifier si un nouveau carré doit être généré
-                let shouldSpawnNewSquare = false;
-                
-                // Si aucun carré n'existe, en créer un
-                if (squares.length === 0 && canSpawnNewSquare) {
-                    shouldSpawnNewSquare = true;
-                } else if (canSpawnNewSquare) {
-                    // Vérifier si le carré le plus récent a dépassé un certain seuil
-                    // On ne vérifie que le dernier carré ajouté pour garantir l'espacement
-                    if (squares.length > 0) {
-                        const lastSquare = squares[squares.length - 1];
-                        
-                        // Générer un nouveau carré lorsque le dernier carré atteint 12% de la hauteur de l'écran
-                        const spawnThreshold = canvas.height * 0.13;
-                        if (lastSquare.y > spawnThreshold) {
-                            shouldSpawnNewSquare = true;
-                        }
-                    }
-                }
-                
-                // Spawn new squares based on position threshold
-                if (shouldSpawnNewSquare) {
-                    spawnSquare();
-                    // Désactiver temporairement l'apparition de nouveaux carrés
-                    canSpawnNewSquare = false;
-                    // Réactiver l'apparition après un délai
-                    setTimeout(() => {
-                        canSpawnNewSquare = true;
-                    }, 800); // Délai de 800ms avant de permettre un nouveau carré
-                }
             }
             
-            // Draw line (before squares to ensure it's behind)
+            // Always draw the line
             drawLine();
             
-            // Update and draw squares
-            updateSquares(deltaTime);
-            
-            if (!gameOverAnimation) {
-                // Draw ball only if not in game over animation
+            // Ne dessiner la balle que si on n'est pas en animation de game over
+            if (gameMode !== 'gameOver' || !gameOverAnimation) {
                 drawBall();
-                
-                // Check for collisions
-                checkCollisions();
-            } else {
-                // Update and draw particles
+            }
+            
+            if (gameMode === 'game' || gameMode === 'gameOver') {
+                // Update and draw particles - Déplacer avant les carrés pour que les particules soient visibles
                 updateParticles(deltaTime);
                 
-                // Check if all animations are complete
-                if (fadingSquares.length === 0 && particles.length === 0 && !gameOverAnimationComplete) {
-                    gameOverAnimationComplete = true;
-                    // Afficher immédiatement l'écran de game over sans délai
-                    showGameOverScreen();
+                // Update and draw squares
+                updateSquares(deltaTime);
+                
+                // Update and draw fading squares
+                updateFadingSquares(deltaTime);
+                
+                if (gameMode === 'game') {
+                    // Check for collisions
+                    if (checkCollisions()) {
+                        return;
+                    }
+                    
+                    // Spawn new squares
+                    if ((squares.length === 0) || (squares.length > 0 && squares[squares.length-1].y > canvas.height * 0.15)) {
+                        spawnSquare();
+                        lastSquareTime = Date.now();
+                        
+                        // Gradually decrease spawn interval
+                        if (squareInterval > 500) {
+                            squareInterval -= 10;
+                        }
+                    }
+                    
+                    // Draw score
+                    drawScore();
                 }
             }
             
-            // Draw score at the bottom
-            drawScore();
-            
-            // Continue game loop
-            requestAnimationFrame(gameLoop);
+            // Continue the game loop
+            if (gameRunning) {
+                requestAnimationFrame(gameLoop);
+            }
         }
 
         // Spawn a new square
@@ -301,7 +466,7 @@
                 x: x,
                 y: -size,
                 size: size,
-                speed: canvas.height * 0.0003, // Vitesse réduite davantage (était 0.0005)
+                speed: canvas.height * 0.0005, // Revenir à la vitesse originale
                 isGreen: isGreen,
                 rotation: 0,
                 rotationSpeed: 0.01 * (Math.random() > 0.5 ? 1 : -1), // Vitesse de rotation fixe et modérée
@@ -349,12 +514,14 @@
                 ctx.save();
                 ctx.translate(square.x + square.size/2, square.y + square.size/2);
                 ctx.rotate(square.rotation);
-                ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF';
+                ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF'; // Couleur verte pour les carrés verts
                 ctx.fillRect(-square.size/2, -square.size/2, square.size, square.size);
                 ctx.restore();
             }
-            
-            // Update fading squares
+        }
+
+        // Update fading squares
+        function updateFadingSquares(deltaTime) {
             for (let i = fadingSquares.length - 1; i >= 0; i--) {
                 const square = fadingSquares[i];
                 
@@ -378,39 +545,72 @@
                 ctx.save();
                 ctx.translate(square.x + square.originalSize/2, square.y + square.originalSize/2);
                 ctx.rotate(square.rotation);
-                ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF';
+                ctx.fillStyle = square.isGreen ? '#00FF9D' : '#FFFFFF'; // Couleur verte pour les carrés verts
                 ctx.globalAlpha = 1 - fadeProgress; // Also fade opacity
                 ctx.fillRect(-newSize/2, -newSize/2, newSize, newSize);
                 ctx.globalAlpha = 1;
                 ctx.restore();
             }
         }
-        
-        // Update particles
+
+        // Create explosion particles from the ball
+        function createExplosion(x, y, color) {
+            const particleCount = 120; // Augmenter légèrement le nombre de particules
+            const particleSize = ball.radius / 4; // Particules plus fines (divisé par 4 au lieu de 2)
+            
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 8 + 3; // Vitesse plus élevée
+                const distance = Math.random() * ball.radius;
+                
+                particles.push({
+                    x: x + Math.cos(angle) * distance,
+                    y: y + Math.sin(angle) * distance,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: particleSize * (Math.random() * 0.5 + 0.3), // Particules plus fines
+                    color: color || '#00FF9D',
+                    alpha: 1,
+                    fadeSpeed: 0.01 + Math.random() * 0.02 // Ralentir la disparition
+                });
+            }
+        }
+
+        // Update and draw particles
         function updateParticles(deltaTime) {
+            // Si aucune particule, ne rien faire
+            if (particles.length === 0) return;
+            
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
                 
-                // Move particle
-                particle.x += particle.vx * deltaTime;
-                particle.y += particle.vy * deltaTime;
+                // Update position - augmenter la vitesse de déplacement
+                particle.x += particle.vx * deltaTime * 0.1;
+                particle.y += particle.vy * deltaTime * 0.1;
                 
-                // Update size and opacity
-                particle.size -= particle.decay * deltaTime;
-                particle.opacity -= particle.decay * 0.01 * deltaTime;
+                // Update alpha - ralentir la disparition
+                particle.alpha -= particle.fadeSpeed * deltaTime * 0.03;
                 
-                // Remove if too small or transparent
-                if (particle.size <= 0 || particle.opacity <= 0) {
+                // Remove faded particles
+                if (particle.alpha <= 0) {
                     particles.splice(i, 1);
                     continue;
                 }
                 
                 // Draw particle
+                ctx.save();
+                ctx.globalAlpha = particle.alpha;
+                ctx.fillStyle = particle.color;
                 ctx.beginPath();
                 ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(0, 255, 157, ${particle.opacity})`;
                 ctx.fill();
-                ctx.closePath();
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+            
+            // Check if all particles are gone
+            if (particles.length === 0 && fadingSquares.length === 0 && gameOverAnimation) {
+                gameOverAnimationComplete = true;
             }
         }
 
@@ -418,7 +618,7 @@
         function drawBall() {
             ctx.beginPath();
             ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-            ctx.fillStyle = '#00FF9D';
+            ctx.fillStyle = '#00FF9D'; // Vert original
             ctx.fill();
             ctx.closePath();
         }
@@ -473,51 +673,66 @@
                     } else {
                         // Game over on white square collision
                         gameOver();
-                        return;
+                        return true;
                     }
                 }
             }
+            return false;
         }
 
         // Game over
         function gameOver() {
-            gameRunning = false;
+            if (gameOverAnimation) return;
+            
+            gameMode = 'gameOver';
             gameOverAnimation = true;
+            gameRunning = false; // Arrêter la boucle de jeu
+            
+            // Vider d'abord les particules existantes pour éviter tout conflit
+            particles = [];
             
             // Convert all squares to fading squares
             for (let i = squares.length - 1; i >= 0; i--) {
                 const square = squares[i];
                 square.fadeStartTime = Date.now();
-                square.fadeTime = 1500;
+                square.fadeTime = 1000; // Réduit à 1 seconde
                 square.originalSize = square.size;
                 fadingSquares.push(square);
             }
             squares = [];
             
-            // Create explosion particles from the ball
-            createBallExplosion();
-        }
-        
-        // Create explosion particles from the ball
-        function createBallExplosion() {
-            const particleCount = 50; // Plus de particules
-            const particleSize = ball.radius / 2.5; // Particules légèrement plus grandes
+            // Créer des particules pour l'effet d'explosion
+            createExplosion(ball.x, ball.y, '#00FF9D'); // Spécifier explicitement la couleur
             
-            for (let i = 0; i < particleCount; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 0.6 + 0.2; // Vitesse plus élevée pour couvrir plus d'espace
-                const distance = Math.random() * ball.radius;
+            // Afficher l'écran de game over avec un court délai
+            setTimeout(() => {
+                showGameOverScreen();
+            }, 300); // Délai de 300ms
+            
+            // Continuer l'animation pour l'effet d'explosion
+            let animationFrameId;
+            const animateExplosion = function(timestamp) {
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                particles.push({
-                    x: ball.x + Math.cos(angle) * distance,
-                    y: ball.y + Math.sin(angle) * distance,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    size: particleSize * (Math.random() * 0.5 + 0.5),
-                    opacity: 1,
-                    decay: 0.02 // Décroissance plus lente pour que les particules durent plus longtemps
-                });
-            }
+                // Draw the line
+                drawLine();
+                
+                // Update and draw particles
+                updateParticles(16); // Utiliser une valeur fixe pour deltaTime
+                
+                // Update and draw fading squares
+                updateFadingSquares(16); // Utiliser une valeur fixe pour deltaTime
+                
+                if (particles.length > 0 || fadingSquares.length > 0) {
+                    animationFrameId = requestAnimationFrame(animateExplosion);
+                } else {
+                    cancelAnimationFrame(animationFrameId);
+                }
+            };
+            
+            // Démarrer l'animation d'explosion
+            animationFrameId = requestAnimationFrame(animateExplosion);
         }
         
         // Show game over screen
@@ -531,14 +746,32 @@
                 bestScoreDisplay.textContent = `Best: ${bestScore}`;
             }
             
-            // Show game over screen
+            // Mettre à jour le score
             scoreDisplay.textContent = score;
+            
+            // Afficher l'écran de game over
             gameOverScreen.style.display = 'flex';
+            
+            // Forcer un reflow pour que la transition fonctionne
+            void gameOverScreen.offsetWidth;
+            
+            // Ajouter la classe visible pour déclencher l'animation
+            gameOverScreen.classList.add('visible');
+            console.log("Game over screen displayed");
+        }
+
+        // Function to hide game over screen
+        function hideGameOver() {
+            gameOverScreen.classList.remove('visible');
+            
+            setTimeout(() => {
+                gameOverScreen.style.display = 'none';
+            }, 1000); // Attendre que l'animation de fondu soit terminée
         }
 
         // Handle screen tap/click
         function handleTap() {
-            if (gameRunning) {
+            if (gameMode === 'game') {
                 // Change ball direction
                 ball.direction *= -1;
             }
@@ -546,19 +779,72 @@
 
         // Resize handler
         function handleResize() {
-            if (gameRunning) {
-                // Pause game
-                gameRunning = false;
-                
-                // Restart game with new dimensions
-                initGame();
-            }
+            // Pause game
+            gameRunning = false;
+            
+            // Restart game with new dimensions
+            initGame();
         }
 
         // Event listeners
         canvas.addEventListener('click', handleTap);
         window.addEventListener('resize', handleResize);
-        playAgainBtn.addEventListener('click', initGame);
+        
+        // Handle play again button click
+        playAgainBtn.addEventListener('click', function() {
+            hideGameOver();
+            resetGame();
+            startGame();
+        });
+
+        // Handle home button click
+        homeBtn.addEventListener('click', function() {
+            hideGameOver();
+            resetGame();
+            gameMode = 'home';
+            showHomeScreen();
+        });
+        
+        // Function to reset game
+        function resetGame() {
+            // Reset game variables
+            score = 0;
+            squares = [];
+            fadingSquares = [];
+            particles = [];
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
+            lastSquareTime = 0;
+            squareInterval = 1100;
+            
+            // Reset ball position
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height * 0.5;
+            ball.direction = Math.random() > 0.5 ? 1 : -1;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // Function to show home screen
+        function showHomeScreen() {
+            homeScreen.style.display = 'flex';
+            gameOverScreen.style.display = 'none';
+            gameMode = 'home';
+            
+            // Réinitialiser les animations de game over
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
+            
+            // Make sure the game loop is running for the home screen animation
+            if (!gameRunning) {
+                gameRunning = true;
+                lastFrameTime = null;
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        playBtn.addEventListener('click', startGame);
 
         // Initialize
         window.addEventListener('load', function() {
@@ -568,8 +854,11 @@
                 tg.expand();
             }
             
-            // Start the game
+            // Initialiser le jeu avant d'aller à l'écran d'accueil
             initGame();
+            
+            // Start with home screen
+            goToHome();
         });
     </script>
 </body>
