@@ -12,6 +12,8 @@
     <audio id="gameOverSound" src="sounds/Termine.mp3" preload="auto"></audio>
     <audio id="showScoreSound" src="sounds/Show_GameOver.mp3" preload="auto"></audio>
     <audio id="borderTouchSound" src="sounds/BorderTouch.mp3" preload="auto"></audio>
+    <!-- Élément audio pour la musique de fond -->
+    <audio id="backgroundMusic" preload="auto" loop></audio>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
@@ -630,6 +632,21 @@
         let avatarSrc = "avatars/avatar_default.jpg";
         let paypalEmail = "";
         
+        // Variables pour la musique de fond
+        let homeMusics = [
+            "home_musics/dont-talk-315229.mp3",
+            "home_musics/experimental-cinematic-hip-hop-315904.mp3",
+            "home_musics/gardens-stylish-chill-303261.mp3",
+            "home_musics/gorila-315977 (1).mp3",
+            "home_musics/kugelsicher-by-tremoxbeatz-302838.mp3",
+            "home_musics/night-detective-226857.mp3"
+        ];
+        let currentMusicIndex = -1;
+        let backgroundMusicElement = document.getElementById('backgroundMusic');
+        
+        // Variable pour suivre si la musique est en attente d'autoplay
+        window.musicPendingAutoplay = true;
+        
         // Système audio optimisé pour mobile avec Web Audio API
         let audioContext;
         const audioBuffers = {};
@@ -820,6 +837,9 @@
                 gameRunning = true;
                 requestAnimationFrame(gameLoop);
             }
+            
+            // Gérer la musique de fond (démarrer sur l'écran d'accueil)
+            manageBackgroundMusic();
         }
 
         // Initialize the game
@@ -920,6 +940,9 @@
             
             // Set game mode to 'game'
             gameMode = 'game';
+            
+            // Gérer la musique de fond (arrêter pendant le jeu)
+            manageBackgroundMusic();
             
             // Force restart game loop
             gameRunning = true;
@@ -1301,6 +1324,12 @@
             document.getElementById('score-display').textContent = score;
             document.getElementById('best-score').textContent = `Best: ${bestScore}`;
             
+            // Mettre à jour le mode de jeu
+            gameMode = 'gameOver';
+            
+            // Gérer la musique de fond (arrêter pendant le game over)
+            manageBackgroundMusic();
+            
             // Afficher l'écran de game over
             gameOverScreen.style.display = 'flex';
             
@@ -1378,6 +1407,9 @@
             gameMode = 'home';
             showHomeScreen();
             
+            // Gérer la musique de fond (démarrer sur l'écran d'accueil)
+            manageBackgroundMusic();
+            
             // Réactiver les boutons après un court délai
             setTimeout(() => {
                 homeBtn.disabled = false;
@@ -1425,6 +1457,9 @@
                 lastFrameTime = null;
                 requestAnimationFrame(gameLoop);
             }
+            
+            // Gérer la musique de fond (démarrer sur l'écran d'accueil)
+            manageBackgroundMusic();
         }
 
         playBtn.addEventListener('click', startGame);
@@ -1505,6 +1540,65 @@
             document.getElementById("avatarImg").src = avatarSrc;
         }
 
+        // Fonction pour jouer une musique de fond aléatoire
+        function playRandomBackgroundMusic() {
+            // Choisir une musique aléatoire différente de la précédente
+            let newIndex;
+            do {
+                newIndex = Math.floor(Math.random() * homeMusics.length);
+            } while (newIndex === currentMusicIndex && homeMusics.length > 1);
+            
+            currentMusicIndex = newIndex;
+            backgroundMusicElement.src = homeMusics[currentMusicIndex];
+            backgroundMusicElement.volume = 0.3; // Volume à 30%
+            
+            // Jouer la musique
+            const playPromise = backgroundMusicElement.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.error("Erreur lors de la lecture de la musique:", error);
+                    // Stocker l'intention de jouer de la musique pour la prochaine interaction utilisateur
+                    window.musicPendingAutoplay = true;
+                });
+            }
+        }
+        
+        // Fonction pour gérer la musique de fond en fonction du mode de jeu
+        function manageBackgroundMusic() {
+            if (gameMode === 'home' || gameMode === 'settings') {
+                // Si la musique n'est pas en cours de lecture, en jouer une
+                if (backgroundMusicElement.paused) {
+                    playRandomBackgroundMusic();
+                }
+            } else {
+                // Si on n'est pas sur l'écran d'accueil ou les paramètres, arrêter la musique
+                backgroundMusicElement.pause();
+            }
+        }
+        
+        // Écouter la fin de la musique pour en jouer une autre
+        backgroundMusicElement.addEventListener('ended', function() {
+            if (gameMode === 'home' || gameMode === 'settings') {
+                playRandomBackgroundMusic();
+            }
+        });
+        
+        // Ajouter des écouteurs d'événements pour démarrer la musique après une interaction utilisateur
+        document.addEventListener('click', function() {
+            if (window.musicPendingAutoplay && (gameMode === 'home' || gameMode === 'settings')) {
+                window.musicPendingAutoplay = false;
+                playRandomBackgroundMusic();
+            }
+        });
+        
+        document.addEventListener('touchstart', function() {
+            if (window.musicPendingAutoplay && (gameMode === 'home' || gameMode === 'settings')) {
+                window.musicPendingAutoplay = false;
+                playRandomBackgroundMusic();
+            }
+        });
+        
         // Initialize
         window.addEventListener('load', function() {
             // Initialize Telegram WebApp if available
@@ -1515,6 +1609,9 @@
             
             // Initialiser le jeu avant d'aller à l'écran d'accueil
             initGame();
+            
+            // Initialiser la musique de fond
+            manageBackgroundMusic();
             
             // Start with home screen
             goToHome();
