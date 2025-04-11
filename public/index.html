@@ -500,13 +500,9 @@
                 if (ball.x - ball.radius < line.x) {
                     ball.x = line.x + ball.radius;
                     ball.direction = 1;
-                    // Jouer le son quand la balle touche le bord gauche
-                    playSound(borderTouchSound);
                 } else if (ball.x + ball.radius > line.x + line.width) {
                     ball.x = line.x + line.width - ball.radius;
                     ball.direction = -1;
-                    // Jouer le son quand la balle touche le bord droit
-                    playSound(borderTouchSound);
                 }
             }
             
