@@ -11,6 +11,7 @@
     <audio id="successSound" src="sounds/Success.mp3" preload="auto"></audio>
     <audio id="gameOverSound" src="sounds/Termine.mp3" preload="auto"></audio>
     <audio id="showScoreSound" src="sounds/Show_GameOver.mp3" preload="auto"></audio>
+    <audio id="borderTouchSound" src="sounds/BorderTouch.mp3" preload="auto"></audio>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
@@ -305,7 +306,8 @@
                 'userTap': document.getElementById('userTapSound'),
                 'success': document.getElementById('successSound'),
                 'gameOver': document.getElementById('gameOverSound'),
-                'showScore': document.getElementById('showScoreSound')
+                'showScore': document.getElementById('showScoreSound'),
+                'borderTouch': document.getElementById('borderTouchSound')
             };
             
             // Pour chaque son
@@ -592,9 +594,13 @@
                 if (ball.x - ball.radius < line.x) {
                     ball.x = line.x + ball.radius;
                     ball.direction = 1;
+                    // Jouer le son quand la balle touche le bord gauche
+                    playSound('borderTouch');
                 } else if (ball.x + ball.radius > line.x + line.width) {
                     ball.x = line.x + line.width - ball.radius;
                     ball.direction = -1;
+                    // Jouer le son quand la balle touche le bord droit
+                    playSound('borderTouch');
                 }
             }
             
