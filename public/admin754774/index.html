@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TiDash - Administration</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="login-container">
+        <div class="login-card">
+            <h1>TiDash Admin</h1>
+            <div class="login-form">
+                <div class="input-group">
+                    <label for="admin-id">Identifiant</label>
+                    <input type="text" id="admin-id" placeholder="Entrez votre identifiant">
+                </div>
+                <div class="input-group">
+                    <label for="admin-password">Mot de passe</label>
+                    <input type="password" id="admin-password" placeholder="Entrez votre mot de passe">
+                </div>
+                <button id="login-btn" class="admin-button">Connexion</button>
+                <p id="login-error" class="error-message"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-dashboard" style="display: none;">
+        <header>
+            <div class="logo">TiDash Admin</div>
+            <button id="logout-btn" class="admin-button secondary">Déconnexion</button>
+        </header>
+        
+        <main>
+            <h1>Panneau d'administration</h1>
+            
+            <div class="stats-container">
+                <div class="stat-card">
+                    <h3>Utilisateurs</h3>
+                    <p id="total-users">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Meilleur score</h3>
+                    <p id="highest-score">0</p>
+                </div>
+            </div>
+            
+            <div class="users-section">
+                <div class="section-header">
+                    <h2>Liste des utilisateurs</h2>
+                    <div class="search-container">
+                        <input type="text" id="search-users" placeholder="Rechercher...">
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table id="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID du jeu</th>
+                                <th>Username du jeu</th>
+                                <th>ID Telegram</th>
+                                <th>Username Telegram</th>
+                                <th>Email PayPal</th>
+                                <th>Meilleur score</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <!-- Les utilisateurs seront chargés ici dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="pagination">
+                    <button id="prev-page" class="pagination-btn" disabled>Précédent</button>
+                    <span id="page-info">Page 1 sur 1</span>
+                    <button id="next-page" class="pagination-btn" disabled>Suivant</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Détails de l'utilisateur</h2>
+            <div class="user-details">
+                <div class="detail-row">
+                    <label>ID du jeu:</label>
+                    <span id="modal-game-id"></span>
+                </div>
+                <div class="detail-row">
+                    <label>Username du jeu:</label>
+                    <span id="modal-game-username"></span>
+                </div>
+                <div class="detail-row">
+                    <label>ID Telegram:</label>
+                    <span id="modal-telegram-id"></span>
+                </div>
+                <div class="detail-row">
+                    <label>Username Telegram:</label>
+                    <span id="modal-telegram-username"></span>
+                </div>
+                <div class="detail-row">
+                    <label>Email PayPal:</label>
+                    <span id="modal-paypal-email"></span>
+                </div>
+                <div class="detail-row">
+                    <label>Meilleur score:</label>
+                    <span id="modal-best-score"></span>
+                </div>
+                <div class="detail-row">
+                    <label>Date d'inscription:</label>
+                    <span id="modal-registration-date"></span>
+                </div>
+                <div class="detail-row">
+                    <label>Dernière connexion:</label>
+                    <span id="modal-last-login"></span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="edit-user-btn" class="admin-button">Modifier</button>
+                <button id="delete-user-btn" class="admin-button danger">Supprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

@@ -2,6 +2,7 @@ const { Telegraf } = require('telegraf');
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 // Check that the Telegram token is configured
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -86,12 +87,122 @@ bot.launch()
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware pour parser le JSON
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Serve static files from the public folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Default route that returns index.html
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Route pour le panneau d'administration
+app.get('/admin754774', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin754774', 'index.html'));
+});
+
+// Fonction pour récupérer les données utilisateurs depuis les fichiers de localStorage
+function getUsersFromLocalStorage() {
+  try {
+    // Créer un dossier pour stocker les données utilisateurs si nécessaire
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir);
+    }
+    
+    const usersFile = path.join(dataDir, 'users.json');
+    
+    // Si le fichier existe, le lire
+    if (fs.existsSync(usersFile)) {
+      const usersData = fs.readFileSync(usersFile, 'utf8');
+      return JSON.parse(usersData);
+    }
+    
+    // Sinon retourner un tableau vide
+    return [];
+  } catch (error) {
+    console.error('Erreur lors de la lecture des données utilisateurs:', error);
+    return [];
+  }
+}
+
+// Fonction pour sauvegarder les données utilisateurs
+function saveUsers(users) {
+  try {
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir);
+    }
+    
+    const usersFile = path.join(dataDir, 'users.json');
+    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde des données utilisateurs:', error);
+    return false;
+  }
+}
+
+// API pour récupérer les données utilisateurs
+app.get('/api/users', (req, res) => {
+  const users = getUsersFromLocalStorage();
+  res.json(users);
+});
+
+// API pour supprimer un utilisateur
+app.delete('/api/users/:id', (req, res) => {
+  const userId = req.params.id;
+  const users = getUsersFromLocalStorage();
+  
+  const updatedUsers = users.filter(user => user.gameId !== userId);
+  
+  if (users.length === updatedUsers.length) {
+    return res.status(404).json({ error: 'Utilisateur non trouvé' });
+  }
+  
+  const success = saveUsers(updatedUsers);
+  
+  if (success) {
+    res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
+  } else {
+    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
+  }
+});
+
+// API pour enregistrer un nouvel utilisateur ou mettre à jour un utilisateur existant
+app.post('/api/users', (req, res) => {
+  try {
+    const userData = req.body;
+    
+    if (!userData || !userData.gameId || !userData.gameUsername) {
+      return res.status(400).json({ error: 'Données utilisateur invalides' });
+    }
+    
+    const users = getUsersFromLocalStorage();
+    const existingUserIndex = users.findIndex(user => user.gameId === userData.gameId);
+    
+    if (existingUserIndex !== -1) {
+      // Mettre à jour l'utilisateur existant
+      users[existingUserIndex] = { ...users[existingUserIndex], ...userData };
+    } else {
+      // Ajouter un nouvel utilisateur
+      users.push(userData);
+    }
+    
+    const success = saveUsers(users);
+    
+    if (success) {
+      res.status(200).json({ message: 'Utilisateur enregistré avec succès' });
+    } else {
+      res.status(500).json({ error: 'Erreur lors de l\'enregistrement de l\'utilisateur' });
+    }
+  } catch (error) {
+    console.error('Erreur lors de l\'enregistrement de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // Start the server

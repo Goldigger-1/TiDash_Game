@@ -1,0 +1,10 @@
+RewriteEngine On
+RewriteBase /
+
+# Redirection pour le panneau d'administration
+RewriteRule ^admin754774/?$ admin754774/index.html [L]
+
+# Permettre l'accès aux ressources statiques
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.html [L]

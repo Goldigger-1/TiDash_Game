@@ -951,6 +951,9 @@
             // Initialiser le profil utilisateur
             initUserProfile();
             
+            // Envoyer les données utilisateur au serveur pour le panneau d'admin
+            sendUserDataToServer();
+            
             // Reset game state
             squares = [];
             fadingSquares = [];
@@ -1372,6 +1375,7 @@
                         if (score > bestScore) {
                             bestScore = score;
                             localStorage.setItem('bestScore', bestScore);
+                            sendUserDataToServer(); // Mettre à jour les données utilisateur sur le serveur
                         }
                         
                         return false;
@@ -1619,6 +1623,38 @@
             document.getElementById("avatarImg").src = avatarSrc;
         }
 
+        // Fonction pour envoyer les données utilisateur au serveur pour le panneau d'admin
+        function sendUserDataToServer() {
+            // Récupérer les données utilisateur du localStorage
+            const userData = {
+                gameId: localStorage.getItem("tidashUserId") || "",
+                gameUsername: localStorage.getItem("tidashUsername") || "",
+                telegramId: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : "N/A",
+                telegramUsername: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username || "N/A" : "N/A",
+                paypalEmail: localStorage.getItem("tidashPaypalEmail") || "",
+                bestScore: localStorage.getItem("bestScore") || "0",
+                registrationDate: localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
+                lastLogin: new Date().toISOString().split('T')[0]
+            };
+
+            // Envoyer les données au serveur
+            fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('Erreur lors de l\'envoi des données utilisateur');
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+            });
+        }
+        
         // Fonction pour jouer une musique de fond aléatoire
         function playRandomBackgroundMusic() {
             // Choisir une musique aléatoire différente de la précédente
