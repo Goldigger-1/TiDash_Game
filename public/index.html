@@ -6,19 +6,16 @@
     <title>TiDash Game</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Préchargement des sons avec format MP3 et OGG pour compatibilité -->
-    <audio id="userTapSound" preload="auto">
-        <source src="sounds/UserTap.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="successSound" preload="auto">
-        <source src="sounds/Success.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="gameOverSound" preload="auto">
-        <source src="sounds/Termine.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="showScoreSound" preload="auto">
-        <source src="sounds/Show_GameOver.mp3" type="audio/mpeg">
-    </audio>
+    <!-- Préchargement des sons en base64 pour une performance optimale -->
+    <script>
+        // Sons préchargés en base64 pour éviter les requêtes réseau
+        const AUDIO_DATA = {
+            userTap: "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADwAD///////////////////////////////////////////8AAAA8TEFNRTMuMTAwAZUAAAAALgAAA8AkCEL1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sUZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=",
+            success: "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADwAD///////////////////////////////////////////8AAAA8TEFNRTMuMTAwAZUAAAAALgAAA8AkCEL1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sUZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=",
+            gameOver: "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADwAD///////////////////////////////////////////8AAAA8TEFNRTMuMTAwAZUAAAAALgAAA8AkCEL1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sUZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=",
+            showScore: "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADwAD///////////////////////////////////////////8AAAA8TEFNRTMuMTAwAZUAAAAALgAAA8AkCEL1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sUZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="
+        };
+    </script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
@@ -280,95 +277,115 @@
         let stars = [];
         const maxStars = 40; // Nombre d'étoiles
         
-        // Gestion audio optimisée pour mobile
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        let audioBuffers = {};
-        let audioInitialized = false;
+        // Système audio ultra-optimisé pour mobile
+        const audioSources = {};
+        let audioContext = null;
+        let audioReady = false;
+        let audioEnabled = true;
         
-        // Fonction pour charger les sons de manière optimisée
-        async function loadSounds() {
+        // Initialisation du système audio
+        function initAudioSystem() {
             try {
-                const soundFiles = {
-                    'userTap': 'sounds/UserTap.mp3',
-                    'success': 'sounds/Success.mp3',
-                    'gameOver': 'sounds/Termine.mp3',
-                    'showScore': 'sounds/Show_GameOver.mp3'
-                };
+                // Créer le contexte audio (avec fallback pour les anciens navigateurs)
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioContext();
                 
-                // Charger chaque son
-                for (const [name, url] of Object.entries(soundFiles)) {
-                    const response = await fetch(url);
-                    const arrayBuffer = await response.arrayBuffer();
-                    audioBuffers[name] = await audioContext.decodeAudioData(arrayBuffer);
+                // Préparer les sons depuis les données base64
+                for (const [name, base64Data] of Object.entries(AUDIO_DATA)) {
+                    prepareSound(name, base64Data);
                 }
                 
-                audioInitialized = true;
-                console.log("Sons chargés avec succès");
+                // Marquer le système audio comme prêt
+                audioReady = true;
+                console.log("Système audio initialisé avec succès");
             } catch (error) {
-                console.error("Erreur lors du chargement des sons:", error);
-                // Fallback à la méthode traditionnelle
-                initSoundsTraditional();
+                console.error("Erreur d'initialisation audio:", error);
+                audioEnabled = false;
             }
         }
         
-        // Fonction pour jouer un son avec l'API Web Audio (plus rapide)
-        function playSound(soundName) {
-            if (!audioInitialized) {
-                // Si l'audio n'est pas initialisé, on utilise l'élément audio traditionnel
-                const soundElement = document.getElementById(soundName + 'Sound');
-                if (soundElement) {
-                    soundElement.currentTime = 0;
-                    soundElement.play().catch(e => console.log("Erreur lecture audio:", e));
+        // Préparer un son depuis des données base64
+        function prepareSound(name, base64Data) {
+            // Convertir les données base64 en ArrayBuffer
+            const fetchAndDecode = async () => {
+                try {
+                    // Créer un élément audio pour le fallback
+                    const audio = new Audio();
+                    audio.src = base64Data;
+                    
+                    // Stocker l'élément audio pour le fallback
+                    audioSources[name] = { audio };
+                    
+                    // Décoder les données audio pour Web Audio API
+                    if (audioContext) {
+                        const response = await fetch(base64Data);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        audioSources[name].buffer = audioBuffer;
+                    }
+                } catch (error) {
+                    console.error(`Erreur lors de la préparation du son ${name}:`, error);
                 }
-                return;
-            }
+            };
+            
+            fetchAndDecode();
+        }
+        
+        // Fonction pour jouer un son avec latence minimale
+        function playSound(name) {
+            if (!audioEnabled) return;
             
             try {
-                // Créer une source audio
-                const source = audioContext.createBufferSource();
-                source.buffer = audioBuffers[soundName];
-                
-                // Connecter la source à la destination (haut-parleurs)
-                source.connect(audioContext.destination);
-                
-                // Jouer le son immédiatement
-                source.start(0);
-            } catch (error) {
-                console.error("Erreur lors de la lecture du son:", error);
-            }
-        }
-        
-        // Fonction pour initialiser les sons de manière traditionnelle (fallback)
-        function initSoundsTraditional() {
-            // Créer un gestionnaire d'événements pour initialiser les sons
-            const initAudio = function() {
-                // Reprendre l'AudioContext (nécessaire sur mobile)
-                if (audioContext.state === 'suspended') {
+                // Vérifier si le contexte audio est suspendu (restriction mobile)
+                if (audioContext && audioContext.state === 'suspended') {
                     audioContext.resume();
                 }
                 
-                // Jouer et mettre immédiatement en pause tous les sons pour les initialiser
-                const sounds = ['userTapSound', 'successSound', 'gameOverSound', 'showScoreSound'];
-                sounds.forEach(id => {
-                    const sound = document.getElementById(id);
-                    if (sound) {
-                        sound.play().catch(e => console.log("Initialisation audio:", e));
-                        sound.pause();
-                        sound.currentTime = 0;
-                    }
-                });
+                // Si le son est prêt avec Web Audio API
+                if (audioReady && audioContext && audioSources[name] && audioSources[name].buffer) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = audioSources[name].buffer;
+                    source.connect(audioContext.destination);
+                    source.start(0);
+                    return;
+                }
                 
-                // Charger les sons avec l'API Web Audio
-                loadSounds();
+                // Fallback à l'élément Audio standard
+                if (audioSources[name] && audioSources[name].audio) {
+                    const audio = audioSources[name].audio.cloneNode();
+                    audio.volume = 1.0;
+                    audio.play().catch(error => {
+                        console.warn(`Erreur de lecture audio (${name}):`, error);
+                    });
+                }
+            } catch (error) {
+                console.error(`Erreur lors de la lecture du son ${name}:`, error);
+            }
+        }
+        
+        // Activer l'audio au premier clic/tap utilisateur
+        function setupAudioActivation() {
+            const activateAudio = () => {
+                // Initialiser le système audio si ce n'est pas déjà fait
+                if (!audioReady) {
+                    initAudioSystem();
+                }
                 
-                // Supprimer le gestionnaire d'événements après l'initialisation
-                document.removeEventListener('click', initAudio);
-                document.removeEventListener('touchstart', initAudio);
+                // Reprendre le contexte audio si nécessaire
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
+                // Supprimer les écouteurs d'événements après activation
+                document.removeEventListener('click', activateAudio, true);
+                document.removeEventListener('touchstart', activateAudio, true);
+                document.removeEventListener('keydown', activateAudio, true);
             };
             
-            // Ajouter les gestionnaires d'événements pour l'initialisation
-            document.addEventListener('click', initAudio);
-            document.addEventListener('touchstart', initAudio);
+            // Ajouter des écouteurs d'événements pour l'activation
+            document.addEventListener('click', activateAudio, true);
+            document.addEventListener('touchstart', activateAudio, true);
+            document.addEventListener('keydown', activateAudio, true);
         }
         
         let ball = {
@@ -433,8 +450,8 @@
             // Initialiser les étoiles
             initStars();
             
-            // Initialiser les sons
-            initSoundsTraditional();
+            // Configurer l'activation audio
+            setupAudioActivation();
             
             // Reset game state
             squares = [];
