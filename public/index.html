@@ -282,7 +282,7 @@
                 speed: canvas.height * 0.0003, // Vitesse réduite davantage (était 0.0005)
                 isGreen: isGreen,
                 rotation: 0,
-                rotationSpeed: (Math.random() * 0.035+ 0.02) * (Math.random() > 0.5 ? 1 : -1), // Vitesse de rotation réduite
+                rotationSpeed: 0.01 * (Math.random() > 0.5 ? 1 : -1), // Vitesse de rotation fixe et modérée
                 angle: limitedAngle,
                 velocityX: Math.sin(limitedAngle),
                 velocityY: Math.cos(limitedAngle)
