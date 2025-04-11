@@ -15,7 +15,7 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #000;
+            background-color: #051515; /* Vert-bleu très foncé - encore plus sombre */
             overflow: hidden;
             touch-action: manipulation;
         }
@@ -28,20 +28,11 @@
             border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-            background-color: #000;
-            border: 10px solid #000;
-        }
-        #stars-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            background-color: transparent;
+            background-color: #072222; /* Vert-bleu foncé - encore plus sombre */
+            border: 10px solid #051515;
         }
         #game-canvas {
-            background-color: transparent;
+            background-color: #072222; /* Vert-bleu foncé - encore plus sombre */
             display: block;
             width: 100%;
             height: 100%;
@@ -90,7 +81,6 @@
 </head>
 <body>
     <div class="container">
-        <canvas id="stars-canvas"></canvas>
         <canvas id="game-canvas"></canvas>
         <div id="game-over">
             <div id="score-display">0</div>
@@ -102,8 +92,6 @@
     <script>
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
-        const starsCanvas = document.getElementById('stars-canvas');
-        const starsCtx = starsCanvas.getContext('2d');
         const tg = window.Telegram.WebApp;
         const gameOverScreen = document.getElementById('game-over');
         const scoreDisplay = document.getElementById('score-display');
@@ -128,10 +116,6 @@
         }, false);
         
         let lastTouchEnd = 0;
-
-        // Étoiles pour l'effet d'espace
-        let stars = [];
-        const starCount = 200; // Augmentation du nombre d'étoiles
 
         // Game variables
         let gameRunning = false;
@@ -162,90 +146,11 @@
         let lineProximityThreshold = 0; // Distance minimale entre les carrés et la ligne
         let canSpawnNewSquare = true; // Variable pour contrôler l'apparition des carrés
 
-        // Initialiser les étoiles
-        function initStars() {
-            stars = [];
-            for (let i = 0; i < starCount; i++) {
-                // Créer quelques étoiles plus brillantes (environ 10%)
-                const isBright = Math.random() < 0.1;
-                
-                stars.push({
-                    x: Math.random() * starsCanvas.width,
-                    y: Math.random() * starsCanvas.height,
-                    radius: isBright ? Math.random() * 3.5 + 1.5 : Math.random() * 2.5 + 0.8, // Étoiles plus grandes
-                    speed: Math.random() * 0.3 + 0.1,
-                    brightness: isBright ? Math.random() * 0.3 + 0.7 : Math.random() * 0.5 + 0.5, // Luminosité minimale plus élevée
-                    brightnessDelta: (Math.random() * 0.01 + 0.005) * (Math.random() > 0.5 ? 1 : -1),
-                    isBright: isBright
-                });
-            }
-        }
-
-        // Dessiner et animer les étoiles
-        function updateStars(deltaTime) {
-            starsCtx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
-            
-            for (let i = 0; i < stars.length; i++) {
-                const star = stars[i];
-                
-                // Mettre à jour la position
-                star.y += star.speed * deltaTime;
-                
-                // Faire réapparaître les étoiles qui sortent de l'écran
-                if (star.y > starsCanvas.height) {
-                    star.y = 0;
-                    star.x = Math.random() * starsCanvas.width;
-                }
-                
-                // Faire scintiller les étoiles
-                star.brightness += star.brightnessDelta * deltaTime * 0.1;
-                
-                // Inverser la direction du scintillement si nécessaire
-                if (star.brightness > 1 || star.brightness < 0.3) {
-                    star.brightnessDelta *= -1;
-                }
-                
-                // Dessiner l'étoile avec un effet de lueur
-                starsCtx.beginPath();
-                
-                // Effet de lueur (halo)
-                const glowRadius = star.isBright ? star.radius * 4 : star.radius * 2;
-                const gradient = starsCtx.createRadialGradient(
-                    star.x, star.y, 0,
-                    star.x, star.y, glowRadius
-                );
-                
-                // Couleur légèrement bleutée pour les étoiles brillantes
-                const starColor = star.isBright ? 
-                    `rgba(200, 220, 255, ${star.brightness})` : 
-                    `rgba(255, 255, 255, ${star.brightness})`;
-                    
-                gradient.addColorStop(0, starColor);
-                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                
-                starsCtx.fillStyle = gradient;
-                starsCtx.arc(star.x, star.y, glowRadius, 0, Math.PI * 2);
-                starsCtx.fill();
-                
-                // Étoile centrale
-                starsCtx.beginPath();
-                starsCtx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                starsCtx.fillStyle = starColor;
-                starsCtx.fill();
-                starsCtx.closePath();
-            }
-        }
-
         // Initialize the game
         function initGame() {
             // Set canvas size to match container
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
-            starsCanvas.width = canvas.width;
-            starsCanvas.height = canvas.height;
-            
-            // Initialize stars
-            initStars();
             
             // Initialize ball - larger radius
             ball.radius = canvas.width * 0.035;
@@ -283,10 +188,7 @@
             const deltaTime = timestamp - lastFrameTime;
             lastFrameTime = timestamp;
             
-            // Update stars
-            updateStars(deltaTime);
-            
-            // Clear game canvas
+            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             if (!gameOverAnimation) {
@@ -523,10 +425,6 @@
 
         // Draw the line
         function drawLine() {
-            // Draw shadow effect for the line
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(line.x, line.y + line.height, line.width, line.height * 0.5);
-            
             // Draw the actual line with rounded corners
             ctx.fillStyle = '#333333';
             
