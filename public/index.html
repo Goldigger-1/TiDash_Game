@@ -280,6 +280,52 @@
         const gameOverSound = document.getElementById('gameOverSound');
         const showScoreSound = document.getElementById('showScoreSound');
         
+        // Fonction pour jouer un son de manière fiable
+        function playSound(sound) {
+            // Créer une nouvelle instance du son pour éviter les problèmes de lecture simultanée
+            const soundClone = sound.cloneNode(true);
+            
+            // Définir le volume
+            soundClone.volume = 1.0;
+            
+            // Jouer le son avec une promesse pour gérer les erreurs
+            const playPromise = soundClone.play();
+            
+            // Gérer les erreurs potentielles
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Erreur de lecture audio:", error);
+                    // Essayer une approche alternative si la lecture échoue
+                    setTimeout(() => {
+                        sound.currentTime = 0;
+                        sound.play().catch(e => console.log("Échec de la seconde tentative:", e));
+                    }, 100);
+                });
+            }
+        }
+        
+        // Fonction pour initialiser les sons au premier clic/tap
+        function initSounds() {
+            // Créer un gestionnaire d'événements pour initialiser les sons
+            const initAudio = function() {
+                // Jouer et mettre immédiatement en pause tous les sons pour les initialiser
+                const sounds = [borderTouchSound, userTapSound, successSound, gameOverSound, showScoreSound];
+                sounds.forEach(sound => {
+                    sound.play().catch(e => console.log("Initialisation audio:", e));
+                    sound.pause();
+                    sound.currentTime = 0;
+                });
+                
+                // Supprimer le gestionnaire d'événements après l'initialisation
+                document.removeEventListener('click', initAudio);
+                document.removeEventListener('touchstart', initAudio);
+            };
+            
+            // Ajouter les gestionnaires d'événements pour l'initialisation
+            document.addEventListener('click', initAudio);
+            document.addEventListener('touchstart', initAudio);
+        }
+        
         let ball = {
             x: 0,
             y: 0,
@@ -341,6 +387,9 @@
             
             // Initialiser les étoiles
             initStars();
+            
+            // Initialiser les sons
+            initSounds();
             
             // Reset game state
             squares = [];
@@ -452,14 +501,12 @@
                     ball.x = line.x + ball.radius;
                     ball.direction = 1;
                     // Jouer le son quand la balle touche le bord gauche
-                    borderTouchSound.currentTime = 0;
-                    borderTouchSound.play();
+                    playSound(borderTouchSound);
                 } else if (ball.x + ball.radius > line.x + line.width) {
                     ball.x = line.x + line.width - ball.radius;
                     ball.direction = -1;
                     // Jouer le son quand la balle touche le bord droit
-                    borderTouchSound.currentTime = 0;
-                    borderTouchSound.play();
+                    playSound(borderTouchSound);
                 }
             }
             
@@ -744,8 +791,7 @@
                     // If it's a green square, collect it
                     if (square.isGreen) {
                         // Jouer le son quand la balle touche un carré vert
-                        successSound.currentTime = 0;
-                        successSound.play();
+                        playSound(successSound);
                         
                         // Remove the square
                         squares.splice(i, 1);
@@ -766,8 +812,7 @@
                     } else {
                         // Game over if it's a white square
                         // Jouer le son quand la balle touche un carré blanc
-                        gameOverSound.currentTime = 0;
-                        gameOverSound.play();
+                        playSound(gameOverSound);
                         
                         // Create explosion effect
                         createExplosion(ball.x, ball.y, '#00FF9D');
@@ -791,8 +836,7 @@
         // Function to show game over screen
         function showGameOverScreen() {
             // Jouer le son quand le popup de score s'affiche
-            showScoreSound.currentTime = 0;
-            showScoreSound.play();
+            playSound(showScoreSound);
             
             // Update score display
             document.getElementById('score-display').textContent = score;
@@ -824,8 +868,7 @@
                 ball.direction *= -1;
                 
                 // Jouer le son quand l'utilisateur touche l'écran
-                userTapSound.currentTime = 0;
-                userTapSound.play();
+                playSound(userTapSound);
             }
         }
 
