@@ -260,6 +260,11 @@
         let gameMode = 'home'; // 'home', 'game', 'gameOver'
         let score = 0;
         let bestScore = localStorage.getItem('bestScore') || 0;
+        
+        // Variables pour les étoiles
+        let stars = [];
+        const maxStars = 60; // Augmenté de 40 à 60
+        
         let ball = {
             x: 0,
             y: 0,
@@ -319,6 +324,9 @@
             line.x = (canvas.width - line.width) / 2;
             line.y = ball.y - ball.radius; // Center the ball on the line
             
+            // Initialiser les étoiles
+            initStars();
+            
             // Reset game state
             squares = [];
             fadingSquares = [];
@@ -331,6 +339,47 @@
             if (!gameRunning) {
                 gameRunning = true;
                 requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // Initialiser les étoiles
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < maxStars; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 1.2 + 0.3, // Taille entre 0.3 et 1.5 pixels
+                    opacity: Math.random() * 0.25 + 0.1, // Opacité entre 0.1 et 0.35 (augmentée)
+                    speed: Math.random() * 0.2 + 0.05, // Vitesse entre 0.05 et 0.25 pixels par frame
+                    direction: Math.random() * Math.PI * 2 // Direction aléatoire en radians
+                });
+            }
+        }
+        
+        // Dessiner les étoiles
+        function drawStars() {
+            // Ne dessiner les étoiles que sur l'écran d'accueil et pendant le jeu
+            if (gameMode === 'home' || gameMode === 'game') {
+                for (let i = 0; i < stars.length; i++) {
+                    const star = stars[i];
+                    
+                    // Mise à jour de la position
+                    star.x += Math.cos(star.direction) * star.speed;
+                    star.y += Math.sin(star.direction) * star.speed;
+                    
+                    // Si l'étoile sort de l'écran, la replacer de l'autre côté
+                    if (star.x < 0) star.x = canvas.width;
+                    if (star.x > canvas.width) star.x = 0;
+                    if (star.y < 0) star.y = canvas.height;
+                    if (star.y > canvas.height) star.y = 0;
+                    
+                    // Dessiner l'étoile
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+                    ctx.fill();
+                }
             }
         }
 
@@ -375,6 +424,9 @@
             
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Dessiner les étoiles en arrière-plan
+            drawStars();
             
             // Mettre à jour la position de la balle pour tous les modes
             if (gameMode !== 'gameOver' || !gameOverAnimation) {
@@ -844,6 +896,9 @@
             gameOverAnimationComplete = false;
             lastSquareTime = 0;
             squareInterval = 1100;
+            
+            // Réinitialiser les étoiles
+            initStars();
             
             // Reset ball position
             ball.x = canvas.width / 2;
