@@ -763,11 +763,10 @@
 
         // Function to hide game over screen
         function hideGameOver() {
+            // Masquer immédiatement l'écran de game over sans animation
+            gameOverScreen.style.display = 'none';
+            // Réinitialiser la classe visible pour les futures utilisations
             gameOverScreen.classList.remove('visible');
-            
-            setTimeout(() => {
-                gameOverScreen.style.display = 'none';
-            }, 1000); // Attendre que l'animation de fondu soit terminée
         }
 
         // Handle screen tap/click
@@ -793,17 +792,43 @@
         
         // Handle play again button click
         playAgainBtn.addEventListener('click', function() {
+            // Désactiver le bouton immédiatement pour éviter les clics multiples
+            playAgainBtn.disabled = true;
+            homeBtn.disabled = true;
+            
+            // Masquer l'écran de game over immédiatement
             hideGameOver();
+            
+            // Réinitialiser et démarrer le jeu
             resetGame();
             startGame();
+            
+            // Réactiver les boutons après un court délai
+            setTimeout(() => {
+                playAgainBtn.disabled = false;
+                homeBtn.disabled = false;
+            }, 500);
         });
 
         // Handle home button click
         homeBtn.addEventListener('click', function() {
+            // Désactiver le bouton immédiatement pour éviter les clics multiples
+            homeBtn.disabled = true;
+            playAgainBtn.disabled = true;
+            
+            // Masquer l'écran de game over immédiatement
             hideGameOver();
+            
+            // Réinitialiser et aller à l'écran d'accueil
             resetGame();
             gameMode = 'home';
             showHomeScreen();
+            
+            // Réactiver les boutons après un court délai
+            setTimeout(() => {
+                homeBtn.disabled = false;
+                playAgainBtn.disabled = false;
+            }, 500);
         });
         
         // Function to reset game
