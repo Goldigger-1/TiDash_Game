@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Méta-tags pour forcer l'orientation portrait -->
+    <meta name="screen-orientation" content="portrait">
+    <meta name="x5-orientation" content="portrait">
+    <meta name="msapplication-orientation" content="portrait">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>TiDash Game</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
@@ -613,12 +619,12 @@
                             <div class="edit-icon">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M16.4745 5.40768L18.5917 7.52483M17.8358 3.54254L11.6002 9.77806C11.3979 9.98031 11.2619 10.2384 11.2104 10.5192L10.5798 13.4209L13.4816 12.7903C13.7624 12.7388 14.0205 12.6028 14.2227 12.4006L20.4582 6.16508C20.5844 6.03889 20.6846 5.88909 20.7536 5.72343C20.8226 5.55777 20.8589 5.37966 20.8605 5.19938C20.8621 5.01909 20.8289 4.84039 20.7628 4.6736C20.6967 4.50681 20.5991 4.35537 20.4749 4.22718C20.3507 4.09899 20.2022 3.99691 20.0374 3.92553C19.8726 3.85415 19.6951 3.81549 19.5157 3.81169C19.3364 3.8079 19.1574 3.83906 18.9899 3.90281C18.8224 3.96656 18.6698 4.06188 18.5401 4.18348L12.3046 10.419C12.1023 10.6212 11.9664 10.8793 11.9149 11.1601L11.2843 14.0619L14.186 13.4313C14.4668 13.3798 14.7249 13.2438 14.9272 13.0416L21.1627 6.80608C21.8106 6.15818 22.1655 5.28206 22.1529 4.36728C22.1403 3.45249 21.7612 2.58647 21.0961 1.9549C20.431 1.32333 19.5401 0.96993 18.6146 1.00182C17.689 1.03372 16.8179 1.44959 16.1974 2.12483L9.96196 8.36035C9.35302 8.96929 8.94371 9.74882 8.79747 10.5981L7.7655 15.2322C7.73328 15.3697 7.73471 15.5131 7.76969 15.6498C7.80467 15.7864 7.87221 15.9122 7.96643 16.0172C8.06066 16.1222 8.17871 16.2034 8.31082 16.2544C8.44293 16.3054 8.58559 16.3247 8.72856 16.3108L13.3627 15.2788C14.212 15.1326 14.9915 14.7233 15.6004 14.1143L21.8359 7.87877L16.4745 5.40768Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </div>
+                            </svg>
                         </div>
-                        <div class="user-id-display">ID : <span id="settings-user-id">0000000000</span></div>
                     </div>
+                    <div class="user-id-display">ID : <span id="settings-user-id">0000000000</span></div>
                 </div>
+            </div>
                 
                 <div class="paypal-section">
                     <div class="section-title">Enter your PayPal email address</div>
@@ -904,6 +910,9 @@
             gameOverAnimation = false;
             gameOverAnimationComplete = false;
             
+            // Réafficher le profil utilisateur sur l'écran d'accueil
+            document.getElementById("profile-button").style.display = 'flex';
+            
             // Make sure the game loop is running for the home screen animation
             if (!gameRunning) {
                 gameRunning = true;
@@ -1002,6 +1011,9 @@
         function startGame() {
             // Hide home screen
             homeScreen.style.display = 'none';
+            
+            // Masquer le profil utilisateur pendant le jeu
+            document.getElementById("profile-button").style.display = 'none';
             
             // Reset game state
             resetGame();
@@ -1476,11 +1488,7 @@
             
             // Réinitialiser et aller à l'écran d'accueil
             resetGame();
-            gameMode = 'home';
-            showHomeScreen();
-            
-            // Gérer la musique de fond (démarrer sur l'écran d'accueil)
-            manageBackgroundMusic();
+            goToHome();
             
             // Réactiver les boutons après un court délai
             setTimeout(() => {
@@ -1734,6 +1742,9 @@
                 tg.expand();
             }
             
+            // Verrouiller l'orientation en mode portrait
+            lockScreenOrientation();
+            
             // Initialiser le jeu avant d'aller à l'écran d'accueil
             initGame();
             
@@ -1749,6 +1760,35 @@
             // Initialiser la page de paramètres
             initSettingsScreen();
         });
+        
+        // Fonction pour verrouiller l'orientation de l'écran en mode portrait
+        function lockScreenOrientation() {
+            try {
+                // Pour les navigateurs modernes
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('portrait').catch(function(error) {
+                        console.log('Impossible de verrouiller l\'orientation: ', error);
+                    });
+                } 
+                // Pour les anciens navigateurs iOS
+                else if (window.orientation !== undefined) {
+                    // Vérifier si l'appareil est en mode paysage
+                    if (window.orientation === 90 || window.orientation === -90) {
+                        // Afficher un message demandant à l'utilisateur de tourner son appareil
+                        alert('Veuillez tourner votre appareil en mode portrait pour une meilleure expérience.');
+                    }
+                    
+                    // Écouter les changements d'orientation
+                    window.addEventListener('orientationchange', function() {
+                        if (window.orientation === 90 || window.orientation === -90) {
+                            alert('Veuillez tourner votre appareil en mode portrait pour une meilleure expérience.');
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Erreur lors du verrouillage de l\'orientation: ', e);
+            }
+        }
         
         // Fonction pour afficher l'écran de paramètres
         function showSettingsScreen() {
