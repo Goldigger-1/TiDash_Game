@@ -5,10 +5,23 @@ const fs = require('fs');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config();
 
+// Chemin de la base de données persistante
+const DB_PATH = '/var/lib/tidash_database.sqlite';
+
+// Vérifier si le fichier de base de données existe, sinon le créer
+if (!fs.existsSync(DB_PATH)) {
+  try {
+    fs.writeFileSync(DB_PATH, '', { flag: 'wx' });
+    console.log(`Fichier de base de données créé à ${DB_PATH}`);
+  } catch (err) {
+    console.error(`Erreur lors de la création du fichier de base de données: ${err.message}`);
+  }
+}
+
 // Initialiser la base de données SQLite
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: '/var/lib/tidash_database.sqlite',
+  storage: DB_PATH,
   logging: false // Désactiver les logs SQL pour la production
 });
 
@@ -56,13 +69,23 @@ const User = sequelize.define('User', {
 // Initialiser la base de données
 (async () => {
   try {
-    // Forcer la création des tables (attention: cela supprime les tables existantes)
-    // À utiliser uniquement lors du premier déploiement
-    await sequelize.sync({ force: true });
+    // Synchroniser les modèles avec la base de données sans forcer la recréation des tables
+    await sequelize.sync({ force: false });
     console.log('Base de données initialisée avec succès');
     
-    // Migrer les données existantes si nécessaire
-    migrateExistingData();
+    // Vérifier si la table users existe et contient des données
+    try {
+      const count = await User.count();
+      console.log(`Nombre d'utilisateurs dans la base de données: ${count}`);
+      
+      // Si la table est vide, migrer les données existantes si nécessaire
+      if (count === 0) {
+        console.log('La table users est vide, tentative de migration des données...');
+        await migrateExistingData();
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des données:', error);
+    }
   } catch (error) {
     console.error('Erreur lors de l\'initialisation de la base de données:', error);
   }
@@ -106,6 +129,8 @@ async function migrateExistingData() {
       
       // Créer une sauvegarde du fichier JSON
       fs.copyFileSync(usersFile, path.join(dataDir, 'users_backup.json'));
+    } else {
+      console.log('Aucun fichier de données utilisateurs trouvé pour la migration');
     }
   } catch (error) {
     console.error('Erreur lors de la migration des données:', error);
