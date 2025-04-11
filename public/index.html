@@ -26,7 +26,9 @@
             background-color: #0A0A0A; /* Noir presque pur */
             overflow: hidden;
             touch-action: manipulation;
+            position: relative;
         }
+        
         .container {
             position: relative;
             width: 90%;
@@ -40,6 +42,7 @@
             border: 10px solid #0A0A0A;
             margin: 20px auto; /* Ajout d'une marge automatique pour centrer avec moins d'espace vertical */
         }
+        
         #game-canvas {
             background-color: #121212; /* Gris très foncé - même que le container */
             background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)); /* Même superposition que le home-screen */
@@ -49,6 +52,7 @@
             position: relative;
             z-index: 1;
         }
+        
         #game-over {
             position: absolute;
             top: 0;
@@ -111,6 +115,7 @@
             transform: translateY(0);
             opacity: 1;
         }
+        
         #home-screen {
             position: absolute;
             top: 0;
@@ -127,21 +132,25 @@
             z-index: 5;
             background-color: rgba(0, 0, 0, 0.3); /* Légèrement transparent */
         }
+        
         #game-title-container {
             text-align: center;
             margin-bottom: 50px;
             z-index: 6;
         }
+        
         #game-button-container {
             text-align: center;
             margin-top: 50px;
             z-index: 6;
         }
+        
         .button-container {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
+        
         #game-title {
             font-size: 4.5rem;
             font-weight: bold;
@@ -154,12 +163,14 @@
             transform: perspective(500px) rotateX(10deg);
             margin-bottom: 10px;
         }
+        
         #score-display {
             font-size: 4rem;
             margin-bottom: 10px;
             color: #00FF9D; /* Vert original */
             font-weight: bold;
         }
+        
         #best-score {
             font-size: 1.8rem;
             margin-bottom: 30px;
@@ -167,6 +178,7 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
+        
         .game-button {
             padding: 12px 24px;
             font-size: 1.2rem;
@@ -209,10 +221,79 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
         }
+        
+        /* Style pour le profil utilisateur */
+        .user-profile {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            left: auto;
+            display: flex;
+            align-items: center;
+            z-index: 10;
+            flex-direction: row-reverse; /* Inverser l'ordre pour mettre l'avatar à droite */
+        }
+        
+        .avatar-container {
+            width: 32px;
+            height: 32px;
+            border-radius: 7px;
+            position: relative;
+            margin-left: 6px;
+            margin-right: 0;
+        }
+        
+        .avatar-border {
+            position: absolute;
+            top: -1.5px;
+            left: -1.5px;
+            right: -1.5px;
+            bottom: -1.5px;
+            border-radius: 8.5px;
+            background: linear-gradient(45deg, #00FF9D, #00A86B);
+            z-index: -1;
+        }
+        
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 5.5px;
+        }
+        
+        .user-info {
+            color: white;
+            text-align: right; /* Aligner le texte à droite */
+        }
+        
+        .username {
+            font-size: 11px;
+            font-weight: bold;
+            margin: 0;
+            margin-bottom: 2px; /* Espacement entre username et ID */
+        }
+        
+        .user-id {
+            font-size: 9px;
+            color: #aaa;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Profil utilisateur -->
+        <div class="user-profile">
+            <div class="avatar-container">
+                <div class="avatar-border"></div>
+                <img id="avatarImg" class="avatar-img" src="avatars/avatar_default.jpg" alt="Avatar">
+            </div>
+            <div class="user-info">
+                <p id="username" class="username">Username</p>
+                <p id="userId" class="user-id">0000000000</p>
+            </div>
+        </div>
+        
         <canvas id="game-canvas"></canvas>
         <div id="home-screen">
             <div id="game-title-container">
@@ -272,6 +353,11 @@
         // Variables pour les étoiles
         let stars = [];
         const maxStars = 40; // Nombre d'étoiles
+        
+        // Variables pour le profil utilisateur
+        let username = "";
+        let userId = "";
+        let avatarSrc = "avatars/avatar_default.jpg";
         
         // Système audio optimisé pour mobile avec Web Audio API
         let audioContext;
@@ -484,6 +570,9 @@
             
             // Configurer l'activation audio
             setupAudioActivation();
+            
+            // Initialiser le profil utilisateur
+            initUserProfile();
             
             // Reset game state
             squares = [];
@@ -1063,6 +1152,77 @@
         }
 
         playBtn.addEventListener('click', startGame);
+
+        // Générer un nom d'utilisateur aléatoire
+        function generateRandomUsername() {
+            const adjectives = [
+                "Cosmic", "Stellar", "Quantum", "Neon", "Cyber", 
+                "Digital", "Pixel", "Techno", "Hyper", "Mega", 
+                "Ultra", "Retro", "Future", "Laser", "Plasma", 
+                "Crystal", "Glitch", "Vector", "Synth", "Astro"
+            ];
+            
+            const nouns = [
+                "Runner", "Racer", "Dasher", "Pilot", "Navigator", 
+                "Explorer", "Voyager", "Jumper", "Drifter", "Surfer", 
+                "Rider", "Hunter", "Ninja", "Warrior", "Knight", 
+                "Wizard", "Hacker", "Gamer", "Player", "Master"
+            ];
+            
+            const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+            
+            return randomAdjective + randomNoun;
+        }
+        
+        // Générer un ID à 10 chiffres
+        function generateRandomUserId() {
+            let id = "";
+            for (let i = 0; i < 10; i++) {
+                id += Math.floor(Math.random() * 10);
+            }
+            return id;
+        }
+        
+        // Sélectionner un avatar aléatoire
+        function getRandomAvatar() {
+            return "avatars/avatar_default.jpg";
+        }
+        
+        // Initialiser ou récupérer le profil utilisateur
+        function initUserProfile() {
+            // Vérifier si l'utilisateur a déjà un profil
+            if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
+                username = localStorage.getItem("tidashUsername");
+                userId = localStorage.getItem("tidashUserId");
+                
+                // Récupérer l'avatar s'il existe, sinon utiliser l'avatar par défaut
+                if (localStorage.getItem("tidashAvatarSrc")) {
+                    avatarSrc = localStorage.getItem("tidashAvatarSrc");
+                }
+            } else {
+                // Générer un nouveau profil
+                username = generateRandomUsername();
+                userId = generateRandomUserId();
+                avatarSrc = getRandomAvatar();
+                
+                // Sauvegarder le profil
+                localStorage.setItem("tidashUsername", username);
+                localStorage.setItem("tidashUserId", userId);
+                localStorage.setItem("tidashAvatarSrc", avatarSrc);
+            }
+            
+            // Mettre à jour l'affichage du profil
+            updateUserProfileDisplay();
+        }
+        
+        // Mettre à jour l'affichage du profil utilisateur
+        function updateUserProfileDisplay() {
+            // Mettre à jour les éléments HTML
+            document.getElementById("username").textContent = username;
+            document.getElementById("userId").textContent = userId;
+            document.getElementById("avatarImg").src = avatarSrc;
+        }
 
         // Initialize
         window.addEventListener('load', function() {
