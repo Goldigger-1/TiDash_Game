@@ -686,7 +686,7 @@
         let gameRunning = false;
         let gameMode = 'home'; // 'home', 'game', 'gameOver'
         let score = 0;
-        let bestScore = localStorage.getItem('bestScore') || 0;
+        let bestScore = 0; // Sera initialisé correctement dans initUserProfile
         
         // Variables pour les étoiles
         let stars = [];
@@ -1374,7 +1374,7 @@
                         // Update best score if needed
                         if (score > bestScore) {
                             bestScore = score;
-                            localStorage.setItem('bestScore', bestScore);
+                            localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
                             sendUserDataToServer(); // Mettre à jour les données utilisateur sur le serveur
                         }
                         
@@ -1410,7 +1410,8 @@
             
             // Update score display
             document.getElementById('score-display').textContent = score;
-            document.getElementById('best-score').textContent = `Best: ${bestScore}`;
+            const userBestScoreKey = `tidashBestScore_${userId}`;
+            document.getElementById('best-score').textContent = `Best: ${localStorage.getItem(userBestScoreKey)}`;
             
             // Mettre à jour le mode de jeu
             gameMode = 'gameOver';
@@ -1585,12 +1586,13 @@
         
         // Initialiser ou récupérer le profil utilisateur
         function initUserProfile() {
-            // Vérifier si l'utilisateur a déjà un profil
+            // Vérifier si un profil existe déjà
             if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
+                // Récupérer les informations du profil
                 username = localStorage.getItem("tidashUsername");
                 userId = localStorage.getItem("tidashUserId");
                 
-                // Récupérer l'avatar s'il existe, sinon utiliser l'avatar par défaut
+                // Récupérer l'avatar s'il existe
                 if (localStorage.getItem("tidashAvatarSrc")) {
                     avatarSrc = localStorage.getItem("tidashAvatarSrc");
                 }
@@ -1599,16 +1601,40 @@
                 if (localStorage.getItem("tidashPaypalEmail")) {
                     paypalEmail = localStorage.getItem("tidashPaypalEmail");
                 }
+                
+                // Récupérer le meilleur score spécifique à cet utilisateur
+                const userBestScoreKey = `tidashBestScore_${userId}`;
+                if (localStorage.getItem(userBestScoreKey)) {
+                    bestScore = parseInt(localStorage.getItem(userBestScoreKey));
+                } else {
+                    // Compatibilité avec l'ancien système
+                    if (localStorage.getItem("tidashBestScore")) {
+                        bestScore = parseInt(localStorage.getItem("tidashBestScore"));
+                        // Migrer vers le nouveau système
+                        localStorage.setItem(userBestScoreKey, bestScore);
+                    } else if (localStorage.getItem("bestScore")) {
+                        bestScore = parseInt(localStorage.getItem("bestScore"));
+                        // Migrer vers le nouveau système
+                        localStorage.setItem(userBestScoreKey, bestScore);
+                    } else {
+                        bestScore = 0;
+                    }
+                }
             } else {
                 // Générer un nouveau profil
                 username = generateRandomUsername();
                 userId = generateRandomUserId();
                 avatarSrc = getRandomAvatar();
+                bestScore = 0;
                 
                 // Sauvegarder le profil
                 localStorage.setItem("tidashUsername", username);
                 localStorage.setItem("tidashUserId", userId);
                 localStorage.setItem("tidashAvatarSrc", avatarSrc);
+                localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
+                
+                // Enregistrer la date d'inscription
+                localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
             }
             
             // Mettre à jour l'affichage du profil
@@ -1632,7 +1658,7 @@
                 telegramId: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : "N/A",
                 telegramUsername: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username || "N/A" : "N/A",
                 paypalEmail: localStorage.getItem("tidashPaypalEmail") || "",
-                bestScore: localStorage.getItem("bestScore") || "0",
+                bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
                 registrationDate: localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
                 lastLogin: new Date().toISOString().split('T')[0]
             };
