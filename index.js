@@ -8,7 +8,7 @@ require('dotenv').config();
 // Initialiser la base de données SQLite
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: path.join(__dirname, 'database.sqlite'),
+  storage: '/var/lib/tidash_database.sqlite',
   logging: false // Désactiver les logs SQL pour la production
 });
 
