@@ -500,6 +500,41 @@
         .avatar-item.selected .avatar-check {
             display: flex;
         }
+        
+        /* Styles pour le bouton de son */
+        .sound-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 100;
+            transition: all 0.2s ease;
+        }
+        
+        .sound-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.7);
+            transform: scale(1.1);
+        }
+        
+        .sound-toggle svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .sound-toggle.muted .sound-on {
+            display: none;
+        }
+        
+        .sound-toggle:not(.muted) .sound-off {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -524,6 +559,22 @@
             </div>
             <div id="game-button-container">
                 <button id="play-button" class="game-button">Tap to Start</button>
+            </div>
+            
+            <!-- Bouton pour activer/désactiver le son -->
+            <div id="sound-toggle" class="sound-toggle muted">
+                <svg class="sound-on" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14.5 8.5C14.5 8.5 16 9.57 16 12C16 14.43 14.5 15.5 14.5 15.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M18 5C18 5 21 7 21 12C21 17 18 19 18 19" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M3 10.5V13.5C3 14.6046 3.5 15.5 5 15.5C6.5 15.5 7 14.6046 7 13.5V10.5C7 9.39543 6.5 8.5 5 8.5C3.5 8.5 3 9.39543 3 10.5Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 10L11 7V17L7 14" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg class="sound-off" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 9L22 21" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M11 7L7 10H5C3.5 10 3 10.8954 3 12V12C3 13.1046 3.5 14 5 14H7L11 17V7Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M14.5 10.5C14.5 10.5 15.0049 10.7705 15.5 11.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M18 8C18 8 19.5 9.5 19.5 12" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
             </div>
         </div>
         <div id="game-over">
@@ -647,6 +698,10 @@
         // Variable pour suivre si la musique est en attente d'autoplay
         window.musicPendingAutoplay = true;
         
+        // Variable pour suivre si le son est activé - par défaut désactivé au chargement initial
+        // Mais on charge la préférence de l'utilisateur s'il a déjà visité le site
+        let isSoundEnabled = localStorage.getItem('tidashSoundEnabled') === 'true';
+        
         // Système audio optimisé pour mobile avec Web Audio API
         let audioContext;
         const audioBuffers = {};
@@ -709,8 +764,12 @@
         
         // Jouer un son avec le moins de latence possible
         function playSound(name) {
-            // Ne jouer les sons que si on est en mode jeu
+            // Ne jouer les sons que si on est en mode jeu et si le son est activé
             if (gameMode !== 'game' && name === 'borderTouch') {
+                return;
+            }
+            
+            if (!isSoundEnabled) {
                 return;
             }
             
@@ -1566,13 +1625,45 @@
         
         // Fonction pour gérer la musique de fond en fonction du mode de jeu
         function manageBackgroundMusic() {
-            if (gameMode === 'home' || gameMode === 'settings') {
+            if ((gameMode === 'home' || gameMode === 'settings') && isSoundEnabled) {
                 // Si la musique n'est pas en cours de lecture, en jouer une
                 if (backgroundMusicElement.paused) {
                     playRandomBackgroundMusic();
                 }
             } else {
-                // Si on n'est pas sur l'écran d'accueil ou les paramètres, arrêter la musique
+                // Si on n'est pas sur l'écran d'accueil ou les paramètres, ou si le son est désactivé, arrêter la musique
+                backgroundMusicElement.pause();
+            }
+        }
+        
+        // Fonction pour mettre à jour l'affichage du bouton de son
+        function updateSoundToggleDisplay() {
+            const soundToggle = document.getElementById('sound-toggle');
+            if (soundToggle) {
+                if (isSoundEnabled) {
+                    soundToggle.classList.remove('muted');
+                } else {
+                    soundToggle.classList.add('muted');
+                }
+            }
+        }
+        
+        // Fonction pour basculer l'état du son
+        function toggleSound() {
+            isSoundEnabled = !isSoundEnabled;
+            localStorage.setItem('tidashSoundEnabled', isSoundEnabled.toString());
+            
+            // Mettre à jour l'affichage du bouton
+            updateSoundToggleDisplay();
+            
+            // Gérer la musique en fonction du nouvel état
+            if (isSoundEnabled) {
+                // Si on active le son, jouer la musique
+                if (gameMode === 'home' || gameMode === 'settings') {
+                    playRandomBackgroundMusic();
+                }
+            } else {
+                // Si on désactive le son, arrêter la musique immédiatement
                 backgroundMusicElement.pause();
             }
         }
@@ -1599,7 +1690,7 @@
             }
         });
         
-        // Initialize
+        // Initialiser
         window.addEventListener('load', function() {
             // Initialize Telegram WebApp if available
             if (tg) {
@@ -1612,6 +1703,9 @@
             
             // Initialiser la musique de fond
             manageBackgroundMusic();
+            
+            // Initialiser l'affichage du bouton de son
+            updateSoundToggleDisplay();
             
             // Start with home screen
             goToHome();
@@ -1746,6 +1840,9 @@
                 });
             }
         }
+        
+        // Écouter le clic sur le bouton de son
+        document.getElementById('sound-toggle').addEventListener('click', toggleSound);
     </script>
 </body>
 </html>
