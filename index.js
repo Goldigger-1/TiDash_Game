@@ -182,7 +182,19 @@ app.post('/api/users', (req, res) => {
     }
     
     const users = getUsersFromLocalStorage();
-    const existingUserIndex = users.findIndex(user => user.gameId === userData.gameId);
+    
+    // Vérifier si l'utilisateur existe déjà, d'abord par ID Telegram s'il est disponible
+    let existingUserIndex = -1;
+    
+    if (userData.telegramId && userData.telegramId !== "N/A") {
+      // Chercher par ID Telegram
+      existingUserIndex = users.findIndex(user => user.telegramId === userData.telegramId);
+    }
+    
+    // Si non trouvé par ID Telegram, chercher par ID de jeu
+    if (existingUserIndex === -1) {
+      existingUserIndex = users.findIndex(user => user.gameId === userData.gameId);
+    }
     
     if (existingUserIndex !== -1) {
       // Mettre à jour l'utilisateur existant

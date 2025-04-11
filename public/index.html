@@ -1586,55 +1586,110 @@
         
         // Initialiser ou récupérer le profil utilisateur
         function initUserProfile() {
-            // Vérifier si un profil existe déjà
-            if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
-                // Récupérer les informations du profil
-                username = localStorage.getItem("tidashUsername");
-                userId = localStorage.getItem("tidashUserId");
+            // Récupérer l'ID Telegram s'il est disponible
+            const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
+            
+            // Si l'utilisateur est connecté via Telegram, vérifier s'il a déjà un profil associé à cet ID Telegram
+            if (telegramId) {
+                const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
+                const storedProfile = localStorage.getItem(telegramProfileKey);
                 
-                // Récupérer l'avatar s'il existe
-                if (localStorage.getItem("tidashAvatarSrc")) {
-                    avatarSrc = localStorage.getItem("tidashAvatarSrc");
-                }
-                
-                // Récupérer l'email PayPal s'il existe
-                if (localStorage.getItem("tidashPaypalEmail")) {
-                    paypalEmail = localStorage.getItem("tidashPaypalEmail");
-                }
-                
-                // Récupérer le meilleur score spécifique à cet utilisateur
-                const userBestScoreKey = `tidashBestScore_${userId}`;
-                if (localStorage.getItem(userBestScoreKey)) {
-                    bestScore = parseInt(localStorage.getItem(userBestScoreKey));
-                } else {
-                    // Compatibilité avec l'ancien système
-                    if (localStorage.getItem("tidashBestScore")) {
-                        bestScore = parseInt(localStorage.getItem("tidashBestScore"));
-                        // Migrer vers le nouveau système
-                        localStorage.setItem(userBestScoreKey, bestScore);
-                    } else if (localStorage.getItem("bestScore")) {
-                        bestScore = parseInt(localStorage.getItem("bestScore"));
-                        // Migrer vers le nouveau système
-                        localStorage.setItem(userBestScoreKey, bestScore);
+                if (storedProfile) {
+                    // Récupérer l'ID du jeu associé à ce compte Telegram
+                    const profileData = JSON.parse(storedProfile);
+                    userId = profileData.userId;
+                    
+                    // Récupérer les autres informations du profil
+                    username = localStorage.getItem(`tidashUsername_${userId}`) || profileData.username;
+                    avatarSrc = localStorage.getItem(`tidashAvatarSrc_${userId}`) || profileData.avatarSrc;
+                    paypalEmail = localStorage.getItem(`tidashPaypalEmail_${userId}`) || "";
+                    
+                    // Récupérer le meilleur score spécifique à cet utilisateur
+                    const userBestScoreKey = `tidashBestScore_${userId}`;
+                    if (localStorage.getItem(userBestScoreKey)) {
+                        bestScore = parseInt(localStorage.getItem(userBestScoreKey));
                     } else {
                         bestScore = 0;
                     }
+                    
+                    // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
+                    localStorage.setItem(`tidashUsername_${userId}`, username);
+                    localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
+                    localStorage.setItem(userBestScoreKey, bestScore);
+                } else {
+                    // Créer un nouveau profil pour ce compte Telegram
+                    username = generateRandomUsername();
+                    userId = generateRandomUserId();
+                    avatarSrc = getRandomAvatar();
+                    bestScore = 0;
+                    
+                    // Sauvegarder le profil avec les clés spécifiques à l'utilisateur
+                    localStorage.setItem(`tidashUsername_${userId}`, username);
+                    localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
+                    localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
+                    
+                    // Enregistrer l'association entre l'ID Telegram et l'ID du jeu
+                    localStorage.setItem(telegramProfileKey, JSON.stringify({
+                        userId: userId,
+                        username: username,
+                        avatarSrc: avatarSrc,
+                        registrationDate: new Date().toISOString().split('T')[0]
+                    }));
+                    
+                    // Enregistrer la date d'inscription
+                    localStorage.setItem(`tidashRegistrationDate_${userId}`, new Date().toISOString().split('T')[0]);
                 }
             } else {
-                // Générer un nouveau profil
-                username = generateRandomUsername();
-                userId = generateRandomUserId();
-                avatarSrc = getRandomAvatar();
-                bestScore = 0;
-                
-                // Sauvegarder le profil
-                localStorage.setItem("tidashUsername", username);
-                localStorage.setItem("tidashUserId", userId);
-                localStorage.setItem("tidashAvatarSrc", avatarSrc);
-                localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
-                
-                // Enregistrer la date d'inscription
-                localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
+                // Pas de Telegram, utiliser le comportement standard
+                if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
+                    // Récupérer les informations du profil standard
+                    username = localStorage.getItem("tidashUsername");
+                    userId = localStorage.getItem("tidashUserId");
+                    
+                    // Récupérer l'avatar s'il existe
+                    if (localStorage.getItem("tidashAvatarSrc")) {
+                        avatarSrc = localStorage.getItem("tidashAvatarSrc");
+                    }
+                    
+                    // Récupérer l'email PayPal s'il existe
+                    if (localStorage.getItem("tidashPaypalEmail")) {
+                        paypalEmail = localStorage.getItem("tidashPaypalEmail");
+                    }
+                    
+                    // Récupérer le meilleur score
+                    const userBestScoreKey = `tidashBestScore_${userId}`;
+                    if (localStorage.getItem(userBestScoreKey)) {
+                        bestScore = parseInt(localStorage.getItem(userBestScoreKey));
+                    } else {
+                        // Compatibilité avec l'ancien système
+                        if (localStorage.getItem("tidashBestScore")) {
+                            bestScore = parseInt(localStorage.getItem("tidashBestScore"));
+                            // Migrer vers le nouveau système
+                            localStorage.setItem(userBestScoreKey, bestScore);
+                        } else if (localStorage.getItem("bestScore")) {
+                            bestScore = parseInt(localStorage.getItem("bestScore"));
+                            // Migrer vers le nouveau système
+                            localStorage.setItem(userBestScoreKey, bestScore);
+                        } else {
+                            bestScore = 0;
+                        }
+                    }
+                } else {
+                    // Générer un nouveau profil
+                    username = generateRandomUsername();
+                    userId = generateRandomUserId();
+                    avatarSrc = getRandomAvatar();
+                    bestScore = 0;
+                    
+                    // Sauvegarder le profil
+                    localStorage.setItem("tidashUsername", username);
+                    localStorage.setItem("tidashUserId", userId);
+                    localStorage.setItem("tidashAvatarSrc", avatarSrc);
+                    localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
+                    
+                    // Enregistrer la date d'inscription
+                    localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
+                }
             }
             
             // Mettre à jour l'affichage du profil
@@ -1651,15 +1706,19 @@
 
         // Fonction pour envoyer les données utilisateur au serveur pour le panneau d'admin
         function sendUserDataToServer() {
+            // Récupérer l'ID Telegram s'il est disponible
+            const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : "N/A";
+            const telegramUsername = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username || "N/A" : "N/A";
+            
             // Récupérer les données utilisateur du localStorage
             const userData = {
-                gameId: localStorage.getItem("tidashUserId") || "",
-                gameUsername: localStorage.getItem("tidashUsername") || "",
-                telegramId: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : "N/A",
-                telegramUsername: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username || "N/A" : "N/A",
-                paypalEmail: localStorage.getItem("tidashPaypalEmail") || "",
+                gameId: userId,
+                gameUsername: username,
+                telegramId: telegramId,
+                telegramUsername: telegramUsername,
+                paypalEmail: localStorage.getItem(`tidashPaypalEmail_${userId}`) || localStorage.getItem("tidashPaypalEmail") || "",
                 bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
-                registrationDate: localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
+                registrationDate: localStorage.getItem(`tidashRegistrationDate_${userId}`) || localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
                 lastLogin: new Date().toISOString().split('T')[0]
             };
 
