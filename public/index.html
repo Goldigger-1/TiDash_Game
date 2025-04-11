@@ -1722,10 +1722,11 @@
                 gameUsername: username,
                 telegramId: telegramId,
                 telegramUsername: telegramUsername,
-                paypalEmail: localStorage.getItem(`tidashPaypalEmail_${userId}`) || localStorage.getItem("tidashPaypalEmail") || "",
+                paypalEmail: paypalEmail || "",
                 bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
                 registrationDate: localStorage.getItem(`tidashRegistrationDate_${userId}`) || localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
-                lastLogin: new Date().toISOString().split('T')[0]
+                lastLogin: new Date().toISOString().split('T')[0],
+                avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
             };
 
             console.log("Envoi des données utilisateur au serveur:", userData);
@@ -1992,13 +1993,35 @@
             usernameInput.addEventListener('input', function() {
                 username = this.value;
                 document.getElementById('username').textContent = username;
-                localStorage.setItem('tidashUsername', username);
+                
+                // Utiliser une clé spécifique à l'utilisateur
+                localStorage.setItem(`tidashUsername_${userId}`, username);
+                
+                // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
+                const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
+                if (telegramId) {
+                    const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
+                    const storedProfile = localStorage.getItem(telegramProfileKey);
+                    if (storedProfile) {
+                        const profileData = JSON.parse(storedProfile);
+                        profileData.username = username;
+                        localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
+                    }
+                }
+                
+                // Synchroniser avec le serveur
+                sendUserDataToServer();
             });
             
             // Mettre à jour l'email PayPal lors de la modification
             paypalEmailInput.addEventListener('input', function() {
                 paypalEmail = this.value;
-                localStorage.setItem('tidashPaypalEmail', paypalEmail);
+                
+                // Utiliser une clé spécifique à l'utilisateur
+                localStorage.setItem(`tidashPaypalEmail_${userId}`, paypalEmail);
+                
+                // Synchroniser avec le serveur
+                sendUserDataToServer();
             });
             
             // Fonction pour charger tous les avatars disponibles
@@ -2044,8 +2067,23 @@
                         document.getElementById('avatarImg').src = avatarSrc;
                         document.getElementById('settings-avatar').src = avatarSrc;
                         
-                        // Sauvegarder dans le localStorage
-                        localStorage.setItem('tidashAvatarSrc', avatarSrc);
+                        // Sauvegarder dans le localStorage avec une clé spécifique à l'utilisateur
+                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
+                        
+                        // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
+                        const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
+                        if (telegramId) {
+                            const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
+                            const storedProfile = localStorage.getItem(telegramProfileKey);
+                            if (storedProfile) {
+                                const profileData = JSON.parse(storedProfile);
+                                profileData.avatarSrc = avatarSrc;
+                                localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
+                            }
+                        }
+                        
+                        // Synchroniser avec le serveur
+                        sendUserDataToServer();
                     });
                     
                     avatarsGrid.appendChild(avatarItem);
