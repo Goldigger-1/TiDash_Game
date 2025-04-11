@@ -692,6 +692,11 @@
         
         // Jouer un son avec le moins de latence possible
         function playSound(name) {
+            // Ne jouer les sons que si on est en mode jeu
+            if (gameMode !== 'game' && name === 'borderTouch') {
+                return;
+            }
+            
             // Si le système audio n'est pas initialisé, l'initialiser
             if (!audioInitialized && typeof AudioContext !== 'undefined') {
                 initAudioSystem();
