@@ -295,6 +295,9 @@
             box-sizing: border-box;
             z-index: 10;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* Améliore le défilement sur iOS */
+            overscroll-behavior: contain; /* Empêche le défilement de la page parente */
+            touch-action: pan-y; /* Autorise explicitement le défilement vertical */
         }
         
         .settings-header {
