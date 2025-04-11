@@ -1619,7 +1619,30 @@
                     
                     // Récupérer les autres informations du profil
                     username = localStorage.getItem(`tidashUsername_${userId}`) || profileData.username;
-                    avatarSrc = localStorage.getItem(`tidashAvatarSrc_${userId}`) || profileData.avatarSrc;
+                    
+                    // Gestion de l'avatar avec chemin absolu pour iOS
+                    const storedAvatarSrc = localStorage.getItem(`tidashAvatarSrc_${userId}`) || profileData.avatarSrc;
+                    
+                    // Normaliser le chemin de l'avatar pour assurer la compatibilité entre plateformes
+                    if (storedAvatarSrc) {
+                        // Si le chemin est déjà absolu, l'utiliser tel quel
+                        if (storedAvatarSrc.startsWith('http')) {
+                            avatarSrc = storedAvatarSrc;
+                        } 
+                        // Si le chemin commence par un slash, ajouter l'origine
+                        else if (storedAvatarSrc.startsWith('/')) {
+                            avatarSrc = window.location.origin + storedAvatarSrc;
+                        }
+                        // Si le chemin est relatif sans slash, ajouter l'origine et un slash
+                        else {
+                            avatarSrc = window.location.origin + '/' + storedAvatarSrc;
+                        }
+                    } else {
+                        // Avatar par défaut avec chemin absolu
+                        avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                    }
+                    
+                    // Récupérer l'email PayPal
                     paypalEmail = localStorage.getItem(`tidashPaypalEmail_${userId}`) || "";
                     
                     // Récupérer le meilleur score spécifique à cet utilisateur
@@ -1634,12 +1657,21 @@
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     localStorage.setItem(userBestScoreKey, bestScore);
+                    
+                    // Mettre à jour le profil Telegram avec le chemin absolu de l'avatar
+                    profileData.avatarSrc = avatarSrc;
+                    localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
+                    
+                    // Log pour débogage iOS
+                    console.log("Avatar initialisé:", avatarSrc);
                 } else {
                     console.log("Création d'un nouveau profil Telegram");
                     // Créer un nouveau profil pour ce compte Telegram
                     username = generateRandomUsername();
                     userId = generateRandomUserId();
-                    avatarSrc = getRandomAvatar();
+                    
+                    // Utiliser un chemin absolu pour l'avatar par défaut
+                    avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
                     bestScore = 0;
                     
                     // Sauvegarder le profil avec les clés spécifiques à l'utilisateur
@@ -1655,11 +1687,11 @@
                         registrationDate: new Date().toISOString().split('T')[0]
                     }));
                     
-                    // Enregistrer la date d'inscription
-                    localStorage.setItem(`tidashRegistrationDate_${userId}`, new Date().toISOString().split('T')[0]);
+                    // Log pour débogage iOS
+                    console.log("Nouveau profil créé avec avatar:", avatarSrc);
                 }
                 
-                // Envoyer immédiatement les données utilisateur au serveur pour s'assurer qu'elles sont enregistrées
+                // Envoyer immédiatement les données utilisateur au serveur après l'initialisation
                 setTimeout(sendUserDataToServer, 500);
             } else {
                 // Pas de Telegram, utiliser le comportement standard
@@ -2018,6 +2050,7 @@
                 if (telegramId) {
                     const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
                     const storedProfile = localStorage.getItem(telegramProfileKey);
+                    
                     if (storedProfile) {
                         const profileData = JSON.parse(storedProfile);
                         profileData.username = username;
@@ -2065,39 +2098,61 @@
                 
                 // Ajouter chaque avatar à la grille
                 avatarsList.forEach(avatarFile => {
-                    const avatarPath = `avatars/${avatarFile}`;
-                    const isSelected = avatarPath === avatarSrc;
+                    // Utiliser un chemin absolu pour iOS
+                    const avatarPath = window.location.origin + '/avatars/' + avatarFile;
+                    const isSelected = avatarPath === avatarSrc || 
+                                      ('/avatars/' + avatarFile) === avatarSrc || 
+                                      ('avatars/' + avatarFile) === avatarSrc;
                     
                     // Précharger l'image
                     const preloadImg = document.createElement('img');
                     preloadImg.src = avatarPath;
+                    preloadImg.onerror = function() {
+                        console.error('Erreur de chargement de l\'image:', avatarPath);
+                    };
                     preloadContainer.appendChild(preloadImg);
                     
                     // Créer l'élément d'avatar avec image préchargée
                     const avatarItem = document.createElement('div');
                     avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
-                    avatarItem.innerHTML = `
-                        <img src="${avatarPath}" alt="Avatar" loading="lazy">
-                        <div class="avatar-check">✓</div>
-                    `;
                     
-                    // Ajouter l'événement de clic pour sélectionner l'avatar
-                    avatarItem.addEventListener('click', function() {
+                    // Créer l'élément img séparément pour iOS
+                    const imgElement = document.createElement('img');
+                    imgElement.src = avatarPath;
+                    imgElement.alt = "Avatar";
+                    imgElement.setAttribute('loading', 'eager'); // Forcer le chargement immédiat sur iOS
+                    
+                    // Créer l'élément de coche
+                    const checkElement = document.createElement('div');
+                    checkElement.className = 'avatar-check';
+                    checkElement.textContent = '✓';
+                    
+                    // Ajouter les éléments au conteneur
+                    avatarItem.appendChild(imgElement);
+                    avatarItem.appendChild(checkElement);
+                    
+                    // Fonction de sélection d'avatar
+                    const selectAvatar = function() {
                         // Désélectionner tous les avatars
                         document.querySelectorAll('.avatar-item').forEach(item => {
                             item.classList.remove('selected');
                         });
                         
                         // Sélectionner cet avatar
-                        this.classList.add('selected');
+                        avatarItem.classList.add('selected');
                         
                         // Mettre à jour l'avatar de l'utilisateur
                         avatarSrc = avatarPath;
-                        document.getElementById('avatarImg').src = avatarSrc;
-                        document.getElementById('settings-avatar').src = avatarSrc;
+                        
+                        // Mettre à jour les images d'avatar dans l'interface
+                        const avatarImg = document.getElementById('avatarImg');
+                        const settingsAvatar = document.getElementById('settings-avatar');
+                        
+                        if (avatarImg) avatarImg.src = avatarPath;
+                        if (settingsAvatar) settingsAvatar.src = avatarPath;
                         
                         // Sauvegarder dans le localStorage avec une clé spécifique à l'utilisateur
-                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
+                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarPath);
                         
                         // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
                         const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
@@ -2106,13 +2161,23 @@
                             const storedProfile = localStorage.getItem(telegramProfileKey);
                             if (storedProfile) {
                                 const profileData = JSON.parse(storedProfile);
-                                profileData.avatarSrc = avatarSrc;
+                                profileData.avatarSrc = avatarPath;
                                 localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
                             }
                         }
                         
                         // Synchroniser avec le serveur
                         sendUserDataToServer();
+                        
+                        // Log pour débogage iOS
+                        console.log('Avatar sélectionné:', avatarPath);
+                    };
+                    
+                    // Ajouter des événements pour iOS et Android
+                    avatarItem.addEventListener('click', selectAvatar);
+                    avatarItem.addEventListener('touchend', function(e) {
+                        e.preventDefault(); // Empêcher le double déclenchement sur iOS
+                        selectAvatar();
                     });
                     
                     // Ajouter au fragment au lieu de directement à la grille
@@ -2121,6 +2186,9 @@
                 
                 // Ajouter le fragment à la grille en une seule opération
                 avatarsGrid.appendChild(fragment);
+                
+                // Log pour débogage iOS
+                console.log('Avatars chargés. Nombre d\'avatars:', avatarsList.length);
             }
         }
         
