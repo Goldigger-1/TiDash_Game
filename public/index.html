@@ -361,8 +361,8 @@
             left: 0;
             right: 0;
             bottom: 0;
-            border-radius: 12px;
             border: 2px solid #00FF9D;
+            border-radius: 12px;
             box-sizing: border-box;
         }
         
@@ -698,9 +698,13 @@
         // Variable pour suivre si la musique est en attente d'autoplay
         window.musicPendingAutoplay = true;
         
-        // Variable pour suivre si le son est activé - par défaut désactivé au chargement initial
-        // Mais on charge la préférence de l'utilisateur s'il a déjà visité le site
-        let isSoundEnabled = localStorage.getItem('tidashSoundEnabled') === 'true';
+        // Variable pour suivre si le son est activé - toujours désactivé au chargement initial
+        // Nous utiliserons le localStorage uniquement pour savoir si l'utilisateur préfère le son
+        let isSoundEnabled = false;
+        let userPrefersSoundEnabled = localStorage.getItem('tidashSoundEnabled') === 'true';
+        
+        // Variable pour suivre si la musique a déjà été activée par l'utilisateur
+        let musicActivatedByUser = false;
         
         // Système audio optimisé pour mobile avec Web Audio API
         let audioContext;
@@ -1625,11 +1629,16 @@
         
         // Fonction pour gérer la musique de fond en fonction du mode de jeu
         function manageBackgroundMusic() {
+            // Si nous sommes sur l'accueil ou les paramètres et que le son est activé
             if ((gameMode === 'home' || gameMode === 'settings') && isSoundEnabled) {
-                // Si la musique n'est pas en cours de lecture, en jouer une
-                if (backgroundMusicElement.paused) {
-                    playRandomBackgroundMusic();
+                // Si la musique a été activée par l'utilisateur via le bouton de son
+                if (musicActivatedByUser) {
+                    // Si la musique n'est pas en cours de lecture, en jouer une
+                    if (backgroundMusicElement.paused) {
+                        playRandomBackgroundMusic();
+                    }
                 }
+                // Sinon, ne rien faire - nous attendons que l'utilisateur active explicitement le son
             } else {
                 // Si on n'est pas sur l'écran d'accueil ou les paramètres, ou si le son est désactivé, arrêter la musique
                 backgroundMusicElement.pause();
@@ -1651,7 +1660,15 @@
         // Fonction pour basculer l'état du son
         function toggleSound() {
             isSoundEnabled = !isSoundEnabled;
-            localStorage.setItem('tidashSoundEnabled', isSoundEnabled.toString());
+            userPrefersSoundEnabled = isSoundEnabled;
+            localStorage.setItem('tidashSoundEnabled', userPrefersSoundEnabled.toString());
+            
+            // Marquer que la musique a été activée par l'utilisateur
+            if (isSoundEnabled) {
+                musicActivatedByUser = true;
+                // Réinitialiser le flag d'autoplay en attente
+                window.musicPendingAutoplay = false;
+            }
             
             // Mettre à jour l'affichage du bouton
             updateSoundToggleDisplay();
@@ -1676,17 +1693,27 @@
         });
         
         // Ajouter des écouteurs d'événements pour démarrer la musique après une interaction utilisateur
-        document.addEventListener('click', function() {
-            if (window.musicPendingAutoplay && (gameMode === 'home' || gameMode === 'settings')) {
+        document.addEventListener('click', function(event) {
+            // Ne pas interférer avec le clic sur le bouton de son
+            if (event.target.closest('#sound-toggle')) {
+                return;
+            }
+            
+            if (window.musicPendingAutoplay && userPrefersSoundEnabled && (gameMode === 'home' || gameMode === 'settings')) {
                 window.musicPendingAutoplay = false;
-                playRandomBackgroundMusic();
+                toggleSound(); // Activer le son si l'utilisateur le préfère
             }
         });
         
-        document.addEventListener('touchstart', function() {
-            if (window.musicPendingAutoplay && (gameMode === 'home' || gameMode === 'settings')) {
+        document.addEventListener('touchstart', function(event) {
+            // Ne pas interférer avec le toucher sur le bouton de son
+            if (event.target.closest('#sound-toggle')) {
+                return;
+            }
+            
+            if (window.musicPendingAutoplay && userPrefersSoundEnabled && (gameMode === 'home' || gameMode === 'settings')) {
                 window.musicPendingAutoplay = false;
-                playRandomBackgroundMusic();
+                toggleSound(); // Activer le son si l'utilisateur le préfère
             }
         });
         
