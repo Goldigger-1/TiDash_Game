@@ -6,12 +6,19 @@
     <title>TiDash Game</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
-    <!-- Préchargement des sons -->
-    <audio id="borderTouchSound" src="sounds/BorderTouch.mp3" preload="auto"></audio>
-    <audio id="userTapSound" src="sounds/UserTap.mp3" preload="auto"></audio>
-    <audio id="successSound" src="sounds/Success.mp3" preload="auto"></audio>
-    <audio id="gameOverSound" src="sounds/Termine.mp3" preload="auto"></audio>
-    <audio id="showScoreSound" src="sounds/Show_GameOver.mp3" preload="auto"></audio>
+    <!-- Préchargement des sons avec format MP3 et OGG pour compatibilité -->
+    <audio id="userTapSound" preload="auto">
+        <source src="sounds/UserTap.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="successSound" preload="auto">
+        <source src="sounds/Success.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="gameOverSound" preload="auto">
+        <source src="sounds/Termine.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="showScoreSound" preload="auto">
+        <source src="sounds/Show_GameOver.mp3" type="audio/mpeg">
+    </audio>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
@@ -273,48 +280,86 @@
         let stars = [];
         const maxStars = 40; // Nombre d'étoiles
         
-        // Éléments audio
-        const borderTouchSound = document.getElementById('borderTouchSound');
-        const userTapSound = document.getElementById('userTapSound');
-        const successSound = document.getElementById('successSound');
-        const gameOverSound = document.getElementById('gameOverSound');
-        const showScoreSound = document.getElementById('showScoreSound');
+        // Gestion audio optimisée pour mobile
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let audioBuffers = {};
+        let audioInitialized = false;
         
-        // Fonction pour jouer un son de manière fiable
-        function playSound(sound) {
-            // Créer une nouvelle instance du son pour éviter les problèmes de lecture simultanée
-            const soundClone = sound.cloneNode(true);
-            
-            // Définir le volume
-            soundClone.volume = 1.0;
-            
-            // Jouer le son avec une promesse pour gérer les erreurs
-            const playPromise = soundClone.play();
-            
-            // Gérer les erreurs potentielles
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.log("Erreur de lecture audio:", error);
-                    // Essayer une approche alternative si la lecture échoue
-                    setTimeout(() => {
-                        sound.currentTime = 0;
-                        sound.play().catch(e => console.log("Échec de la seconde tentative:", e));
-                    }, 100);
-                });
+        // Fonction pour charger les sons de manière optimisée
+        async function loadSounds() {
+            try {
+                const soundFiles = {
+                    'userTap': 'sounds/UserTap.mp3',
+                    'success': 'sounds/Success.mp3',
+                    'gameOver': 'sounds/Termine.mp3',
+                    'showScore': 'sounds/Show_GameOver.mp3'
+                };
+                
+                // Charger chaque son
+                for (const [name, url] of Object.entries(soundFiles)) {
+                    const response = await fetch(url);
+                    const arrayBuffer = await response.arrayBuffer();
+                    audioBuffers[name] = await audioContext.decodeAudioData(arrayBuffer);
+                }
+                
+                audioInitialized = true;
+                console.log("Sons chargés avec succès");
+            } catch (error) {
+                console.error("Erreur lors du chargement des sons:", error);
+                // Fallback à la méthode traditionnelle
+                initSoundsTraditional();
             }
         }
         
-        // Fonction pour initialiser les sons au premier clic/tap
-        function initSounds() {
+        // Fonction pour jouer un son avec l'API Web Audio (plus rapide)
+        function playSound(soundName) {
+            if (!audioInitialized) {
+                // Si l'audio n'est pas initialisé, on utilise l'élément audio traditionnel
+                const soundElement = document.getElementById(soundName + 'Sound');
+                if (soundElement) {
+                    soundElement.currentTime = 0;
+                    soundElement.play().catch(e => console.log("Erreur lecture audio:", e));
+                }
+                return;
+            }
+            
+            try {
+                // Créer une source audio
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffers[soundName];
+                
+                // Connecter la source à la destination (haut-parleurs)
+                source.connect(audioContext.destination);
+                
+                // Jouer le son immédiatement
+                source.start(0);
+            } catch (error) {
+                console.error("Erreur lors de la lecture du son:", error);
+            }
+        }
+        
+        // Fonction pour initialiser les sons de manière traditionnelle (fallback)
+        function initSoundsTraditional() {
             // Créer un gestionnaire d'événements pour initialiser les sons
             const initAudio = function() {
+                // Reprendre l'AudioContext (nécessaire sur mobile)
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
                 // Jouer et mettre immédiatement en pause tous les sons pour les initialiser
-                const sounds = [borderTouchSound, userTapSound, successSound, gameOverSound, showScoreSound];
-                sounds.forEach(sound => {
-                    sound.play().catch(e => console.log("Initialisation audio:", e));
-                    sound.pause();
-                    sound.currentTime = 0;
+                const sounds = ['userTapSound', 'successSound', 'gameOverSound', 'showScoreSound'];
+                sounds.forEach(id => {
+                    const sound = document.getElementById(id);
+                    if (sound) {
+                        sound.play().catch(e => console.log("Initialisation audio:", e));
+                        sound.pause();
+                        sound.currentTime = 0;
+                    }
                 });
+                
+                // Charger les sons avec l'API Web Audio
+                loadSounds();
                 
                 // Supprimer le gestionnaire d'événements après l'initialisation
                 document.removeEventListener('click', initAudio);
@@ -389,7 +434,7 @@
             initStars();
             
             // Initialiser les sons
-            initSounds();
+            initSoundsTraditional();
             
             // Reset game state
             squares = [];
@@ -787,7 +832,7 @@
                     // If it's a green square, collect it
                     if (square.isGreen) {
                         // Jouer le son quand la balle touche un carré vert
-                        playSound(successSound);
+                        playSound('success');
                         
                         // Remove the square
                         squares.splice(i, 1);
@@ -808,7 +853,7 @@
                     } else {
                         // Game over if it's a white square
                         // Jouer le son quand la balle touche un carré blanc
-                        playSound(gameOverSound);
+                        playSound('gameOver');
                         
                         // Create explosion effect
                         createExplosion(ball.x, ball.y, '#00FF9D');
@@ -832,7 +877,7 @@
         // Function to show game over screen
         function showGameOverScreen() {
             // Jouer le son quand le popup de score s'affiche
-            playSound(showScoreSound);
+            playSound('showScore');
             
             // Update score display
             document.getElementById('score-display').textContent = score;
@@ -864,7 +909,7 @@
                 ball.direction *= -1;
                 
                 // Jouer le son quand l'utilisateur touche l'écran
-                playSound(userTapSound);
+                playSound('userTap');
             }
         }
 
