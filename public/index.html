@@ -33,7 +33,8 @@
             margin: 20px auto; /* Ajout d'une marge automatique pour centrer avec moins d'espace vertical */
         }
         #game-canvas {
-            background-color: #121212; /* Gris très foncé */
+            background-color: #121212; /* Gris très foncé - même que le container */
+            background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)); /* Même superposition que le home-screen */
             display: block;
             width: 100%;
             height: 100%;
@@ -46,7 +47,8 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 1); /* Opacité à 100% pour un noir complet */
+            background-color: #121212; /* Gris très foncé - même que le container */
+            background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)); /* Même superposition que le home-screen */
             display: none;
             flex-direction: column;
             justify-content: center;
