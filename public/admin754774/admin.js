@@ -370,15 +370,20 @@ function updateStats(users) {
 
 // Afficher les détails d'un utilisateur
 function showUserDetails(userId) {
+    console.log('Affichage des détails pour l\'utilisateur:', userId);
+    
     // Utiliser la route API correcte pour récupérer un utilisateur spécifique
-    fetch(`/api/users/${userId}`)
+    fetch(`/api/users/${encodeURIComponent(userId)}`)
         .then(response => {
             if (!response.ok) {
+                console.error('Erreur HTTP:', response.status, response.statusText);
                 throw new Error('Erreur lors de la récupération des détails de l\'utilisateur');
             }
             return response.json();
         })
         .then(user => {
+            console.log('Données utilisateur reçues:', user);
+            
             // Remplir la modal avec les détails de l'utilisateur
             document.getElementById('modal-user-id').textContent = user.gameId || 'N/A';
             document.getElementById('modal-username').textContent = user.gameUsername || 'N/A';
@@ -400,21 +405,28 @@ function showUserDetails(userId) {
 
 // Supprimer un utilisateur
 function deleteUser(userId) {
-    fetch(`/api/users/${userId}`, {
+    console.log('Suppression de l\'utilisateur:', userId);
+    
+    fetch(`/api/users/${encodeURIComponent(userId)}`, {
         method: 'DELETE'
     })
         .then(response => {
-            if (response.ok) {
-                // Recharger les données après la suppression
-                fetchUsers();
-                alert('Utilisateur supprimé avec succès');
-            } else {
-                alert('Erreur lors de la suppression de l\'utilisateur');
+            console.log('Réponse de suppression:', response.status, response.statusText);
+            if (!response.ok) {
+                console.error('Erreur HTTP:', response.status, response.statusText);
+                throw new Error('Erreur lors de la suppression de l\'utilisateur');
             }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Données de suppression reçues:', data);
+            // Recharger les données après la suppression
+            fetchUsers();
+            showNotification('Utilisateur supprimé avec succès', 'success');
         })
         .catch(error => {
             console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-            alert('Erreur lors de la suppression de l\'utilisateur');
+            showNotification('Erreur lors de la suppression de l\'utilisateur', 'error');
         });
 }
 
