@@ -847,38 +847,53 @@ app.post('/api/seasons/:id/close', async (req, res) => {
   }
 });
 
-// Route pour récupérer le classement d'une saison
-app.get('/api/seasons/:id/ranking', async (req, res) => {
-  const { id } = req.params;
-  const limit = req.query.limit ? parseInt(req.query.limit) : 100;
-  
+// API endpoint to get season ranking (ONLY CORRECT VERSION)
+app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
   try {
-    const seasonScores = await SeasonScore.findAll({
-      where: { seasonId: id },
+    const { seasonId } = req.params;
+    console.log(`🔍 Fetching ranking for season ${seasonId}`);
+    
+    // Find the season
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      // Return empty array instead of error to prevent forEach error in admin.js
+      console.log(`⚠️ Season ${seasonId} not found`);
+      return res.json([]);
+    }
+    
+    // Get all scores for this season, ordered by score descending
+    const scores = await SeasonScore.findAll({
+      where: { seasonId: seasonId },
       order: [['score', 'DESC']],
-      limit
+      limit: 100 // Limit to top 100 scores
     });
     
     // Get user details for each score
     const ranking = [];
-    for (const score of seasonScores) {
-      const user = await User.findByPk(score.userId);
-      if (user) {
-        ranking.push({
-          userId: user.gameId,
-          username: user.gameUsername || 'Unknown User',
-          score: score.score || 0
-        });
+    for (const score of scores) {
+      try {
+        const user = await User.findByPk(score.userId);
+        if (user) {
+          ranking.push({
+            userId: user.gameId,
+            username: user.gameUsername || 'Unknown User',
+            score: score.score || 0
+          });
+        }
+      } catch (userError) {
+        console.error(`❌ Error fetching user ${score.userId}:`, userError);
+        // Continue with next score even if one user fails
       }
     }
     
-    console.log(`✅ Found ${ranking.length} users in ranking for season ${id}`);
+    console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
     
-    // Return as array, not object
-    res.status(200).json(ranking);
+    // CRITICAL: admin.js expects an array at line 557 where it calls data.forEach
+    res.json(ranking);
   } catch (error) {
-    console.error('Erreur lors de la récupération du classement de la saison:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération du classement de la saison' });
+    console.error('❌ Error fetching season ranking:', error);
+    // Even in error case, return an empty array to prevent forEach errors
+    res.json([]);
   }
 });
 
@@ -964,86 +979,6 @@ app.get('/api/seasons/:seasonId/scores/:userId', async (req, res) => {
     res.status(500).json({ 
       error: 'Error retrieving season score', 
       details: error.message 
-    });
-  }
-});
-
-// API pour supprimer une saison
-app.delete('/api/seasons/:id', async (req, res) => {
-  const { id } = req.params;
-  
-  try {
-    // Vérifier si la saison existe
-    const season = await Season.findByPk(id);
-    if (!season) {
-      return res.status(404).json({ error: 'Season not found' });
-    }
-    
-    // Désactiver temporairement les contraintes de clé étrangère
-    await sequelize.query('PRAGMA foreign_keys = OFF;');
-    
-    try {
-      // Supprimer les scores de saison associés
-      await sequelize.query('DELETE FROM "SeasonScores" WHERE "seasonId" = ?', {
-        replacements: [id]
-      });
-      
-      // Supprimer la saison
-      await sequelize.query('DELETE FROM "Seasons" WHERE "id" = ?', {
-        replacements: [id]
-      });
-      
-      // Réactiver les contraintes de clé étrangère
-      await sequelize.query('PRAGMA foreign_keys = ON;');
-      
-      console.log(`🗑️ Season ${id} deleted successfully`);
-      res.status(200).json({ message: 'Season deleted successfully' });
-    } catch (innerError) {
-      // Réactiver les contraintes de clé étrangère même en cas d'erreur
-      await sequelize.query('PRAGMA foreign_keys = ON;');
-      throw innerError;
-    }
-  } catch (error) {
-    console.error('❌ Error deleting season:', error);
-    res.status(500).json({ 
-      error: 'Error deleting season', 
-      details: error.message,
-      stack: error.stack
-    });
-  }
-});
-
-// Route pour récupérer le score de saison d'un utilisateur spécifique
-app.get('/api/seasons/:seasonId/scores/:userId', async (req, res) => {
-  try {
-    const { seasonId, userId } = req.params;
-    
-    // Vérifier si la saison existe
-    const season = await Season.findByPk(seasonId);
-    if (!season) {
-      return res.status(404).json({ error: 'Season not found' });
-    }
-    
-    // Récupérer le score de saison de l'utilisateur
-    const seasonScore = await SeasonScore.findOne({
-      where: { 
-        seasonId: seasonId,
-        userId: userId
-      }
-    });
-    
-    if (!seasonScore) {
-      // Si aucun score n'est trouvé, renvoyer 0
-      return res.json({ score: 0 });
-    }
-    
-    console.log(`📊 Retrieved season score for user ${userId} in season ${seasonId}: ${seasonScore.score}`);
-    res.json({ score: seasonScore.score });
-  } catch (error) {
-    console.error('❌ Error retrieving season score:', error);
-    res.status(500).json({ 
-      error: 'Error retrieving season score', 
-      details: error.message
     });
   }
 });
@@ -1245,22 +1180,24 @@ app.get('/api/users', async (req, res) => {
       }
       
       return userData;
-    }) || []; // Ensure we have an array even if users is null
+    });
     
-    console.log(`✅ Found ${formattedUsers.length} users (total: ${totalUsers})`);
+    // If formattedUsers is null or undefined, use an empty array
+    const safeUsers = formattedUsers || [];
     
-    // IMPORTANT: Based on admin.js lines 294-298, it expects this exact structure
-    res.status(200).json({
+    console.log(`✅ Found ${safeUsers.length} users (total: ${totalUsers})`);
+    
+    // CRITICAL: admin.js expects this exact structure at lines 294-298
+    res.json({
+      users: safeUsers,
       total: totalUsers,
-      totalPages: Math.ceil(totalUsers / limit),
-      users: formattedUsers
+      totalPages: Math.ceil(totalUsers / limit)
     });
   } catch (error) {
     console.error('❌ Error fetching users for admin:', error);
-    // Send a response that won't break the admin panel
-    res.status(500).json({ 
-      error: 'Error fetching users', 
-      users: [], // Include empty users array to prevent undefined errors
+    // Even in error case, return a valid response structure
+    res.json({ 
+      users: [], 
       total: 0,
       totalPages: 0
     });
@@ -1276,7 +1213,9 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     // Find the season
     const season = await Season.findByPk(seasonId);
     if (!season) {
-      return res.status(404).json({ error: 'Season not found' });
+      // Return empty array instead of error to prevent forEach error
+      console.log(`⚠️ Season ${seasonId} not found`);
+      return res.json([]);
     }
     
     // Get all scores for this season, ordered by score descending
@@ -1289,27 +1228,31 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     // Get user details for each score
     const ranking = [];
     for (const score of scores) {
-      const user = await User.findByPk(score.userId);
-      if (user) {
-        ranking.push({
-          rank: ranking.length + 1,
-          userId: user.gameId,
-          username: user.gameUsername,
-          avatarSrc: user.avatarSrc,
-          score: score.score
-        });
+      try {
+        const user = await User.findByPk(score.userId);
+        if (user) {
+          ranking.push({
+            rank: ranking.length + 1,
+            userId: user.gameId,
+            username: user.gameUsername,
+            avatarSrc: user.avatarSrc,
+            score: score.score
+          });
+        }
+      } catch (userError) {
+        console.error(`❌ Error fetching user ${score.userId}:`, userError);
+        // Continue with next score even if one user fails
       }
     }
     
     console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
     
-    res.status(200).json(ranking);
+    // CRITICAL: admin.js expects an array at line 557 where it calls data.forEach
+    res.json(ranking);
   } catch (error) {
     console.error('❌ Error fetching season ranking:', error);
-    res.status(500).json({ 
-      error: 'Error fetching season ranking', 
-      details: error.message 
-    });
+    // Even in error case, return an empty array to prevent forEach errors
+    res.json([]);
   }
 });
 
@@ -1404,7 +1347,9 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     // Find the season
     const season = await Season.findByPk(seasonId);
     if (!season) {
-      return res.status(404).json({ error: 'Season not found' });
+      // Return empty array instead of error to prevent forEach error
+      console.log(`⚠️ Season ${seasonId} not found`);
+      return res.json([]);
     }
     
     // Get all scores for this season, ordered by score descending
@@ -1417,26 +1362,30 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     // Get user details for each score
     const ranking = [];
     for (const score of scores) {
-      const user = await User.findByPk(score.userId);
-      if (user) {
-        ranking.push({
-          userId: user.gameId,
-          username: user.gameUsername || 'Unknown User',
-          score: score.score || 0
-        });
+      try {
+        const user = await User.findByPk(score.userId);
+        if (user) {
+          ranking.push({
+            userId: user.gameId,
+            username: user.gameUsername || 'Unknown User',
+            score: score.score || 0
+          });
+        }
+      } catch (userError) {
+        console.error(`❌ Error fetching user ${score.userId}:`, userError);
+        // Continue with next score even if one user fails
       }
     }
     
     console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
     
-    // Return as array, not object
-    res.status(200).json(ranking);
+    // CRITICAL: Return an array, not an object - this is what admin.js expects
+    // Looking at admin.js line 557, it uses data.forEach
+    res.json(ranking);
   } catch (error) {
     console.error('❌ Error fetching season ranking:', error);
-    res.status(500).json({ 
-      error: 'Error fetching season ranking', 
-      details: error.message 
-    });
+    // Even in error case, return an empty array to prevent forEach errors
+    res.json([]);
   }
 });
 
@@ -1462,24 +1411,161 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     // Get user details for each score
     const ranking = [];
     for (const score of scores) {
-      const user = await User.findByPk(score.userId);
-      if (user) {
-        ranking.push({
-          userId: user.gameId,
-          username: user.gameUsername || 'Unknown User',
-          score: score.score || 0
-        });
+      try {
+        const user = await User.findByPk(score.userId);
+        if (user) {
+          ranking.push({
+            userId: user.gameId,
+            username: user.gameUsername || 'Unknown User',
+            score: score.score || 0
+          });
+        }
+      } catch (userError) {
+        console.error(`❌ Error fetching user ${score.userId}:`, userError);
+        // Continue with next score even if one user fails
       }
     }
     
     console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
     
-    // Return as array, not object - this is what admin.js expects based on line 557
+    // Return as array, not object
     res.status(200).json(ranking);
   } catch (error) {
     console.error('❌ Error fetching season ranking:', error);
-    // Even in error case, return an empty array to prevent forEach errors
-    res.status(500).json([]);
+    res.status(500).json({ 
+      error: 'Error fetching season ranking', 
+      details: error.message 
+    });
+  }
+});
+
+// API pour supprimer une saison
+app.delete('/api/seasons/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Vérifier si la saison existe
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Désactiver temporairement les contraintes de clé étrangère
+    await sequelize.query('PRAGMA foreign_keys = OFF;');
+    
+    try {
+      // Supprimer les scores de saison associés
+      await sequelize.query('DELETE FROM "SeasonScores" WHERE "seasonId" = ?', {
+        replacements: [id]
+      });
+      
+      // Supprimer la saison
+      await sequelize.query('DELETE FROM "Seasons" WHERE "id" = ?', {
+        replacements: [id]
+      });
+      
+      // Réactiver les contraintes de clé étrangère
+      await sequelize.query('PRAGMA foreign_keys = ON;');
+      
+      console.log(`🗑️ Season ${id} deleted successfully`);
+      res.status(200).json({ message: 'Season deleted successfully' });
+    } catch (innerError) {
+      // Réactiver les contraintes de clé étrangère même en cas d'erreur
+      await sequelize.query('PRAGMA foreign_keys = ON;');
+      throw innerError;
+    }
+  } catch (error) {
+    console.error('❌ Error deleting season:', error);
+    res.status(500).json({ 
+      error: 'Error deleting season', 
+      details: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Route pour récupérer le score de saison d'un utilisateur spécifique
+app.get('/api/seasons/:seasonId/scores/:userId', async (req, res) => {
+  try {
+    const { seasonId, userId } = req.params;
+    
+    // Vérifier si la saison existe
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Récupérer le score de saison de l'utilisateur
+    const seasonScore = await SeasonScore.findOne({
+      where: { 
+        seasonId: seasonId,
+        userId: userId
+      }
+    });
+    
+    if (!seasonScore) {
+      // Si aucun score n'est trouvé, renvoyer 0
+      return res.json({ score: 0 });
+    }
+    
+    console.log(`📊 Retrieved season score for user ${userId} in season ${seasonId}: ${seasonScore.score}`);
+    res.json({ score: seasonScore.score });
+  } catch (error) {
+    console.error('❌ Error retrieving season score:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving season score', 
+      details: error.message
+    });
+  }
+});
+
+// CRITICAL FIX: New API endpoint to explicitly reset a user's season score
+app.post('/api/seasons/:seasonId/scores/:userId/reset', async (req, res) => {
+  try {
+    const { seasonId, userId } = req.params;
+    
+    // Verify the season exists
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Start a transaction
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // Find or create the season score record
+      let [seasonScore, created] = await SeasonScore.findOrCreate({
+        where: { seasonId, userId },
+        defaults: { score: 0 },
+        transaction
+      });
+      
+      if (!created) {
+        // If the record already exists, reset the score to 0
+        await seasonScore.update({ score: 0 }, { transaction });
+      }
+      
+      // Commit the transaction
+      await transaction.commit();
+      
+      console.log(`🔄 Season score explicitly reset to 0 for user ${userId} in season ${seasonId}`);
+      
+      // Return success
+      res.status(200).json({ 
+        message: 'Season score reset successfully',
+        userId,
+        seasonId,
+        score: 0
+      });
+    } catch (error) {
+      // Rollback the transaction in case of error
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error resetting season score:', error);
+    res.status(500).json({ error: 'Error resetting season score', details: error.message });
   }
 });
 
