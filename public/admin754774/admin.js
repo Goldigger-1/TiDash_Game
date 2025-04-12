@@ -36,7 +36,6 @@ const seasonPrize = document.getElementById('season-prize');
 const seasonStatus = document.getElementById('season-status');
 const seasonRankingTable = document.getElementById('season-ranking-table');
 const seasonsHistoryTable = document.getElementById('seasons-history-table');
-const globalRankingTable = document.getElementById('global-ranking-table');
 const newSeasonBtn = document.getElementById('new-season-btn');
 const editSeasonBtn = document.getElementById('edit-season-btn');
 const closeSeasonBtn = document.getElementById('close-season-btn');
@@ -70,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Charger les données réelles
     fetchUsers();
     fetchSeasons();
-    fetchGlobalRanking();
 });
 
 // Initialiser tous les événements
@@ -633,44 +631,6 @@ function formatDate(dateString) {
         hour: '2-digit',
         minute: '2-digit'
     });
-}
-
-// Récupérer le classement global depuis l'API
-function fetchGlobalRanking() {
-    fetch('/api/global-ranking')
-        .then(response => response.json())
-        .then(data => {
-            displayGlobalRanking(data);
-        })
-        .catch(error => {
-            console.error('Erreur lors de la récupération du classement global:', error);
-        });
-}
-
-// Afficher le classement global
-function displayGlobalRanking(data) {
-    // Vider le tableau
-    globalRankingTable.innerHTML = '';
-    
-    // Si aucun utilisateur n'est trouvé
-    if (data.length === 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="3" style="text-align: center;">Aucun utilisateur trouvé</td>`;
-        globalRankingTable.appendChild(row);
-    } else {
-        // Afficher les utilisateurs
-        data.forEach(user => {
-            const row = document.createElement('tr');
-            
-            row.innerHTML = `
-                <td>${user.gameId}</td>
-                <td>${user.gameUsername}</td>
-                <td>${user.bestScore}</td>
-            `;
-            
-            globalRankingTable.appendChild(row);
-        });
-    }
 }
 
 // Créer une nouvelle saison

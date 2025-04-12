@@ -362,15 +362,26 @@ app.post('/api/users', async (req, res) => {
       
       // Mettre à jour le score de la saison si une saison active existe
       if (activeSeason) {
-        const [seasonScore, created] = await SeasonScore.findOrCreate({
-          where: { userId: user.gameId, seasonId: activeSeason.id },
-          defaults: { score: currentScore }
+        // Vérifier si l'utilisateur a déjà un score pour cette saison
+        const seasonScore = await SeasonScore.findOne({
+          where: { userId: user.gameId, seasonId: activeSeason.id }
         });
         
-        // Si le score de saison existe déjà et que le nouveau score est plus élevé, le mettre à jour
-        if (!created && currentScore > seasonScore.score) {
-          await seasonScore.update({ score: currentScore });
-          console.log(`Mise à jour du score de saison pour ${user.gameId}: ${currentScore}`);
+        if (seasonScore) {
+          // Si le score actuel est meilleur que le score de saison existant, mettre à jour
+          if (currentScore > seasonScore.score) {
+            await seasonScore.update({ score: currentScore });
+            console.log(`Mise à jour du score de saison pour ${user.gameId}: ${currentScore}`);
+          }
+        } else {
+          // Si c'est la première fois que l'utilisateur joue dans cette saison, créer un nouveau score
+          // Commencer avec le score actuel, pas le meilleur score global
+          await SeasonScore.create({
+            userId: user.gameId,
+            seasonId: activeSeason.id,
+            score: currentScore
+          });
+          console.log(`Nouveau score de saison créé pour ${user.gameId}: ${currentScore}`);
         }
       }
       
