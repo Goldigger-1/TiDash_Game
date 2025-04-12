@@ -1429,8 +1429,7 @@
                         // Create explosion effect
                         createExplosion(square.x + square.size / 2, square.y + square.size / 2, '#00FF9D');
                         
-                        // Send the updated score to the server
-                        // We do this after all score updates to avoid multiple API calls
+                        // Send the updated score to the server immediately
                         sendUserDataToServer();
                         
                         return false;
@@ -1473,12 +1472,18 @@
             if (seasonScoreElement) {
                 // Vérifier s'il y a une saison active
                 fetch('/api/seasons/active')
-                .then(response => response.ok ? response.json() : null)
-                .then(activeSeason => {
-                    if (activeSeason) {
-                        // CRITICAL FIX: Get the current game score and compare with the stored season best
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error retrieving active season');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Check if an active season exists
+                    if (data && data.id) {
+                        // Get the current game score and compare with the stored season best
                         // First, get the latest season score from the server to ensure we have the correct data
-                        fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
+                        fetch(`/api/seasons/${data.id}/scores/${userId}`)
                         .then(response => response.ok ? response.json() : { score: 0 })
                         .then(serverData => {
                             // Use the server's score as the source of truth
@@ -1490,10 +1495,15 @@
                             // We need to handle two cases:
                             // 1. If this is the first game in a new season, we should send the score regardless
                             // 2. If the current score is better than the stored season best
-                            const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
-                            const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
                             
-                            if (isNewSeason || score > serverSeasonBest) {
+                            // REMOVED: No longer use localStorage for season ID
+                            // const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
+                            // const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
+                            
+                            // Instead, check with the server if this is a new season for the user
+                            const isFirstGame = serverSeasonBest === 0;
+                            
+                            if (isFirstGame || score > serverSeasonBest) {
                                 // Update our local variable
                                 if (score > serverSeasonBest) {
                                     seasonScore = score;
@@ -1504,29 +1514,26 @@
                                     seasonScore = score;
                                 }
                                 
-                                // Store the current season ID to track season changes
-                                localStorage.setItem(`tidashLastSeasonId_${userId}`, activeSeason.id.toString());
-                                
-                                // Always update the season score in localStorage
-                                localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                                // REMOVED: No longer store in localStorage
+                                // localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                                // localStorage.setItem(`tidashLastSeasonId_${userId}`, activeSeason.id.toString());
                                 
                                 // Send updated score to server immediately
                                 sendUserDataToServer();
                             } else {
                                 // If we didn't update the score, make sure we're using the server's value
                                 seasonScore = serverSeasonBest;
-                                localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                             }
                             
                             // CRITICAL FIX: Always display the season score, regardless of whether it was updated
                             // This ensures the season score is always visible in the game over popup
-                            seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore} 🏆`;
+                            seasonScoreElement.textContent = `Season ${data.seasonNumber} Best: ${seasonScore} 🏆`;
                             seasonScoreElement.style.display = 'block';
                         })
                         .catch(error => {
                             console.error('❌ Error getting season score from server:', error);
                             // Fallback to local data if server request fails
-                            seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore} 🏆`;
+                            seasonScoreElement.textContent = `Season ${data.seasonNumber} Best: ${score} 🏆`;
                             seasonScoreElement.style.display = 'block';
                         });
                     } else {
@@ -1651,6 +1658,33 @@
             
             // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // CRITICAL FIX: Force a check with the server to ensure we have the latest scores
+            // This is important to prevent the game from using stale score data
+            fetch('/api/seasons/active')
+            .then(response => response.ok ? response.json() : null)
+            .then(activeSeason => {
+                if (activeSeason) {
+                    // Get the latest season score from the server
+                    fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
+                    .then(response => response.ok ? response.json() : { score: 0 })
+                    .then(serverData => {
+                        // Update our local variable with the server's data
+                        const serverScore = serverData && serverData.score ? parseInt(serverData.score) : 0;
+                        console.log(`🔄 Game reset - Server season score: ${serverScore}`);
+                        seasonScore = serverScore;
+                        
+                        // Update the score display
+                        updateScoreDisplay();
+                    })
+                    .catch(error => {
+                        console.error('❌ Error getting season score from server during reset:', error);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error checking active season during reset:', error);
+            });
         }
         
         // Function to show home screen
@@ -1756,34 +1790,88 @@
                     // Récupérer l'email PayPal
                     paypalEmail = localStorage.getItem(`tidashPaypalEmail_${userId}`) || "";
                     
-                    // Récupérer le meilleur score spécifique à cet utilisateur
-                    const userBestScoreKey = `tidashBestScore_${userId}`;
-                    if (localStorage.getItem(userBestScoreKey)) {
-                        bestScore = parseInt(localStorage.getItem(userBestScoreKey));
-                    } else {
-                        bestScore = 0;
-                    }
-                    
-                    // Récupérer le score de la saison en cours
-                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                    if (localStorage.getItem(userSeasonScoreKey)) {
-                        seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey));
-                    } else {
-                        seasonScore = 0;
-                    }
+                    // CRITICAL FIX: Initialize scores to 0, will be updated from server
+                    bestScore = 0;
+                    seasonScore = 0;
                     
                     // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                    localStorage.setItem(userBestScoreKey, bestScore);
-                    localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
-                    // Mettre à jour le profil Telegram avec le chemin absolu de l'avatar
-                    profileData.avatarSrc = avatarSrc;
-                    localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
+                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // localStorage.setItem(userBestScoreKey, bestScore);
+                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    
+                    // Enregistrer la date d'inscription
+                    localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
+                    
+                    // Enregistrer l'association entre l'ID Telegram et l'ID du jeu
+                    localStorage.setItem(telegramProfileKey, JSON.stringify({
+                        userId: userId,
+                        username: username,
+                        avatarSrc: avatarSrc,
+                        registrationDate: new Date().toISOString().split('T')[0]
+                    }));
                     
                     // Log pour débogage iOS
                     console.log("Avatar initialisé:", avatarSrc);
+                    
+                    // CRITICAL FIX: Force a complete synchronization with the server
+                    // This ensures we have the most up-to-date scores
+                    console.log("🔄 Forcing complete synchronization with server at startup");
+                    
+                    // First, send our data to the server
+                    sendUserDataToServer();
+                    
+                    // Then, force a check for new season and get the latest scores
+                    setTimeout(function() {
+                        fetch('/api/seasons/active')
+                        .then(response => response.ok ? response.json() : null)
+                        .then(activeSeason => {
+                            if (activeSeason) {
+                                console.log(`🔍 Active season found at startup: ${activeSeason.id}, Season ${activeSeason.seasonNumber}`);
+                                
+                                // Get the latest season score from the server
+                                fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
+                                .then(response => response.ok ? response.json() : { score: 0 })
+                                .then(serverData => {
+                                    // Use the server's score as the source of truth
+                                    const serverScore = serverData && serverData.score ? parseInt(serverData.score) : 0;
+                                    console.log(`🔄 Startup sync - Season score from server: ${serverScore}`);
+                                    
+                                    // CRITICAL FIX: Always use the server's value
+                                    seasonScore = serverScore;
+                                    
+                                    // Update the display
+                                    updateScoreDisplay();
+                                })
+                                .catch(error => {
+                                    console.error('❌ Error getting season score at startup:', error);
+                                });
+                                
+                                // Also get the best score
+                                fetch(`/api/users/${userId}`)
+                                .then(response => response.ok ? response.json() : null)
+                                .then(userData => {
+                                    if (userData && userData.bestScore !== undefined) {
+                                        bestScore = parseInt(userData.bestScore);
+                                        console.log(`🔄 Startup sync - Best score from server: ${bestScore}`);
+                                        
+                                        // Update the display
+                                        updateScoreDisplay();
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('❌ Error getting user data at startup:', error);
+                                });
+                            } else {
+                                console.log("⚠️ No active season found at startup");
+                            }
+                        })
+                        .catch(error => {
+                            console.error('❌ Error checking active season at startup:', error);
+                        });
+                    }, 1000);
                 } else {
                     console.log("Création d'un nouveau profil Telegram");
                     // Créer un nouveau profil pour ce compte Telegram
@@ -1798,8 +1886,10 @@
                     // Sauvegarder le profil avec les clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                    localStorage.setItem(userBestScoreKey, bestScore);
-                    localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    
+                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // localStorage.setItem(userBestScoreKey, bestScore);
+                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
                     // Enregistrer la date d'inscription
                     localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
@@ -1814,10 +1904,10 @@
                     
                     // Log pour débogage iOS
                     console.log("Nouveau profil créé avec avatar:", avatarSrc);
+                    
+                    // CRITICAL FIX: Envoyer immédiatement les données au serveur pour initialiser les scores
+                    setTimeout(sendUserDataToServer, 500);
                 }
-                
-                // Envoyer immédiatement les données utilisateur au serveur après l'initialisation
-                setTimeout(sendUserDataToServer, 500);
                 
                 // CRITICAL FIX: Force a season check immediately to ensure we have the correct season score
                 setTimeout(function() {
@@ -1842,37 +1932,22 @@
                         paypalEmail = localStorage.getItem("tidashPaypalEmail");
                     }
                     
-                    // Récupérer le meilleur score
-                    const userBestScoreKey = `tidashBestScore_${userId}`;
-                    if (localStorage.getItem(userBestScoreKey)) {
-                        bestScore = parseInt(localStorage.getItem(userBestScoreKey));
-                    } else {
-                        // Compatibilité avec l'ancien système
-                        if (localStorage.getItem("tidashBestScore")) {
-                            bestScore = parseInt(localStorage.getItem("tidashBestScore"));
-                            // Migrer vers le nouveau système
-                            localStorage.setItem(userBestScoreKey, bestScore);
-                        } else if (localStorage.getItem("bestScore")) {
-                            bestScore = parseInt(localStorage.getItem("bestScore"));
-                            // Migrer vers le nouveau système
-                            localStorage.setItem(userBestScoreKey, bestScore);
-                        } else {
-                            bestScore = 0;
-                        }
-                    }
+                    // CRITICAL FIX: Initialize scores to 0, will be updated from server
+                    bestScore = 0;
+                    seasonScore = 0;
                     
-                    // Récupérer le score de la saison en cours
-                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                    if (localStorage.getItem(userSeasonScoreKey)) {
-                        seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey));
-                    } else {
-                        seasonScore = 0;
-                    }
+                    // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
+                    localStorage.setItem(`tidashUsername_${userId}`, username);
+                    localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
+                    
+                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // localStorage.setItem(userBestScoreKey, bestScore);
+                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
                 } else {
                     // Générer un nouveau profil
                     username = generateRandomUsername();
                     userId = generateRandomUserId();
-                    avatarSrc = getRandomAvatar();
+                    avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
                     bestScore = 0;
                     seasonScore = 0;
                     
@@ -1880,610 +1955,30 @@
                     localStorage.setItem("tidashUsername", username);
                     localStorage.setItem("tidashUserId", userId);
                     localStorage.setItem("tidashAvatarSrc", avatarSrc);
-                    localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
-                    localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                    
+                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // localStorage.setItem(userBestScoreKey, bestScore);
+                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
                     // Enregistrer la date d'inscription
                     localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
                 }
+                
+                // CRITICAL FIX: Force a complete synchronization with the server for non-Telegram users too
+                console.log("🔄 Forcing complete synchronization with server at startup (non-Telegram user)");
+                
+                // First, send our data to the server
+                sendUserDataToServer();
+                
+                // Then, force a check for new season
+                setTimeout(function() {
+                    checkForNewSeason(true); // Pass true to force a reset if needed
+                }, 1000);
             }
             
             // Mettre à jour l'affichage du profil
             updateUserProfileDisplay();
         }
-        
-        // Mettre à jour l'affichage du profil utilisateur
-        function updateUserProfileDisplay() {
-            // Mettre à jour les éléments HTML
-            document.getElementById("username").textContent = username;
-            document.getElementById("userId").textContent = userId;
-            document.getElementById("avatarImg").src = avatarSrc;
-        }
-
-        // Fonction pour envoyer les données utilisateur au serveur pour le panneau d'admin
-        function sendUserDataToServer() {
-            // Récupérer l'ID Telegram s'il est disponible
-            const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : "N/A";
-            const telegramUsername = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username || "N/A" : "N/A";
-            
-            // Get the last known season ID to help the server identify new seasons
-            const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
-            
-            // Récupérer les données utilisateur du localStorage
-            const userData = {
-                gameId: userId,
-                gameUsername: username,
-                telegramId: telegramId,
-                telegramUsername: telegramUsername,
-                paypalEmail: paypalEmail || "",
-                bestScore: bestScore.toString(), // Use the in-memory value which is more accurate
-                seasonScore: seasonScore.toString(), // Use the in-memory value which is more accurate
-                lastLogin: new Date().toISOString().split('T')[0],
-                avatarSrc: avatarSrc || "avatars/avatar_default.jpg",
-                lastKnownSeasonId: lastKnownSeasonId || null // Add this to help server identify new seasons
-            };
-
-            console.log("Envoi des données utilisateur au serveur:", userData);
-
-            // Envoyer les données au serveur
-            fetch('/api/users', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    console.error('Erreur lors de l\'envoi des données utilisateur');
-                    return response.text().then(text => {
-                        console.error('Détails de l\'erreur:', text);
-                        throw new Error(text);
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log("Réponse du serveur:", data);
-                
-                // If the server returns updated score data, use it
-                if (data.user) {
-                    if (data.user.bestScore !== undefined) {
-                        bestScore = data.user.bestScore;
-                    }
-                }
-                
-                if (data.seasonData) {
-                    seasonScore = data.seasonData.currentScore;
-                    console.log(`🔄 Season score synchronized from server: ${seasonScore}`);
-                }
-                
-                // Update the display with the server's data
-                updateScoreDisplay();
-            })
-            .catch(error => {
-                console.error('Erreur:', error);
-            });
-        }
-        
-        // Fonction pour vérifier si une nouvelle saison a été créée
-        function checkForNewSeason(forceReset = false) {
-            fetch('/api/seasons/active')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error retrieving active season');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // Check if an active season exists
-                if (data && data.id) {
-                    // Get the ID of the last known season
-                    const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
-                    
-                    console.log(`🔍 Checking season - Current active season: ${data.id}, Last known: ${lastKnownSeasonId}, Force reset: ${forceReset}`);
-                    
-                    // If it's a new season, the first season for this user, or a force reset is requested
-                    if (!lastKnownSeasonId || lastKnownSeasonId !== data.id.toString() || forceReset) {
-                        console.log('🔄 New season detected or force reset requested:', data);
-                        
-                        // IMPORTANT: Completely reset the season score
-                        seasonScore = 0;
-                        localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
-                        
-                        // Save the ID of the new season
-                        localStorage.setItem(`tidashLastSeasonId_${userId}`, data.id.toString());
-                        
-                        // Notify the user of the new season in English with emojis
-                        if (lastKnownSeasonId && !forceReset) {
-                            // Only if this isn't the first time the user plays and not a forced reset
-                            if (tg && tg.showPopup) {
-                                tg.showPopup({
-                                    title: '🏆 New Season Started! 🏆',
-                                    message: `Season ${data.seasonNumber} has begun! 🚀\nYour season score has been reset to 0. Good luck! 🍀`,
-                                    buttons: [{ type: 'ok' }]
-                                });
-                            } else {
-                                alert(`🏆 New Season ${data.seasonNumber} has begun! 🚀\nYour season score has been reset to 0. Good luck! 🍀`);
-                            }
-                        }
-                        
-                        console.log('🔄 Season score reset to 0');
-                        
-                        // Force immediate synchronization with the server to ensure the score is reset
-                        sendUserDataToServer();
-                        
-                        // Update the display
-                        updateScoreDisplay();
-                    } else {
-                        // CRITICAL FIX: Always verify with the server for the correct score
-                        fetch(`/api/seasons/${data.id}/scores/${userId}`)
-                        .then(response => response.ok ? response.json() : { score: 0 })
-                        .then(scoreData => {
-                            if (scoreData && scoreData.score !== undefined) {
-                                // If the server has a score for this user, use it as the source of truth
-                                const serverScore = parseInt(scoreData.score);
-                                const localScore = parseInt(localStorage.getItem(`tidashSeasonScore_${userId}`) || "0");
-                                
-                                console.log(`🔍 Score verification - Server: ${serverScore}, Local: ${localScore}`);
-                                
-                                // If there's a discrepancy, use the server's value
-                                if (serverScore !== localScore) {
-                                    seasonScore = serverScore;
-                                    localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
-                                    console.log(`📊 Season score corrected from server: ${seasonScore}`);
-                                    
-                                    // Update the display
-                                    updateScoreDisplay();
-                                }
-                            }
-                        })
-                        .catch(error => {
-                            console.error('❌ Error checking season score:', error);
-                        });
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error checking for new season:', error);
-            });
-        }
-        
-        // Fonction pour mettre à jour l'affichage du score
-        function updateScoreDisplay() {
-            // Update the score display in the game UI
-            const scoreElement = document.getElementById('score-display');
-            if (scoreElement) {
-                scoreElement.textContent = score;
-            }
-            
-            const bestScoreElement = document.getElementById('best-score');
-            if (bestScoreElement) {
-                bestScoreElement.textContent = `Best: ${bestScore}`;
-            }
-            
-            const seasonScoreElement = document.getElementById('season-score');
-            if (seasonScoreElement) {
-                seasonScoreElement.textContent = `Season Best: ${seasonScore}`;
-                seasonScoreElement.style.display = 'block';
-            } else {
-                seasonScoreElement.style.display = 'none';
-            }
-        }
-        
-        // Fonction pour jouer une musique de fond aléatoire
-        function playRandomBackgroundMusic() {
-            // Choisir une musique aléatoire différente de la précédente
-            let newIndex;
-            do {
-                newIndex = Math.floor(Math.random() * homeMusics.length);
-            } while (newIndex === currentMusicIndex && homeMusics.length > 1);
-            
-            currentMusicIndex = newIndex;
-            backgroundMusicElement.src = homeMusics[currentMusicIndex];
-            backgroundMusicElement.volume = 0.3; // Volume à 30%
-            
-            // Jouer la musique
-            const playPromise = backgroundMusicElement.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.error("Erreur lors de la lecture de la musique:", error);
-                    // Stocker l'intention de jouer de la musique pour la prochaine interaction utilisateur
-                    window.musicPendingAutoplay = true;
-                });
-            }
-        }
-        
-        // Fonction pour gérer la musique de fond en fonction du mode de jeu
-        function manageBackgroundMusic() {
-            // Si nous sommes sur l'accueil ou les paramètres et que le son est activé
-            if ((gameMode === 'home' || gameMode === 'settings') && isMusicEnabled) {
-                // Si la musique a été activée par l'utilisateur via le bouton de son
-                if (musicActivatedByUser) {
-                    // Si la musique n'est pas en cours de lecture, en jouer une
-                    if (backgroundMusicElement.paused) {
-                        playRandomBackgroundMusic();
-                    }
-                }
-                // Sinon, ne rien faire - nous attendons que l'utilisateur active explicitement le son
-            } else {
-                // Si on n'est pas sur l'écran d'accueil ou les paramètres, ou si le son est désactivé, arrêter la musique
-                backgroundMusicElement.pause();
-            }
-        }
-        
-        // Fonction pour mettre à jour l'affichage du bouton de son
-        function updateSoundToggleDisplay() {
-            const soundToggle = document.getElementById('sound-toggle');
-            if (soundToggle) {
-                if (isMusicEnabled) {
-                    soundToggle.classList.remove('muted');
-                } else {
-                    soundToggle.classList.add('muted');
-                }
-            }
-        }
-        
-        // Fonction pour basculer l'état du son
-        function toggleSound() {
-            isMusicEnabled = !isMusicEnabled;
-            userPrefersMusicEnabled = isMusicEnabled;
-            localStorage.setItem('tidashMusicEnabled', userPrefersMusicEnabled.toString());
-            
-            // Marquer que la musique a été activée par l'utilisateur
-            if (isMusicEnabled) {
-                musicActivatedByUser = true;
-                // Réinitialiser le flag d'autoplay en attente
-                window.musicPendingAutoplay = false;
-            }
-            
-            // Mettre à jour l'affichage du bouton
-            updateSoundToggleDisplay();
-            
-            // Gérer la musique en fonction du nouvel état
-            if (isMusicEnabled) {
-                // Si on active le son, jouer la musique
-                if (gameMode === 'home' || gameMode === 'settings') {
-                    playRandomBackgroundMusic();
-                }
-            } else {
-                // Si on désactive le son, arrêter la musique immédiatement
-                backgroundMusicElement.pause();
-            }
-        }
-        
-        // Écouter la fin de la musique pour en jouer une autre
-        backgroundMusicElement.addEventListener('ended', function() {
-            if (gameMode === 'home' || gameMode === 'settings') {
-                playRandomBackgroundMusic();
-            }
-        });
-        
-        // Ajouter des écouteurs d'événements pour démarrer la musique après une interaction utilisateur
-        document.addEventListener('click', function(event) {
-            // Ne pas interférer avec le clic sur le bouton de son
-            if (event.target.closest('#sound-toggle')) {
-                return;
-            }
-            
-            if (window.musicPendingAutoplay && userPrefersMusicEnabled && (gameMode === 'home' || gameMode === 'settings')) {
-                window.musicPendingAutoplay = false;
-                toggleSound(); // Activer le son si l'utilisateur le préfère
-            }
-        });
-        
-        document.addEventListener('touchstart', function(event) {
-            // Ne pas interférer avec le toucher sur le bouton de son
-            if (event.target.closest('#sound-toggle')) {
-                return;
-            }
-            
-            if (window.musicPendingAutoplay && userPrefersMusicEnabled && (gameMode === 'home' || gameMode === 'settings')) {
-                window.musicPendingAutoplay = false;
-                toggleSound(); // Activer le son si l'utilisateur le préfère
-            }
-        });
-        
-        // Initialiser
-        window.addEventListener('load', function() {
-            // Initialize Telegram WebApp if available
-            if (tg) {
-                tg.ready();
-                tg.expand();
-            }
-            
-            // Verrouiller l'orientation en mode portrait
-            lockScreenOrientation();
-            
-            // Initialiser le jeu avant d'aller à l'écran d'accueil
-            initGame();
-            
-            // Initialiser la musique de fond
-            manageBackgroundMusic();
-            
-            // Initialiser l'affichage du bouton de son
-            updateSoundToggleDisplay();
-            
-            // Start with home screen
-            goToHome();
-            
-            // Initialiser la page de paramètres
-            initSettingsScreen();
-        });
-        
-        // Fonction pour verrouiller l'orientation de l'écran en mode portrait
-        function lockScreenOrientation() {
-            try {
-                // Pour les navigateurs modernes
-                if (screen.orientation && screen.orientation.lock) {
-                    screen.orientation.lock('portrait').catch(function(error) {
-                        console.log('Impossible de verrouiller l\'orientation: ', error);
-                    });
-                } 
-                // Pour les anciens navigateurs iOS
-                else if (window.orientation !== undefined) {
-                    // Vérifier si l'appareil est en mode paysage
-                    if (window.orientation === 90 || window.orientation === -90) {
-                        // Afficher un message demandant à l'utilisateur de tourner son appareil
-                        alert('Veuillez tourner votre appareil en mode portrait pour une meilleure expérience.');
-                    }
-                    
-                    // Écouter les changements d'orientation
-                    window.addEventListener('orientationchange', function() {
-                        if (window.orientation === 90 || window.orientation === -90) {
-                            alert('Veuillez tourner votre appareil en mode portrait pour une meilleure expérience.');
-                        }
-                    });
-                }
-            } catch (e) {
-                console.error('Erreur lors du verrouillage de l\'orientation: ', e);
-            }
-        }
-        
-        // Fonction pour afficher l'écran de paramètres
-        function showSettingsScreen() {
-            // Cacher les autres écrans
-            homeScreen.style.display = 'none';
-            gameOverScreen.style.display = 'none';
-            
-            // Mettre à jour les informations utilisateur dans les paramètres
-            document.getElementById("username-input").value = username;
-            document.getElementById("settings-user-id").textContent = userId;
-            document.getElementById("settings-avatar").src = avatarSrc;
-            document.getElementById("paypal-email").value = paypalEmail;
-            
-            // Afficher l'écran de paramètres
-            document.getElementById("settings-screen").style.display = 'block';
-            
-            // Réinitialiser la position de défilement
-            const scrollContainer = document.querySelector('.android-scroll-container');
-            if (scrollContainer) {
-                scrollContainer.scrollTop = 0;
-            }
-            
-            // Sauvegarder le mode de jeu précédent pour y revenir à la fermeture
-            settingsPreviousMode = gameMode;
-            gameMode = 'settings';
-        }
-        
-        // Fonction pour cacher l'écran de paramètres et revenir à l'écran précédent
-        function hideSettingsScreen() {
-            // Cacher l'écran de paramètres
-            document.getElementById("settings-screen").style.display = 'none';
-            
-            // Revenir à l'écran précédent
-            if (settingsPreviousMode === 'home') {
-                showHomeScreen();
-            } else if (settingsPreviousMode === 'game') {
-                // Reprendre le jeu
-                gameMode = 'game';
-            } else if (settingsPreviousMode === 'gameOver') {
-                // Afficher l'écran de game over
-                gameOverScreen.style.display = 'flex';
-                gameMode = 'gameOver';
-            }
-        }
-        
-        // Initialiser la page de paramètres
-        function initSettingsScreen() {
-            // Variable pour stocker le mode de jeu précédent
-            let settingsPreviousMode = 'home';
-            
-            const profileButton = document.getElementById('profile-button');
-            const closeSettings = document.getElementById('close-settings');
-            const usernameInput = document.getElementById('username-input');
-            const paypalEmailInput = document.getElementById('paypal-email');
-            const avatarsGrid = document.getElementById('avatars-grid');
-            const settingsScreen = document.getElementById('settings-screen');
-            const androidScrollContainer = document.querySelector('.android-scroll-container');
-            
-            // Détection d'Android
-            const isAndroid = /Android/i.test(navigator.userAgent);
-            
-            // Solution spécifique pour les WebApps Telegram sur Android
-            if (isAndroid) {
-                console.log("Appareil Android détecté, application de correctifs spécifiques");
-                
-                // Empêcher le comportement par défaut des événements tactiles pour éviter les problèmes de défilement
-                document.addEventListener('touchmove', function(e) {
-                    // Ne pas bloquer les événements de défilement dans le conteneur de défilement Android
-                    if (!e.target.closest('.android-scroll-container')) {
-                        e.preventDefault();
-                    }
-                }, { passive: false });
-                
-                // Permettre explicitement le défilement dans le conteneur Android
-                if (androidScrollContainer) {
-                    androidScrollContainer.addEventListener('touchstart', function(e) {
-                        // Permettre le défilement
-                    }, { passive: true });
-                    
-                    androidScrollContainer.addEventListener('touchmove', function(e) {
-                        // Permettre le défilement
-                    }, { passive: true });
-                }
-                
-                // Ajouter une classe spéciale au body pour les styles spécifiques à Android
-                document.body.classList.add('android-device');
-                
-                // Forcer la mise à jour de la disposition après l'affichage pour éviter les bugs de défilement
-                window.addEventListener('resize', function() {
-                    if (gameMode === 'settings' && androidScrollContainer) {
-                        // Forcer un recalcul de la mise en page
-                        androidScrollContainer.style.display = 'none';
-                        setTimeout(function() {
-                            androidScrollContainer.style.display = 'block';
-                        }, 0);
-                    }
-                });
-            }
-            
-            // Charger tous les avatars disponibles
-            loadAvatars();
-            
-            // Ouvrir la page de paramètres au clic sur le profil
-            profileButton.addEventListener('click', function() {
-                showSettingsScreen();
-            });
-            
-            // Fermer la page de paramètres
-            closeSettings.addEventListener('click', function() {
-                hideSettingsScreen();
-            });
-            
-            // Mettre à jour le username lors de la modification
-            usernameInput.addEventListener('input', function() {
-                username = this.value;
-                document.getElementById('username').textContent = username;
-                
-                // Utiliser une clé spécifique à l'utilisateur
-                localStorage.setItem(`tidashUsername_${userId}`, username);
-                
-                // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
-                const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
-                if (telegramId) {
-                    const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
-                    const storedProfile = localStorage.getItem(telegramProfileKey);
-                    
-                    if (storedProfile) {
-                        const profileData = JSON.parse(storedProfile);
-                        profileData.username = username;
-                        localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
-                    }
-                }
-                
-                // Synchroniser avec le serveur
-                sendUserDataToServer();
-            });
-            
-            // Mettre à jour l'email PayPal lors de la modification
-            paypalEmailInput.addEventListener('input', function() {
-                paypalEmail = this.value;
-                
-                // Utiliser une clé spécifique à l'utilisateur
-                localStorage.setItem(`tidashPaypalEmail_${userId}`, paypalEmail);
-                
-                // Synchroniser avec le serveur
-                sendUserDataToServer();
-            });
-            
-            // Fonction pour charger tous les avatars disponibles
-            function loadAvatars() {
-                // Liste des avatars (de avatar1.jpg à avatar20.jpg + avatar_default.jpg)
-                const avatarsList = [];
-                
-                // Ajouter l'avatar par défaut
-                avatarsList.push('avatar_default.jpg');
-                
-                // Ajouter les avatars numérotés
-                for (let i = 1; i <= 20; i++) {
-                    avatarsList.push(`avatar${i}.jpg`);
-                }
-                
-                // Vider la grille d'avatars
-                avatarsGrid.innerHTML = '';
-                
-                // Créer un fragment de document pour améliorer les performances
-                const fragment = document.createDocumentFragment();
-                
-                // Ajouter chaque avatar à la grille
-                avatarsList.forEach(avatarFile => {
-                    // Chemin simple pour l'avatar
-                    const avatarPath = 'avatars/' + avatarFile;
-                    
-                    // Vérifier si cet avatar est sélectionné
-                    const isSelected = avatarSrc.includes(avatarFile);
-                    
-                    // Créer l'élément d'avatar
-                    const avatarItem = document.createElement('div');
-                    avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
-                    
-                    // Créer l'élément img
-                    const imgElement = document.createElement('img');
-                    imgElement.src = avatarPath;
-                    imgElement.alt = "Avatar";
-                    
-                    // Créer l'élément de coche
-                    const checkElement = document.createElement('div');
-                    checkElement.className = 'avatar-check';
-                    checkElement.textContent = '✓';
-                    
-                    // Ajouter les éléments au conteneur
-                    avatarItem.appendChild(imgElement);
-                    avatarItem.appendChild(checkElement);
-                    
-                    // Fonction de sélection d'avatar
-                    avatarItem.onclick = function() {
-                        // Désélectionner tous les avatars
-                        document.querySelectorAll('.avatar-item').forEach(item => {
-                            item.classList.remove('selected');
-                        });
-                        
-                        // Sélectionner cet avatar
-                        avatarItem.classList.add('selected');
-                        
-                        // Mettre à jour l'avatar de l'utilisateur (avec chemin absolu pour la cohérence)
-                        avatarSrc = window.location.origin + '/' + avatarPath;
-                        
-                        // Mettre à jour les images d'avatar dans l'interface
-                        const avatarImg = document.getElementById('avatarImg');
-                        const settingsAvatar = document.getElementById('settings-avatar');
-                        
-                        if (avatarImg) avatarImg.src = avatarPath;
-                        if (settingsAvatar) settingsAvatar.src = avatarPath;
-                        
-                        // Sauvegarder dans le localStorage
-                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                        
-                        // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
-                        const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
-                        if (telegramId) {
-                            const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
-                            const storedProfile = localStorage.getItem(telegramProfileKey);
-                            
-                            if (storedProfile) {
-                                const profileData = JSON.parse(storedProfile);
-                                profileData.avatarSrc = avatarSrc;
-                                localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
-                            }
-                        }
-                        
-                        // Synchroniser avec le serveur
-                        sendUserDataToServer();
-                    };
-                    
-                    // Ajouter au fragment
-                    fragment.appendChild(avatarItem);
-                });
-                
-                // Ajouter le fragment à la grille
-                avatarsGrid.appendChild(fragment);
-            }
-        }
-        
-        // Écouter le clic sur le bouton de son
-        document.getElementById('sound-toggle').addEventListener('click', toggleSound);
     </script>
 </body>
 </html>
