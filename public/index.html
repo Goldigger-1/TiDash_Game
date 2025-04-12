@@ -107,6 +107,19 @@
             transition-delay: 0.6s;
         }
         
+        #season-score {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            transition-delay: 0.9s;
+            display: none;
+        }
+        
         .button-container {
             display: flex;
             flex-direction: column;
@@ -119,6 +132,7 @@
         
         #game-over.visible #score-display,
         #game-over.visible #best-score,
+        #game-over.visible #season-score,
         #game-over.visible .button-container {
             transform: translateY(0);
             opacity: 1;
@@ -626,6 +640,7 @@
         <div id="game-over">
             <div id="score-display">0</div>
             <div id="best-score">Best: 0</div>
+            <div id="season-score">Season Best: 0</div>
             <div class="button-container">
                 <button id="play-again" class="game-button">PLAY AGAIN</button>
                 <button id="home-button" class="game-button secondary">HOME</button>
@@ -696,6 +711,7 @@
         const homeScreen = document.getElementById('home-screen');
         const scoreDisplay = document.getElementById('score-display');
         const bestScoreDisplay = document.getElementById('best-score');
+        const seasonScoreDisplay = document.getElementById('season-score');
         const playAgainBtn = document.getElementById('play-again');
         const homeBtn = document.getElementById('home-button');
         const playBtn = document.getElementById('play-button');
@@ -1461,6 +1477,28 @@
             const userBestScoreKey = `tidashBestScore_${userId}`;
             document.getElementById('best-score').textContent = `Best: ${localStorage.getItem(userBestScoreKey)}`;
             
+            // Afficher le score de saison si une saison est active
+            const seasonScoreElement = document.getElementById('season-score');
+            if (seasonScoreElement) {
+                // Vérifier s'il y a une saison active
+                fetch('/api/seasons/active')
+                .then(response => response.ok ? response.json() : null)
+                .then(activeSeason => {
+                    if (activeSeason) {
+                        const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                        const currentSeasonScore = localStorage.getItem(userSeasonScoreKey) || "0";
+                        seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${currentSeasonScore}`;
+                        seasonScoreElement.style.display = 'block';
+                    } else {
+                        seasonScoreElement.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error checking active season:', error);
+                    seasonScoreElement.style.display = 'none';
+                });
+            }
+            
             // Mettre à jour le mode de jeu
             gameMode = 'gameOver';
             
@@ -1904,6 +1942,12 @@
                         }
                         
                         console.log('Score de saison réinitialisé pour la nouvelle saison');
+                        
+                        // Force une synchronisation immédiate avec le serveur pour s'assurer que le score est réinitialisé
+                        sendUserDataToServer();
+                        
+                        // Mettre à jour l'affichage
+                        updateScoreDisplay();
                     }
                 }
             })
