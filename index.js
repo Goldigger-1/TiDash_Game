@@ -1245,22 +1245,24 @@ app.get('/api/users', async (req, res) => {
       }
       
       return userData;
-    });
+    }) || []; // Ensure we have an array even if users is null
     
-    console.log(`✅ Found ${users.length} users (total: ${totalUsers})`);
+    console.log(`✅ Found ${formattedUsers.length} users (total: ${totalUsers})`);
     
-    // Send response with pagination info that matches what admin.js expects
+    // IMPORTANT: Based on admin.js lines 294-298, it expects this exact structure
     res.status(200).json({
-      users: formattedUsers || [], // Ensure users is always an array
       total: totalUsers,
       totalPages: Math.ceil(totalUsers / limit),
-      currentPage: page
+      users: formattedUsers
     });
   } catch (error) {
     console.error('❌ Error fetching users for admin:', error);
+    // Send a response that won't break the admin panel
     res.status(500).json({ 
       error: 'Error fetching users', 
-      details: error.message 
+      users: [], // Include empty users array to prevent undefined errors
+      total: 0,
+      totalPages: 0
     });
   }
 });
@@ -1435,6 +1437,49 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
       error: 'Error fetching season ranking', 
       details: error.message 
     });
+  }
+});
+
+// API endpoint to get season ranking
+app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
+  try {
+    const { seasonId } = req.params;
+    console.log(`🔍 Fetching ranking for season ${seasonId}`);
+    
+    // Find the season
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Get all scores for this season, ordered by score descending
+    const scores = await SeasonScore.findAll({
+      where: { seasonId: seasonId },
+      order: [['score', 'DESC']],
+      limit: 100 // Limit to top 100 scores
+    });
+    
+    // Get user details for each score
+    const ranking = [];
+    for (const score of scores) {
+      const user = await User.findByPk(score.userId);
+      if (user) {
+        ranking.push({
+          userId: user.gameId,
+          username: user.gameUsername || 'Unknown User',
+          score: score.score || 0
+        });
+      }
+    }
+    
+    console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
+    
+    // Return as array, not object - this is what admin.js expects based on line 557
+    res.status(200).json(ranking);
+  } catch (error) {
+    console.error('❌ Error fetching season ranking:', error);
+    // Even in error case, return an empty array to prevent forEach errors
+    res.status(500).json([]);
   }
 });
 
