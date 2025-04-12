@@ -168,7 +168,8 @@ function initEvents() {
         seasonModal.style.display = 'none';
     });
     
-    saveSeasonBtn.addEventListener('click', () => {
+    saveSeasonBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         // Récupérer les valeurs du formulaire
         const seasonNumberValue = seasonNumberInput.value.trim();
         const seasonEndDateValue = seasonEndDateInput.value.trim();
@@ -461,7 +462,10 @@ function fetchActiveSeason() {
         })
         .then(data => {
             // Mettre à jour les informations de la saison active
+            console.log('Saison active récupérée:', data);
             currentSeason = data;
+            
+            // Mettre à jour les éléments d'interface
             activeSeason.textContent = `Saison ${data.seasonNumber}`;
             prizeMoney.textContent = `$${data.prizeMoney}`;
             seasonNumber.textContent = data.seasonNumber;
@@ -481,6 +485,7 @@ function fetchActiveSeason() {
                 console.log('Aucune saison active trouvée');
             } else {
                 console.error('Erreur lors de la récupération de la saison active:', error);
+                showNotification('Erreur lors de la récupération de la saison active', 'error');
             }
         });
 }
@@ -546,9 +551,12 @@ function displaySeasons() {
                 winnerText = season.winnerId;
             }
             
+            // Formater la date
+            const formattedDate = formatDate(season.endDate);
+            
             row.innerHTML = `
                 <td>Saison ${season.seasonNumber}</td>
-                <td>${formatDate(season.endDate)}</td>
+                <td>${formattedDate}</td>
                 <td>$${season.prizeMoney}</td>
                 <td>${winnerText}</td>
                 <td>
@@ -666,9 +674,9 @@ function createSeason(seasonNumber, endDate, prizeMoney) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            seasonNumber,
-            endDate,
-            prizeMoney
+            seasonNumber: parseInt(seasonNumber),
+            endDate: endDate,
+            prizeMoney: parseFloat(prizeMoney)
         })
     })
     .then(response => {
@@ -701,9 +709,9 @@ function updateSeason(seasonId, seasonNumber, endDate, prizeMoney) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            seasonNumber,
-            endDate,
-            prizeMoney
+            seasonNumber: parseInt(seasonNumber),
+            endDate: endDate,
+            prizeMoney: parseFloat(prizeMoney)
         })
     })
     .then(response => {

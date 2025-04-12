@@ -416,68 +416,67 @@ app.get('/api/seasons', async (req, res) => {
 
 // API pour créer une nouvelle saison
 app.post('/api/seasons', async (req, res) => {
+  const { seasonNumber, endDate, prizeMoney } = req.body;
+  
+  console.log('Création de saison - Données reçues:', req.body);
+  
   try {
-    const { number, endDate, prizeMoney } = req.body;
-    
-    if (!number || !endDate) {
-      return res.status(400).json({ error: 'Numéro de saison et date de fin requis' });
+    // Validation des données
+    if (!seasonNumber || !endDate || prizeMoney === undefined) {
+      console.error('Données de saison invalides:', req.body);
+      return res.status(400).json({ error: 'Tous les champs sont requis (seasonNumber, endDate, prizeMoney)' });
     }
     
     // Désactiver toutes les saisons actives
     await Season.update({ isActive: false }, { where: { isActive: true } });
     
-    // Créer la nouvelle saison
+    // Créer une nouvelle saison
     const newSeason = await Season.create({
-      number,
-      endDate,
-      prizeMoney: prizeMoney || 0,
-      isActive: true
+      seasonNumber: parseInt(seasonNumber),
+      endDate: new Date(endDate),
+      prizeMoney: parseFloat(prizeMoney),
+      isActive: true,
+      isClosed: false
     });
     
-    // Réinitialiser tous les scores de saison pour la nouvelle saison
-    const users = await User.findAll();
-    for (const user of users) {
-      await SeasonScore.create({
-        userId: user.gameId,
-        seasonId: newSeason.id,
-        score: 0
-      });
-    }
-    
+    console.log('Nouvelle saison créée:', newSeason.toJSON());
     res.status(201).json(newSeason);
   } catch (error) {
     console.error('Erreur lors de la création de la saison:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la création de la saison', details: error.message });
   }
 });
 
 // API pour mettre à jour une saison
 app.put('/api/seasons/:id', async (req, res) => {
+  const { id } = req.params;
+  const { seasonNumber, endDate, prizeMoney } = req.body;
+  
+  console.log('Mise à jour de saison - Données reçues:', req.body);
+  
   try {
-    const { id } = req.params;
-    const { endDate, prizeMoney, isActive } = req.body;
+    // Validation des données
+    if (!seasonNumber || !endDate || prizeMoney === undefined) {
+      console.error('Données de saison invalides:', req.body);
+      return res.status(400).json({ error: 'Tous les champs sont requis (seasonNumber, endDate, prizeMoney)' });
+    }
     
     const season = await Season.findByPk(id);
     if (!season) {
       return res.status(404).json({ error: 'Saison non trouvée' });
     }
     
-    // Si on active cette saison, désactiver toutes les autres
-    if (isActive) {
-      await Season.update({ isActive: false }, { where: { id: { [Op.ne]: id } } });
-    }
-    
-    // Mettre à jour la saison
     await season.update({
-      endDate: endDate || season.endDate,
-      prizeMoney: prizeMoney !== undefined ? prizeMoney : season.prizeMoney,
-      isActive: isActive !== undefined ? isActive : season.isActive
+      seasonNumber: parseInt(seasonNumber),
+      endDate: new Date(endDate),
+      prizeMoney: parseFloat(prizeMoney)
     });
     
+    console.log('Saison mise à jour:', season.toJSON());
     res.json(season);
   } catch (error) {
     console.error('Erreur lors de la mise à jour de la saison:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de la saison', details: error.message });
   }
 });
 
@@ -646,30 +645,6 @@ app.post('/api/seasons', async (req, res) => {
   }
 });
 
-// Route pour mettre à jour une saison
-app.put('/api/seasons/:id', async (req, res) => {
-  const { id } = req.params;
-  const { seasonNumber, endDate, prizeMoney } = req.body;
-  
-  try {
-    const season = await Season.findByPk(id);
-    if (!season) {
-      return res.status(404).json({ error: 'Saison non trouvée' });
-    }
-    
-    await season.update({
-      seasonNumber,
-      endDate,
-      prizeMoney
-    });
-    
-    res.json(season);
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour de la saison:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour de la saison' });
-  }
-});
-
 // Route pour clôturer une saison
 app.post('/api/seasons/:id/close', async (req, res) => {
   const { id } = req.params;
@@ -702,6 +677,16 @@ app.post('/api/seasons/:id/close', async (req, res) => {
       isActive: false,
       winnerId
     });
+    
+    // Mettre à jour les rangs des scores de saison
+    const scores = await SeasonScore.findAll({
+      where: { seasonId: id },
+      order: [['score', 'DESC']]
+    });
+    
+    for (let i = 0; i < scores.length; i++) {
+      await scores[i].update({ rank: i + 1 });
+    }
     
     res.json({ 
       message: 'Saison clôturée avec succès',
