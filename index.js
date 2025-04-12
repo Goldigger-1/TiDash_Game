@@ -5,9 +5,9 @@ const fs = require('fs');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config();
 
-// Chemin de la base de données persistante - Ensure it's stored in a persistent location
+// Chemin de la base de données persistante
 const DB_PATH = process.env.NODE_ENV === 'production' 
-  ? '/var/lib/tidash/tidash_database.sqlite' // More specific persistent path
+  ? '/var/lib/tidash_database.sqlite'
   : path.join(__dirname, 'tidash_database.sqlite');
 
 // Vérifier si le fichier de base de données existe, sinon le créer
@@ -17,22 +17,9 @@ if (!fs.existsSync(DB_PATH)) {
     const dir = path.dirname(DB_PATH);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      console.log(`📁 Created directory: ${dir}`);
     }
     fs.writeFileSync(DB_PATH, '', { flag: 'wx' });
     console.log(`📁 Database file created at ${DB_PATH}`);
-    
-    // Set proper permissions for the database file and directory in production
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        // Make sure the directory and file are readable/writable
-        fs.chmodSync(dir, 0o755); // rwxr-xr-x
-        fs.chmodSync(DB_PATH, 0o644); // rw-r--r--
-        console.log(`🔒 Set permissions for database file and directory`);
-      } catch (permErr) {
-        console.error(`⚠️ Could not set permissions: ${permErr.message}`);
-      }
-    }
   } catch (err) {
     console.error(`❌ Error creating database file: ${err.message}`);
     // Critical: Don't crash the server, but log the error
@@ -408,42 +395,6 @@ app.get('/api/users/telegram/:telegramId', async (req, res) => {
     console.error('❌ Error retrieving user by Telegram ID:', error);
     res.status(500).json({ 
       error: 'Error retrieving user by Telegram ID', 
-      details: error.message 
-    });
-  }
-});
-
-// New route to update user information when username changes
-app.put('/api/users/telegram/:telegramId/update-username', async (req, res) => {
-  try {
-    const { telegramId } = req.params;
-    const { telegramUsername } = req.body;
-    
-    console.log(`🔄 Updating username for Telegram ID ${telegramId} to ${telegramUsername}`);
-    
-    // Find user by Telegram ID
-    const user = await User.findOne({
-      where: { telegramId: telegramId }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    // Update the username
-    user.telegramUsername = telegramUsername;
-    await user.save();
-    
-    console.log(`✅ Username updated successfully for user with Telegram ID: ${telegramId}`);
-    
-    res.json({
-      message: 'Username updated successfully',
-      user: user
-    });
-  } catch (error) {
-    console.error('❌ Error updating username:', error);
-    res.status(500).json({ 
-      error: 'Error updating username', 
       details: error.message 
     });
   }
