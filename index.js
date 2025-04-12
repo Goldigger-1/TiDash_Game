@@ -854,7 +854,14 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     console.log(`🔍 Fetching ranking for season ${seasonId}`);
     
     // Find the season
-    const season = await Season.findByPk(seasonId);
+    let season = null;
+    try {
+      season = await Season.findByPk(seasonId);
+    } catch (seasonError) {
+      console.error(`❌ Error finding season ${seasonId}:`, seasonError);
+      // Continue with season = null
+    }
+    
     if (!season) {
       // Return empty array instead of error to prevent forEach error in admin.js
       console.log(`⚠️ Season ${seasonId} not found`);
@@ -862,11 +869,17 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     }
     
     // Get all scores for this season, ordered by score descending
-    const scores = await SeasonScore.findAll({
-      where: { seasonId: seasonId },
-      order: [['score', 'DESC']],
-      limit: 100 // Limit to top 100 scores
-    });
+    let scores = [];
+    try {
+      scores = await SeasonScore.findAll({
+        where: { seasonId: seasonId },
+        order: [['score', 'DESC']],
+        limit: 100 // Limit to top 100 scores
+      });
+    } catch (scoresError) {
+      console.error(`❌ Error finding scores for season ${seasonId}:`, scoresError);
+      // Continue with empty scores array
+    }
     
     // Get user details for each score
     const ranking = [];
@@ -882,18 +895,24 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
         }
       } catch (userError) {
         console.error(`❌ Error fetching user ${score.userId}:`, userError);
-        // Continue with next score even if one user fails
+        // Add a placeholder entry to maintain ranking order
+        ranking.push({
+          userId: 'error',
+          username: 'Error loading user',
+          score: score.score || 0
+        });
       }
     }
     
     console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
     
     // CRITICAL: admin.js expects an array at line 557 where it calls data.forEach
-    res.json(ranking);
+    // Make sure we always return an array, even if empty
+    return res.json(Array.isArray(ranking) ? ranking : []);
   } catch (error) {
     console.error('❌ Error fetching season ranking:', error);
     // Even in error case, return an empty array to prevent forEach errors
-    res.json([]);
+    return res.json([]);
   }
 });
 
@@ -1158,46 +1177,74 @@ app.get('/api/users', async (req, res) => {
     console.log(`🔍 Admin fetching users - Page: ${page}, Limit: ${limit}`);
     
     // Get total count of users
-    const totalUsers = await User.count();
+    let totalUsers = 0;
+    try {
+      totalUsers = await User.count();
+    } catch (countError) {
+      console.error('❌ Error counting users:', countError);
+      // Continue with totalUsers = 0
+    }
     
     // Get users with pagination
-    const users = await User.findAll({
-      order: [['lastLogin', 'DESC']],
-      limit: limit,
-      offset: offset
-    });
+    let users = [];
+    try {
+      users = await User.findAll({
+        order: [['lastLogin', 'DESC']],
+        limit: limit,
+        offset: offset
+      });
+    } catch (findError) {
+      console.error('❌ Error finding users:', findError);
+      // Continue with empty users array
+    }
     
-    // Format the response
-    const formattedUsers = users.map(user => {
-      const userData = user.toJSON();
-      
-      // Format dates for better readability
-      if (userData.createdAt) {
-        userData.createdAt = new Date(userData.createdAt).toLocaleString();
-      }
-      if (userData.lastLogin) {
-        userData.lastLogin = new Date(userData.lastLogin).toLocaleString();
-      }
-      
-      return userData;
-    });
+    // Format the response - with additional error handling
+    let formattedUsers = [];
+    try {
+      formattedUsers = users.map(user => {
+        try {
+          const userData = user.toJSON();
+          
+          // Format dates for better readability
+          if (userData.createdAt) {
+            userData.createdAt = new Date(userData.createdAt).toLocaleString();
+          }
+          if (userData.lastLogin) {
+            userData.lastLogin = new Date(userData.lastLogin).toLocaleString();
+          }
+          
+          return userData;
+        } catch (userError) {
+          console.error('❌ Error formatting user:', userError);
+          // Return a minimal valid user object to prevent errors
+          return {
+            gameId: 'error',
+            gameUsername: 'Error processing user',
+            bestScore: 0
+          };
+        }
+      });
+    } catch (mapError) {
+      console.error('❌ Error mapping users:', mapError);
+      // Continue with empty formattedUsers array
+    }
     
-    // If formattedUsers is null or undefined, use an empty array
-    const safeUsers = formattedUsers || [];
-    
-    console.log(`✅ Found ${safeUsers.length} users (total: ${totalUsers})`);
+    console.log(`✅ Found ${formattedUsers.length} users (total: ${totalUsers})`);
     
     // CRITICAL: admin.js expects this exact structure at lines 294-298
-    res.json({
-      users: safeUsers,
-      total: totalUsers,
-      totalPages: Math.ceil(totalUsers / limit)
+    // The error occurs at line 325 in admin.js where it checks users.length
+    // So we MUST ensure users is a valid array
+    return res.json({
+      users: Array.isArray(formattedUsers) ? formattedUsers : [],
+      total: totalUsers || 0,
+      totalPages: Math.ceil((totalUsers || 0) / limit)
     });
   } catch (error) {
     console.error('❌ Error fetching users for admin:', error);
     // Even in error case, return a valid response structure
-    res.json({ 
-      users: [], 
+    // This is critical to prevent the TypeError in admin.js
+    return res.json({ 
+      users: [], // Must be an array to prevent users.length error
       total: 0,
       totalPages: 0
     });
