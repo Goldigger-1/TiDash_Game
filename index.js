@@ -337,12 +337,17 @@ app.delete('/api/users/:id', async (req, res) => {
     
     console.log(`Utilisateur trouvé: ${user.gameUsername} (${user.gameId})`);
     
-    // Supprimer les scores de saison associés à cet utilisateur
-    const deletedScores = await SeasonScore.destroy({
-      where: { userId: id }
-    });
-    
-    console.log(`${deletedScores} scores de saison supprimés pour l'utilisateur ${id}`);
+    try {
+      // Supprimer les scores de saison associés à cet utilisateur
+      const deletedScores = await SeasonScore.destroy({
+        where: { userId: id }
+      });
+      
+      console.log(`${deletedScores} scores de saison supprimés pour l'utilisateur ${id}`);
+    } catch (scoreError) {
+      console.error('Erreur lors de la suppression des scores de saison:', scoreError);
+      // Continuer malgré l'erreur pour essayer de supprimer l'utilisateur
+    }
     
     // Supprimer l'utilisateur
     await user.destroy();
@@ -352,7 +357,11 @@ app.delete('/api/users/:id', async (req, res) => {
     res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
   } catch (error) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur', details: error.message });
+    res.status(500).json({ 
+      error: 'Erreur lors de la suppression de l\'utilisateur', 
+      details: error.message,
+      stack: error.stack // Ajouter la stack trace pour le débogage
+    });
   }
 });
 

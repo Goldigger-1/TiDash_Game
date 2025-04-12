@@ -412,10 +412,14 @@ function deleteUser(userId) {
     })
         .then(response => {
             console.log('Réponse de suppression:', response.status, response.statusText);
+            
             if (!response.ok) {
-                console.error('Erreur HTTP:', response.status, response.statusText);
-                throw new Error('Erreur lors de la suppression de l\'utilisateur');
+                return response.json().then(errorData => {
+                    console.error('Détails de l\'erreur:', errorData);
+                    throw new Error(errorData.details || 'Erreur lors de la suppression de l\'utilisateur');
+                });
             }
+            
             return response.json();
         })
         .then(data => {
@@ -426,7 +430,7 @@ function deleteUser(userId) {
         })
         .catch(error => {
             console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-            showNotification('Erreur lors de la suppression de l\'utilisateur', 'error');
+            showNotification(`Erreur lors de la suppression de l'utilisateur: ${error.message}`, 'error');
         });
 }
 
