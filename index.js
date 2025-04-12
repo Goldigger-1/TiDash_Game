@@ -337,30 +337,58 @@ app.delete('/api/users/:id', async (req, res) => {
     
     console.log(`Utilisateur trouvé: ${user.gameUsername} (${user.gameId})`);
     
+    // Utiliser une transaction pour s'assurer que toutes les opérations sont atomiques
+    const transaction = await sequelize.transaction();
+    
     try {
-      // Supprimer les scores de saison associés à cet utilisateur
-      const deletedScores = await SeasonScore.destroy({
-        where: { userId: id }
-      });
+      // 1. Vérifier et mettre à jour les saisons où cet utilisateur est le gagnant
+      await Season.update(
+        { winnerId: null },
+        { 
+          where: { winnerId: id },
+          transaction
+        }
+      );
+      console.log(`Références à l'utilisateur ${id} supprimées de la table Seasons`);
       
+      // 2. Supprimer les scores de saison associés à cet utilisateur
+      const deletedScores = await SeasonScore.destroy({
+        where: { userId: id },
+        transaction
+      });
       console.log(`${deletedScores} scores de saison supprimés pour l'utilisateur ${id}`);
-    } catch (scoreError) {
-      console.error('Erreur lors de la suppression des scores de saison:', scoreError);
-      // Continuer malgré l'erreur pour essayer de supprimer l'utilisateur
+      
+      // 3. Vérifier s'il existe une table Seasons_backup et supprimer les références
+      try {
+        await sequelize.query(`UPDATE "Seasons_backup" SET "winnerId" = NULL WHERE "winnerId" = ?`, {
+          replacements: [id],
+          transaction
+        });
+        console.log(`Références à l'utilisateur ${id} supprimées de la table Seasons_backup`);
+      } catch (backupError) {
+        // Si la table n'existe pas, ignorer l'erreur
+        console.log(`Table Seasons_backup non trouvée ou autre erreur: ${backupError.message}`);
+      }
+      
+      // 4. Supprimer l'utilisateur
+      await user.destroy({ transaction });
+      console.log(`Utilisateur ${id} supprimé avec succès`);
+      
+      // Valider la transaction
+      await transaction.commit();
+      
+      res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
+    } catch (innerError) {
+      // Annuler la transaction en cas d'erreur
+      await transaction.rollback();
+      throw innerError;
     }
-    
-    // Supprimer l'utilisateur
-    await user.destroy();
-    
-    console.log(`Utilisateur ${id} supprimé avec succès`);
-    
-    res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
   } catch (error) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', error);
     res.status(500).json({ 
       error: 'Erreur lors de la suppression de l\'utilisateur', 
       details: error.message,
-      stack: error.stack // Ajouter la stack trace pour le débogage
+      stack: error.stack
     });
   }
 });
