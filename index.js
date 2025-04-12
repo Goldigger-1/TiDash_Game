@@ -455,21 +455,35 @@ app.post('/api/users', async (req, res) => {
           where: { userId: user.gameId, seasonId: activeSeason.id }
         });
         
+        // Récupérer l'ID de la dernière saison connue par le client
+        const lastKnownSeasonId = userData.lastKnownSeasonId || null;
+        
+        // Vérifier si le client a détecté un changement de saison
+        const isNewSeason = lastKnownSeasonId && lastKnownSeasonId !== activeSeason.id.toString();
+        
+        console.log(`🔍 Checking season score - User: ${user.gameId}, Current score: ${currentSeasonScore}, Last known season: ${lastKnownSeasonId}, Active season: ${activeSeason.id}, Is new season: ${isNewSeason}`);
+        
         if (seasonScore) {
-          // Si le score de saison actuel est meilleur que le score de saison existant, mettre à jour
-          if (currentSeasonScore > seasonScore.score) {
+          // Si c'est une nouvelle saison ou si le score actuel est meilleur
+          if (isNewSeason) {
+            // Réinitialiser le score car c'est une nouvelle saison
             await seasonScore.update({ score: currentSeasonScore });
-            console.log(`Mise à jour du score de saison pour ${user.gameId}: ${currentSeasonScore}`);
+            console.log(`🔄 Reset season score for ${user.gameId} to ${currentSeasonScore} (new season detected)`);
+          } else if (currentSeasonScore > seasonScore.score) {
+            // Mettre à jour seulement si le score est meilleur
+            await seasonScore.update({ score: currentSeasonScore });
+            console.log(`📈 Updated season score for ${user.gameId}: ${currentSeasonScore}`);
+          } else {
+            console.log(`ℹ️ No update needed for ${user.gameId}: current ${currentSeasonScore} <= existing ${seasonScore.score}`);
           }
         } else {
           // Si c'est la première fois que l'utilisateur joue dans cette saison, créer un nouveau score
-          // Utiliser le score de saison actuel, pas le meilleur score global
           await SeasonScore.create({
             userId: user.gameId,
             seasonId: activeSeason.id,
             score: currentSeasonScore
           });
-          console.log(`Nouveau score de saison créé pour ${user.gameId}: ${currentSeasonScore}`);
+          console.log(`✨ New season score created for ${user.gameId}: ${currentSeasonScore}`);
         }
       }
       
@@ -746,6 +760,25 @@ app.get('/api/active-season', async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la récupération de la saison active:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de la saison active' });
+  }
+});
+
+// Route alternative pour récupérer la saison active (pour compatibilité)
+app.get('/api/seasons/active', async (req, res) => {
+  try {
+    const activeSeason = await Season.findOne({
+      where: { isActive: true }
+    });
+    
+    if (!activeSeason) {
+      return res.status(404).json({ error: 'No active season found' });
+    }
+    
+    console.log('🏆 Active season requested:', activeSeason.toJSON());
+    res.json(activeSeason);
+  } catch (error) {
+    console.error('❌ Error retrieving active season:', error);
+    res.status(500).json({ error: 'Error retrieving active season' });
   }
 });
 

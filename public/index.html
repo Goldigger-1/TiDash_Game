@@ -1826,6 +1826,7 @@
                 paypalEmail: paypalEmail || "",
                 bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
                 seasonScore: localStorage.getItem(`tidashSeasonScore_${userId}`) || "0",
+                lastKnownSeasonId: localStorage.getItem(`tidashLastSeasonId_${userId}`) || null,
                 registrationDate: localStorage.getItem(`tidashRegistrationDate_${userId}`) || localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
                 lastLogin: new Date().toISOString().split('T')[0],
                 avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
