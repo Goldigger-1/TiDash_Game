@@ -122,6 +122,31 @@ function initEvents() {
         });
     });
     
+    // Fermer la modal lorsque l'utilisateur clique sur la croix
+    closeModal.addEventListener('click', () => {
+        userModal.style.display = 'none';
+    });
+    
+    // Fermer la modal lorsque l'utilisateur clique en dehors de celle-ci
+    window.addEventListener('click', (e) => {
+        if (e.target === userModal) {
+            userModal.style.display = 'none';
+        }
+    });
+    
+    // Ajouter un gestionnaire d'événements pour le bouton de suppression dans la modal
+    document.getElementById('delete-user-btn').addEventListener('click', () => {
+        const userId = document.getElementById('modal-user-id').textContent;
+        if (userId && userId !== 'N/A') {
+            if (confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`)) {
+                deleteUser(userId);
+                userModal.style.display = 'none';
+            }
+        } else {
+            showNotification('ID utilisateur invalide', 'error');
+        }
+    });
+    
     // Événements pour les saisons
     newSeasonBtn.addEventListener('click', () => {
         // Réinitialiser le formulaire
@@ -433,29 +458,43 @@ function showUserDetails(userId) {
 function deleteUser(userId) {
     console.log('Suppression de l\'utilisateur:', userId);
     
+    // Show a loading notification
+    showNotification('Suppression en cours...', 'info', 2000);
+    
     fetch(`/api/users/${encodeURIComponent(userId)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
     })
         .then(response => {
-            console.log('Réponse de suppression:', response.status, response.statusText);
+            console.log('Delete response:', response.status, response.statusText);
             
             if (!response.ok) {
+                if (response.status === 404) {
+                    throw new Error('User not found');
+                }
+                
+                // Try to get error details if available
                 return response.json().then(errorData => {
-                    console.error('Détails de l\'erreur:', errorData);
-                    throw new Error(errorData.details || 'Erreur lors de la suppression de l\'utilisateur');
+                    console.error('Error details:', errorData);
+                    throw new Error(errorData.details || 'Error deleting user');
+                }).catch(e => {
+                    // If JSON parsing fails, throw the original error
+                    throw new Error(`Error deleting user: ${response.status} ${response.statusText}`);
                 });
             }
             return response.json();
         })
         .then(data => {
-            console.log('Données de suppression reçues:', data);
-            // Recharger les données après la suppression
+            console.log('Delete data received:', data);
+            // Reload data after deletion
             fetchUsers();
-            showNotification('Utilisateur supprimé avec succès', 'success');
+            showNotification('User deleted successfully', 'success');
         })
         .catch(error => {
-            console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-            showNotification(`Erreur lors de la suppression de l'utilisateur: ${error.message}`, 'error');
+            console.error('Error deleting user:', error);
+            showNotification(`Error deleting user: ${error.message}`, 'error');
         });
 }
 

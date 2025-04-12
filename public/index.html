@@ -736,7 +736,7 @@
         
         // Variables pour les étoiles
         let stars = [];
-        const maxStars = 40; // Nombre d'étoiles
+        const maxStars = 45; // Nombre d'étoiles
         
         // Variables pour le profil utilisateur
         let username = "";
@@ -1115,13 +1115,19 @@
                 if (ball.x - ball.radius < line.x) {
                     ball.x = line.x + ball.radius;
                     ball.direction = 1;
-                    // Jouer le son quand la balle touche le bord gauche
-                    playSound('borderTouch');
+                    
+                    // Only play border touch sound during gameplay, not on home screen
+                    if (gameMode === 'game') {
+                        playSound('borderTouch');
+                    }
                 } else if (ball.x + ball.radius > line.x + line.width) {
                     ball.x = line.x + line.width - ball.radius;
                     ball.direction = -1;
-                    // Jouer le son quand la balle touche le bord droit
-                    playSound('borderTouch');
+                    
+                    // Only play border touch sound during gameplay, not on home screen
+                    if (gameMode === 'game') {
+                        playSound('borderTouch');
+                    }
                 }
             }
             
@@ -1775,9 +1781,25 @@
                         if (data) {
                             console.log("✅ User data loaded from server:", data);
                             
+                            // Check if user has a gameId and gameUsername
+                            let needsUpdate = false;
+                            
                             // Set user data from server response
-                            userId = data.gameId;
-                            username = data.gameUsername;
+                            if (!data.gameId) {
+                                userId = generateRandomUserId();
+                                needsUpdate = true;
+                                console.log("🆕 Generated new game ID for existing user:", userId);
+                            } else {
+                                userId = data.gameId;
+                            }
+                            
+                            if (!data.gameUsername) {
+                                username = generateRandomUsername();
+                                needsUpdate = true;
+                                console.log("🆕 Generated new username for existing user:", username);
+                            } else {
+                                username = data.gameUsername;
+                            }
                             
                             // Handle avatar path correctly
                             if (data.avatarSrc) {
@@ -1799,6 +1821,12 @@
                             
                             // Set music preference from server
                             isMusicEnabled = data.musicEnabled !== undefined ? data.musicEnabled : true;
+                            
+                            // If we generated a new ID or username, update the user data on the server
+                            if (needsUpdate) {
+                                console.log("🔄 Updating user with new ID or username");
+                                setTimeout(() => sendUserDataToServer(), 500);
+                            }
                             
                             // Update UI elements
                             updateUserProfileDisplay();

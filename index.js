@@ -5,10 +5,8 @@ const fs = require('fs');
 const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config();
 
-// Chemin de la base de données persistante
-const DB_PATH = process.env.NODE_ENV === 'production' 
-  ? '/var/lib/tidash_database.sqlite'
-  : path.join(__dirname, 'tidash_database.sqlite');
+// Chemin de la base de données persistante - FIXED to always use the external database path
+const DB_PATH = '/var/lib/tidash_database.sqlite';
 
 // Vérifier si le fichier de base de données existe, sinon le créer
 if (!fs.existsSync(DB_PATH)) {
@@ -505,51 +503,61 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-// Route pour supprimer un utilisateur
+// API pour supprimer un utilisateur
 app.delete('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
     console.log(`🗑️ Attempting to delete user with ID: ${id}`);
     
-    // Désactiver temporairement les contraintes de clé étrangère
-    await sequelize.query('PRAGMA foreign_keys = OFF;');
+    // First check if the user exists
+    const user = await User.findByPk(id);
+    if (!user) {
+      console.log(`⚠️ User with ID ${id} not found for deletion`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Start a transaction to ensure all operations succeed or fail together
+    const transaction = await sequelize.transaction();
     
     try {
-      // Supprimer directement l'utilisateur avec une requête SQL brute
-      await sequelize.query('DELETE FROM "Users" WHERE "gameId" = ?', {
-        replacements: [id]
-      });
+      // Désactiver temporairement les contraintes de clé étrangère
+      await sequelize.query('PRAGMA foreign_keys = OFF;', { transaction });
       
-      // Supprimer les scores de saison associés
+      // Delete season scores first
       await sequelize.query('DELETE FROM "SeasonScores" WHERE "userId" = ?', {
-        replacements: [id]
+        replacements: [id],
+        transaction
       });
       
-      // Mettre à jour les références dans Seasons
+      // Update season references
       await sequelize.query('UPDATE "Seasons" SET "winnerId" = NULL WHERE "winnerId" = ?', {
-        replacements: [id]
+        replacements: [id],
+        transaction
       });
       
-      // Mettre à jour les références dans Seasons_backup si elle existe
-      try {
-        await sequelize.query('UPDATE "Seasons_backup" SET "winnerId" = NULL WHERE "winnerId" = ?', {
-          replacements: [id]
-        });
-      } catch (backupError) {
-        // Ignorer les erreurs si la table n'existe pas
-        console.log(`ℹ️ Note: ${backupError.message}`);
-      }
-      
-      console.log(`✅ User ${id} deleted successfully`);
+      // Delete the user
+      await sequelize.query('DELETE FROM "Users" WHERE "gameId" = ?', {
+        replacements: [id],
+        transaction
+      });
       
       // Réactiver les contraintes de clé étrangère
-      await sequelize.query('PRAGMA foreign_keys = ON;');
+      await sequelize.query('PRAGMA foreign_keys = ON;', { transaction });
       
+      // Commit the transaction
+      await transaction.commit();
+      
+      console.log(`✅ User ${id} deleted successfully`);
       res.status(200).json({ message: 'User deleted successfully' });
     } catch (innerError) {
+      // Rollback the transaction in case of error
+      await transaction.rollback();
+      
       // Réactiver les contraintes de clé étrangère même en cas d'erreur
       await sequelize.query('PRAGMA foreign_keys = ON;');
+      
+      console.error(`❌ Transaction error deleting user ${id}:`, innerError);
       throw innerError;
     }
   } catch (error) {
@@ -571,14 +579,29 @@ app.post('/api/users', async (req, res) => {
     // CRITICAL FIX: Get the active season first
     const activeSeason = await Season.findOne({ where: { isActive: true } });
     
-    // Vérifier si l'utilisateur existe déjà
+    // Improved user identification logic
     let user = null;
+    let searchConditions = [];
+    
+    // Build an array of search conditions to find existing user
     if (userData.gameId) {
-      user = await User.findByPk(userData.gameId);
-    } else if (userData.telegramId) {
-      user = await User.findOne({ where: { telegramId: userData.telegramId } });
-    } else if (userData.deviceId) {
-      user = await User.findOne({ where: { deviceId: userData.deviceId } });
+      searchConditions.push({ gameId: userData.gameId });
+    }
+    if (userData.telegramId && userData.telegramId.trim() !== '') {
+      searchConditions.push({ telegramId: userData.telegramId });
+    }
+    if (userData.deviceId && userData.deviceId.trim() !== '') {
+      searchConditions.push({ deviceId: userData.deviceId });
+    }
+    
+    // Only search if we have at least one condition
+    if (searchConditions.length > 0) {
+      // Try to find the user with any of the provided identifiers
+      user = await User.findOne({ 
+        where: { [Op.or]: searchConditions } 
+      });
+      
+      console.log(`🔍 User search with multiple identifiers: ${user ? 'Found' : 'Not found'}`);
     }
 
     // Start a transaction to ensure data consistency
