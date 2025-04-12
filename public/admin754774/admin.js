@@ -222,6 +222,20 @@ function initEvents() {
             document.getElementById(targetTab).classList.add('active');
         });
     });
+    
+    // Ajouter des gestionnaires d'événements par délégation pour les boutons "Voir" et "Supprimer"
+    usersTableBody.addEventListener('click', (e) => {
+        // Vérifier si l'élément cliqué est un bouton
+        if (e.target.classList.contains('view-btn')) {
+            const userId = e.target.getAttribute('data-id');
+            showUserDetails(userId);
+        } else if (e.target.classList.contains('delete-btn')) {
+            const userId = e.target.getAttribute('data-id');
+            if (confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`)) {
+                deleteUser(userId);
+            }
+        }
+    });
 }
 
 // Gérer la connexion
