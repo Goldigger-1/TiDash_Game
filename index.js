@@ -457,10 +457,14 @@ app.post('/api/users', async (req, res) => {
             await seasonScoreRecord.update({ score: 0 }, { transaction });
             console.log(`🔄 FORCE RESET: Season score reset to 0 for ${user.gameId} due to new season detection`);
             
-            // DO NOT use the client's score data for the first game in a new season
-            // The client will need to send a new score update after this reset
+            // IMPORTANT FIX: If the client is sending a score > 0, this means they've played a game
+            // in the new season, so we should update their score
+            if (currentSeasonScore > 0) {
+              await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
+              console.log(`📈 First game in new season for ${user.gameId}: score set to ${currentSeasonScore}`);
+            }
             
-            // Return early with the reset score to force client to sync with the new season
+            // Return early with the reset/updated score to force client to sync with the new season
             const updatedScore = await SeasonScore.findOne({
               where: { 
                 userId: user.gameId, 
@@ -472,14 +476,14 @@ app.post('/api/users', async (req, res) => {
             // Commit the transaction
             await transaction.commit();
             
-            // Return user data with the reset season score
+            // Return user data with the season score
             return res.status(200).json({ 
-              message: 'New season detected! Season score reset to 0.', 
+              message: 'New season detected! Season score updated.', 
               user,
               seasonData: {
                 seasonId: activeSeason.id,
                 seasonNumber: activeSeason.seasonNumber,
-                currentScore: 0,
+                currentScore: updatedScore.score,
                 isNewSeason: true
               }
             });

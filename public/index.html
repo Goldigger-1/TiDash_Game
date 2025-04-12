@@ -1481,17 +1481,36 @@
                         
                         console.log(`🎮 Game Over - Current game score: ${score}, Server season best: ${storedSeasonBest}`);
                         
-                        // Update the season best if the current score is higher
-                        if (score > storedSeasonBest) {
+                        // IMPORTANT FIX: Always check if we need to update the season score
+                        // We need to handle two cases:
+                        // 1. If this is the first game in a new season, we should send the score regardless
+                        // 2. If the current score is better than the stored season best
+                        const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
+                        const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
+                        
+                        if (isNewSeason || score > storedSeasonBest) {
                             // Update our local variable
-                            seasonScore = score;
-                            console.log(`🏆 New season best achieved: ${seasonScore}`);
+                            if (score > storedSeasonBest) {
+                                seasonScore = score;
+                                console.log(`🏆 New season best achieved: ${seasonScore}`);
+                            } else {
+                                console.log(`📊 First game in new season: ${score}`);
+                                // Even if it's not a personal best, we need to record it for the first game
+                                seasonScore = score;
+                            }
+                            
+                            // Store the current season ID to track season changes
+                            localStorage.setItem(`tidashLastSeasonId_${userId}`, activeSeason.id.toString());
+                            
+                            // Always update the season score in localStorage
+                            localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                             
                             // Send updated score to server immediately
                             sendUserDataToServer();
                         }
                         
-                        // Display the current season's best score
+                        // CRITICAL FIX: Always display the season score, regardless of whether it was updated
+                        // This ensures the season score is always visible in the game over popup
                         seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore}`;
                         seasonScoreElement.style.display = 'block';
                     } else {
