@@ -75,21 +75,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Initialiser tous les événements
 function initEvents() {
-    // Événement de connexion
+    // Événements de connexion
     loginBtn.addEventListener('click', handleLogin);
     
-    // Permettre la connexion avec la touche Entrée
-    adminPasswordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleLogin();
-        }
+    // Événement de déconnexion
+    logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('adminLoggedIn');
+        showLoginForm();
     });
     
-    // Événement de déconnexion
-    logoutBtn.addEventListener('click', handleLogout);
-    
     // Événement de recherche
-    searchInput.addEventListener('input', handleSearch);
+    searchInput.addEventListener('input', (e) => {
+        searchTerm = e.target.value.toLowerCase();
+        currentPage = 1;
+        fetchUsers();
+    });
     
     // Événements de pagination
     prevPageBtn.addEventListener('click', () => {
@@ -106,49 +106,61 @@ function initEvents() {
         }
     });
     
-    // Événements pour les boutons d'action (délégation d'événements)
-    usersTableBody.addEventListener('click', (e) => {
-        const target = e.target;
-        
-        // Bouton "Voir"
-        if (target.classList.contains('view-btn')) {
-            const userId = target.getAttribute('data-id');
-            showUserDetails(userId);
-        }
-        
-        // Bouton "Supprimer"
-        if (target.classList.contains('delete-btn')) {
-            const userId = target.getAttribute('data-id');
-            if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-                deleteUser(userId);
-            }
-        }
+    // Fermer le modal quand on clique sur X
+    document.querySelectorAll('.close-modal').forEach(closeBtn => {
+        closeBtn.addEventListener('click', () => {
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.style.display = 'none';
+            });
+        });
     });
     
-    // Fermer la modal
-    closeModal.addEventListener('click', () => {
-        userModal.style.display = 'none';
-    });
-    
-    // Fermer la modal en cliquant en dehors
+    // Fermer le modal quand on clique en dehors
     window.addEventListener('click', (e) => {
-        if (e.target === userModal) {
-            userModal.style.display = 'none';
-        }
+        document.querySelectorAll('.modal').forEach(modal => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
     });
     
     // Événements pour les saisons
     newSeasonBtn.addEventListener('click', () => {
+        // Réinitialiser le formulaire
         seasonModalTitle.textContent = 'Nouvelle saison';
+        seasonNumberInput.value = '';
+        seasonEndDateInput.value = '';
+        seasonPrizeInput.value = '';
+        
+        // Afficher le modal
         seasonModal.style.display = 'flex';
     });
     
     editSeasonBtn.addEventListener('click', () => {
+        if (!currentSeason) return;
+        
+        // Remplir le formulaire avec les données de la saison active
         seasonModalTitle.textContent = 'Éditer la saison';
+        seasonNumberInput.value = currentSeason.seasonNumber;
+        
+        // Formater la date pour l'input datetime-local
+        const endDate = new Date(currentSeason.endDate);
+        const formattedDate = endDate.toISOString().slice(0, 16);
+        seasonEndDateInput.value = formattedDate;
+        
+        seasonPrizeInput.value = currentSeason.prizeMoney;
+        
+        // Afficher le modal
         seasonModal.style.display = 'flex';
     });
     
     closeSeasonBtn.addEventListener('click', () => {
+        if (!currentSeason) return;
+        
+        // Mettre à jour le texte du modal
+        closeSeasonNumberSpan.textContent = currentSeason.seasonNumber;
+        
+        // Afficher le modal
         closeSeasonModal.style.display = 'flex';
     });
     
@@ -157,31 +169,25 @@ function initEvents() {
     });
     
     saveSeasonBtn.addEventListener('click', () => {
-        // Enregistrer les modifications de la saison
+        // Récupérer les valeurs du formulaire
         const seasonNumberValue = seasonNumberInput.value.trim();
         const seasonEndDateValue = seasonEndDateInput.value.trim();
         const seasonPrizeValue = seasonPrizeInput.value.trim();
         
-        // Enregistrer les données de la saison
-        fetch('/api/seasons', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                seasonNumber: seasonNumberValue,
-                seasonEndDate: seasonEndDateValue,
-                seasonPrize: seasonPrizeValue
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log(data);
-            seasonModal.style.display = 'none';
-        })
-        .catch(error => {
-            console.error('Erreur lors de l\'enregistrement de la saison:', error);
-        });
+        // Validation des données
+        if (!seasonNumberValue || !seasonEndDateValue || !seasonPrizeValue) {
+            alert('Tous les champs sont obligatoires');
+            return;
+        }
+        
+        // Déterminer si c'est une création ou une mise à jour
+        if (seasonModalTitle.textContent === 'Nouvelle saison') {
+            // Créer une nouvelle saison
+            createSeason(seasonNumberValue, seasonEndDateValue, seasonPrizeValue);
+        } else {
+            // Mettre à jour la saison existante
+            updateSeason(currentSeason.id, seasonNumberValue, seasonEndDateValue, seasonPrizeValue);
+        }
     });
     
     cancelCloseSeasonBtn.addEventListener('click', () => {
@@ -189,30 +195,25 @@ function initEvents() {
     });
     
     confirmCloseSeasonBtn.addEventListener('click', () => {
-        // Fermer la saison
-        fetch('/api/seasons/close', {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log(data);
-            closeSeasonModal.style.display = 'none';
-        })
-        .catch(error => {
-            console.error('Erreur lors de la fermeture de la saison:', error);
-        });
+        if (!currentSeason) return;
+        
+        // Clôturer la saison
+        closeSeason(currentSeason.id);
     });
     
     // Événements pour les onglets
-    tabButtons.forEach((button, index) => {
+    tabButtons.forEach(button => {
         button.addEventListener('click', () => {
-            // Activer l'onglet sélectionné
-            tabButtons.forEach(button => button.classList.remove('active'));
-            button.classList.add('active');
+            // Récupérer l'onglet cible
+            const targetTab = button.getAttribute('data-tab');
             
-            // Afficher le contenu de l'onglet sélectionné
-            tabContents.forEach(content => content.style.display = 'none');
-            tabContents[index].style.display = 'block';
+            // Désactiver tous les onglets
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Activer l'onglet sélectionné
+            button.classList.add('active');
+            document.getElementById(targetTab).classList.add('active');
         });
     });
 }
@@ -410,10 +411,27 @@ function fetchSeasons() {
             
             // Récupérer la saison active
             fetchActiveSeason();
+            
+            // Mettre à jour les statistiques
+            updateSeasonStats();
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des saisons:', error);
         });
+}
+
+// Mettre à jour les statistiques des saisons
+function updateSeasonStats() {
+    // Trouver la saison active
+    const activeSeasonData = seasons.find(season => season.isActive);
+    
+    if (activeSeasonData) {
+        activeSeason.textContent = `Saison ${activeSeasonData.seasonNumber}`;
+        prizeMoney.textContent = `$${activeSeasonData.prizeMoney}`;
+    } else {
+        activeSeason.textContent = 'Aucune';
+        prizeMoney.textContent = '$0';
+    }
 }
 
 // Récupérer la saison active
@@ -422,6 +440,7 @@ function fetchActiveSeason() {
         .then(response => {
             if (response.status === 404) {
                 // Aucune saison active
+                currentSeason = null;
                 activeSeason.textContent = 'Aucune';
                 prizeMoney.textContent = '$0';
                 seasonNumber.textContent = '-';
@@ -436,13 +455,11 @@ function fetchActiveSeason() {
                 // Afficher un message dans le tableau de classement
                 seasonRankingTable.innerHTML = '<tr><td colspan="3" style="text-align: center;">Aucune saison active</td></tr>';
                 
-                return null;
+                return Promise.reject('Aucune saison active');
             }
             return response.json();
         })
         .then(data => {
-            if (!data) return;
-            
             // Mettre à jour les informations de la saison active
             currentSeason = data;
             activeSeason.textContent = `Saison ${data.seasonNumber}`;
@@ -457,10 +474,14 @@ function fetchActiveSeason() {
             closeSeasonBtn.disabled = data.isClosed;
             
             // Récupérer le classement de la saison active
-            fetchSeasonRanking(data.id);
+            return fetchSeasonRanking(data.id);
         })
         .catch(error => {
-            console.error('Erreur lors de la récupération de la saison active:', error);
+            if (error === 'Aucune saison active') {
+                console.log('Aucune saison active trouvée');
+            } else {
+                console.error('Erreur lors de la récupération de la saison active:', error);
+            }
         });
 }
 
@@ -635,4 +656,179 @@ function displayGlobalRanking(data) {
             globalRankingTable.appendChild(row);
         });
     }
+}
+
+// Créer une nouvelle saison
+function createSeason(seasonNumber, endDate, prizeMoney) {
+    fetch('/api/seasons', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            seasonNumber,
+            endDate,
+            prizeMoney
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Erreur lors de la création de la saison');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Saison créée:', data);
+        seasonModal.style.display = 'none';
+        
+        // Rafraîchir les données
+        fetchSeasons();
+        
+        // Afficher un message de succès
+        showNotification('Saison créée avec succès', 'success');
+    })
+    .catch(error => {
+        console.error('Erreur lors de la création de la saison:', error);
+        showNotification('Erreur lors de la création de la saison', 'error');
+    });
+}
+
+// Mettre à jour une saison existante
+function updateSeason(seasonId, seasonNumber, endDate, prizeMoney) {
+    fetch(`/api/seasons/${seasonId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            seasonNumber,
+            endDate,
+            prizeMoney
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Erreur lors de la mise à jour de la saison');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Saison mise à jour:', data);
+        seasonModal.style.display = 'none';
+        
+        // Rafraîchir les données
+        fetchSeasons();
+        
+        // Afficher un message de succès
+        showNotification('Saison mise à jour avec succès', 'success');
+    })
+    .catch(error => {
+        console.error('Erreur lors de la mise à jour de la saison:', error);
+        showNotification('Erreur lors de la mise à jour de la saison', 'error');
+    });
+}
+
+// Clôturer une saison
+function closeSeason(seasonId) {
+    fetch(`/api/seasons/${seasonId}/close`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Erreur lors de la clôture de la saison');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Saison clôturée:', data);
+        closeSeasonModal.style.display = 'none';
+        
+        // Rafraîchir les données
+        fetchSeasons();
+        
+        // Afficher un message de succès
+        showNotification('Saison clôturée avec succès', 'success');
+        
+        // Afficher les informations sur le gagnant
+        if (data.winner) {
+            showNotification(`Le gagnant de la saison est ${data.winner.gameUsername} avec un score de ${data.winner.bestScore}!`, 'info', 10000);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur lors de la clôture de la saison:', error);
+        showNotification('Erreur lors de la clôture de la saison', 'error');
+    });
+}
+
+// Afficher une notification
+function showNotification(message, type = 'info', duration = 5000) {
+    // Créer l'élément de notification s'il n'existe pas déjà
+    let notificationContainer = document.getElementById('notification-container');
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notification-container';
+        notificationContainer.style.position = 'fixed';
+        notificationContainer.style.top = '20px';
+        notificationContainer.style.right = '20px';
+        notificationContainer.style.zIndex = '9999';
+        document.body.appendChild(notificationContainer);
+    }
+    
+    // Créer la notification
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <div class="notification-content">
+            <span class="notification-message">${message}</span>
+            <button class="notification-close">&times;</button>
+        </div>
+    `;
+    
+    // Styles pour la notification
+    notification.style.backgroundColor = type === 'error' ? '#ff4d4d' : 
+                                         type === 'success' ? '#4CAF50' : 
+                                         type === 'warning' ? '#ff9800' : '#2196F3';
+    notification.style.color = '#fff';
+    notification.style.padding = '15px';
+    notification.style.marginBottom = '10px';
+    notification.style.borderRadius = '5px';
+    notification.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
+    notification.style.minWidth = '300px';
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s ease';
+    
+    // Ajouter la notification au conteneur
+    notificationContainer.appendChild(notification);
+    
+    // Afficher la notification avec une animation
+    setTimeout(() => {
+        notification.style.opacity = '1';
+    }, 10);
+    
+    // Fermer la notification au clic sur le bouton de fermeture
+    const closeBtn = notification.querySelector('.notification-close');
+    closeBtn.style.background = 'none';
+    closeBtn.style.border = 'none';
+    closeBtn.style.color = '#fff';
+    closeBtn.style.fontSize = '20px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.float = 'right';
+    closeBtn.style.marginLeft = '10px';
+    
+    closeBtn.addEventListener('click', () => {
+        closeNotification(notification);
+    });
+    
+    // Fermer automatiquement la notification après la durée spécifiée
+    setTimeout(() => {
+        closeNotification(notification);
+    }, duration);
+}
+
+// Fermer une notification avec animation
+function closeNotification(notification) {
+    notification.style.opacity = '0';
+    setTimeout(() => {
+        notification.remove();
+    }, 300);
 }
