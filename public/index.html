@@ -1979,6 +1979,150 @@
             // Mettre à jour l'affichage du profil
             updateUserProfileDisplay();
         }
+        
+        // Function to update user profile display
+        function updateUserProfileDisplay() {
+            try {
+                // Update username display
+                document.getElementById("username").textContent = username;
+                
+                // Update user ID display
+                document.getElementById("userId").textContent = userId;
+                
+                // Update avatar display
+                document.getElementById("avatarImg").src = avatarSrc;
+                
+                // Update settings screen
+                document.getElementById("settings-user-id").textContent = userId;
+                document.getElementById("username-input").value = username;
+                document.getElementById("settings-avatar").src = avatarSrc;
+                document.getElementById("paypal-email").value = paypalEmail || "";
+            } catch (error) {
+                console.error("Error updating profile display:", error);
+            }
+        }
+        
+        // Function to update score display
+        function updateScoreDisplay() {
+            try {
+                // Update best score display if it exists
+                const bestScoreElement = document.getElementById('best-score');
+                if (bestScoreElement) {
+                    bestScoreElement.textContent = `Best: ${bestScore} 🌟`;
+                }
+                
+                // Update season score display if it exists
+                const seasonScoreElement = document.getElementById('season-score');
+                if (seasonScoreElement) {
+                    seasonScoreElement.textContent = `Season Best: ${seasonScore} 🏆`;
+                }
+            } catch (error) {
+                console.error("Error updating score display:", error);
+            }
+        }
+        
+        // Function to send user data to server
+        function sendUserDataToServer() {
+            try {
+                console.log("🔄 Sending user data to server...");
+                
+                const userData = {
+                    gameId: userId,
+                    gameUsername: username,
+                    telegramId: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null,
+                    telegramUsername: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username : null,
+                    paypalEmail: paypalEmail || "",
+                    bestScore: bestScore.toString(),
+                    seasonScore: seasonScore.toString(),
+                    lastLogin: new Date().toISOString().split('T')[0],
+                    avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
+                };
+                
+                fetch('/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("✅ User data sent successfully");
+                    
+                    // If the server returned season data, update our local variables
+                    if (data.seasonData) {
+                        seasonScore = parseInt(data.seasonData.currentScore);
+                    }
+                    
+                    // If the server returned updated user data, update best score
+                    if (data.user && data.user.bestScore !== undefined) {
+                        bestScore = parseInt(data.user.bestScore);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error sending user data to server:', error);
+                });
+            } catch (error) {
+                console.error("Error in sendUserDataToServer:", error);
+            }
+        }
+        
+        // Function to check for new season
+        function checkForNewSeason(forceReset = false) {
+            try {
+                console.log("🔍 Checking for new season...");
+                
+                fetch('/api/seasons/active')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error retrieving active season');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.id) {
+                        console.log(`🔍 Active season found: ${data.id}, Season ${data.seasonNumber}`);
+                        
+                        fetch(`/api/seasons/${data.id}/scores/${userId}`)
+                        .then(response => {
+                            if (response.status === 404) {
+                                return { score: 0, isNewSeason: true };
+                            }
+                            return response.json();
+                        })
+                        .then(scoreData => {
+                            const isNewSeason = scoreData.isNewSeason || scoreData.score === 0 || forceReset;
+                            
+                            if (isNewSeason) {
+                                console.log("🆕 New season detected or reset forced!");
+                                seasonScore = 0;
+                                sendUserDataToServer();
+                            } else {
+                                console.log(`✅ Current season is up to date. Season score: ${scoreData.score}`);
+                                seasonScore = parseInt(scoreData.score || 0);
+                            }
+                            
+                            updateScoreDisplay();
+                        })
+                        .catch(error => {
+                            console.error('❌ Error checking season score:', error);
+                        });
+                    } else {
+                        console.log("⚠️ No active season found");
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error checking for new season:', error);
+                });
+            } catch (error) {
+                console.error("Error in checkForNewSeason:", error);
+            }
+        }
     </script>
 </body>
 </html>
