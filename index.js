@@ -337,6 +337,7 @@ app.post('/api/users', async (req, res) => {
 
     // Récupérer la saison active
     const activeSeason = await Season.findOne({ where: { isActive: true } });
+    const currentScore = userData.bestScore ? parseInt(userData.bestScore) : 0;
 
     if (user) {
       // Mettre à jour l'utilisateur existant
@@ -348,9 +349,10 @@ app.post('/api/users', async (req, res) => {
       if (userData.telegramUsername) updateData.telegramUsername = userData.telegramUsername;
       if (userData.paypalEmail) updateData.paypalEmail = userData.paypalEmail;
       
-      // Mettre à jour le meilleur score si le nouveau score est plus élevé
-      if (userData.bestScore && parseInt(userData.bestScore) > user.bestScore) {
-        updateData.bestScore = parseInt(userData.bestScore);
+      // Mettre à jour le meilleur score global si le nouveau score est plus élevé
+      if (currentScore > user.bestScore) {
+        updateData.bestScore = currentScore;
+        console.log(`Mise à jour du score global pour ${user.gameId}: ${currentScore}`);
       }
       
       // Mettre à jour la date de dernière connexion
@@ -359,15 +361,16 @@ app.post('/api/users', async (req, res) => {
       await user.update(updateData);
       
       // Mettre à jour le score de la saison si une saison active existe
-      if (activeSeason && userData.bestScore) {
+      if (activeSeason) {
         const [seasonScore, created] = await SeasonScore.findOrCreate({
           where: { userId: user.gameId, seasonId: activeSeason.id },
-          defaults: { score: parseInt(userData.bestScore) || 0 }
+          defaults: { score: currentScore }
         });
         
         // Si le score de saison existe déjà et que le nouveau score est plus élevé, le mettre à jour
-        if (!created && parseInt(userData.bestScore) > seasonScore.score) {
-          await seasonScore.update({ score: parseInt(userData.bestScore) });
+        if (!created && currentScore > seasonScore.score) {
+          await seasonScore.update({ score: currentScore });
+          console.log(`Mise à jour du score de saison pour ${user.gameId}: ${currentScore}`);
         }
       }
       
@@ -384,18 +387,19 @@ app.post('/api/users', async (req, res) => {
         telegramId: userData.telegramId || null,
         telegramUsername: userData.telegramUsername || null,
         paypalEmail: userData.paypalEmail || null,
-        bestScore: parseInt(userData.bestScore) || 0,
+        bestScore: currentScore,
         registrationDate: new Date(),
         lastLogin: new Date()
       });
       
       // Créer un score de saison si une saison active existe
-      if (activeSeason && userData.bestScore) {
+      if (activeSeason) {
         await SeasonScore.create({
           userId: newUser.gameId,
           seasonId: activeSeason.id,
-          score: parseInt(userData.bestScore) || 0
+          score: currentScore
         });
+        console.log(`Score de saison initial créé pour ${newUser.gameId}: ${currentScore}`);
       }
       
       res.status(201).json({ message: 'Utilisateur créé avec succès', user: newUser });
