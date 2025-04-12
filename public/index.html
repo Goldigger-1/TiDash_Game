@@ -1790,7 +1790,7 @@
                     // Récupérer l'email PayPal
                     paypalEmail = localStorage.getItem(`tidashPaypalEmail_${userId}`) || "";
                     
-                    // CRITICAL FIX: Initialize scores to 0, will be updated from server
+                    // Initialize scores to 0, will be updated from server
                     bestScore = 0;
                     seasonScore = 0;
                     
@@ -1798,7 +1798,7 @@
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     
-                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // Ne plus stocker les scores dans localStorage
                     // localStorage.setItem(userBestScoreKey, bestScore);
                     // localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
@@ -1887,7 +1887,7 @@
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     
-                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // Ne plus stocker les scores dans localStorage
                     // localStorage.setItem(userBestScoreKey, bestScore);
                     // localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
@@ -1932,7 +1932,7 @@
                         paypalEmail = localStorage.getItem("tidashPaypalEmail");
                     }
                     
-                    // CRITICAL FIX: Initialize scores to 0, will be updated from server
+                    // Initialize scores to 0, will be updated from server
                     bestScore = 0;
                     seasonScore = 0;
                     
@@ -1940,7 +1940,7 @@
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     
-                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // Ne plus stocker les scores dans localStorage
                     // localStorage.setItem(userBestScoreKey, bestScore);
                     // localStorage.setItem(userSeasonScoreKey, seasonScore);
                 } else {
@@ -1956,7 +1956,7 @@
                     localStorage.setItem("tidashUserId", userId);
                     localStorage.setItem("tidashAvatarSrc", avatarSrc);
                     
-                    // CRITICAL FIX: Ne plus stocker les scores dans localStorage
+                    // Ne plus stocker les scores dans localStorage
                     // localStorage.setItem(userBestScoreKey, bestScore);
                     // localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
