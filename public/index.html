@@ -741,7 +741,7 @@
         // Variables pour le profil utilisateur
         let username = "";
         let userId = "";
-        let avatarSrc = "avatars/avatar_default.jpg";
+        let avatarSrc = "/avatars/avatar_default.jpg";
         let paypalEmail = "";
         
         // Variables pour la musique de fond
@@ -1697,7 +1697,7 @@
         
         // Sélectionner un avatar aléatoire
         function getRandomAvatar() {
-            return "avatars/avatar_default.jpg";
+            return "/avatars/avatar_default.jpg";
         }
         
         // Initialiser ou récupérer le profil utilisateur
@@ -1724,7 +1724,7 @@
                             // Generate random username and ID if not found
                             username = generateRandomUsername();
                             userId = generateRandomUserId();
-                            avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            avatarSrc = "/avatars/avatar_default.jpg";
                             bestScore = 0;
                             seasonScore = 0;
                             
@@ -2006,6 +2006,10 @@
                 // Get device ID from cookie
                 const deviceId = getCookie("tidashDeviceId") || "";
                 
+                // Get Telegram data if available
+                const telegramId = window.telegramId || "";
+                const telegramUsername = window.telegramUsername || "";
+                
                 // Prepare user data
                 const userData = {
                     gameId: userId,
@@ -2017,7 +2021,9 @@
                         avatarSrc,
                     paypalEmail: paypalEmail,
                     deviceId: deviceId,
-                    musicEnabled: isMusicEnabled
+                    musicEnabled: isMusicEnabled,
+                    telegramId: telegramId,
+                    telegramUsername: telegramUsername
                 };
                 
                 console.log("📋 User data to send:", userData);
@@ -2086,51 +2092,63 @@
                     
                     // Get user's score for this season
                     return fetch(`/api/seasons/${data.id}/scores/${userId}`)
-                    .then(response => {
-                        if (response.status === 404) {
-                            console.log(`⚠️ No score found for user ${userId} in season ${data.id}`);
-                            return { score: 0, isNewSeason: true };
-                        }
-                        if (!response.ok) {
-                            throw new Error('Error retrieving season score');
-                        }
-                        return response.json();
-                    })
-                    .then(scoreData => {
-                        const isNewSeason = scoreData.isNewSeason || scoreData.score === 0 || forceReset;
+                    .then(response => response.ok ? response.json() : { score: 0 })
+                    .then(serverData => {
+                        // Use the server's score as the source of truth
+                        let serverSeasonBest = serverData && serverData.score ? parseInt(serverData.score) : 0;
                         
-                        if (isNewSeason) {
-                            console.log("🆕 New season detected or reset forced!");
-                            seasonScore = 0;
+                        console.log(`🎮 Game Over - Current game score: ${score}, Server season best: ${serverSeasonBest}`);
+                        
+                        // IMPORTANT FIX: Always check if we need to update the season score
+                        // We need to handle two cases:
+                        // 1. If this is the first game in a new season, we should send the score regardless
+                        // 2. If the current score is better than the stored season best
+                        
+                        // Check with the server if this is a new season for the user
+                        const isFirstGame = serverSeasonBest === 0;
+                        
+                        if (isFirstGame || score > serverSeasonBest) {
+                            // Update our local variable
+                            if (score > serverSeasonBest) {
+                                seasonScore = score;
+                                console.log(`🏆 New season best achieved: ${seasonScore}`);
+                            } else {
+                                console.log(`📊 First game in new season: ${score}`);
+                                // Even if it's not a personal best, we need to record it for the first game
+                                seasonScore = score;
+                            }
                             
-                            // Create initial season score for user
-                            const seasonScoreData = {
-                                userId: userId,
-                                seasonId: data.id,
-                                score: 0
-                            };
-                            
-                            // Save to server
-                            return fetch(`/api/seasons/${data.id}/scores`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify(seasonScoreData)
-                            })
-                            .then(() => {
-                                console.log("✅ Initial season score created");
-                                updateScoreDisplay();
-                            });
+                            // Send updated score to server immediately
+                            sendUserDataToServer();
                         } else {
-                            console.log(`✅ Current season score: ${scoreData.score}`);
-                            seasonScore = parseInt(scoreData.score || 0);
-                            updateScoreDisplay();
+                            // If we didn't update the score, make sure we're using the server's value
+                            seasonScore = serverSeasonBest;
+                        }
+                        
+                        // CRITICAL FIX: Always display the season score, regardless of whether it was updated
+                        // This ensures the season score is always visible in the game over popup
+                        const seasonScoreElement = document.getElementById('season-score');
+                        if (seasonScoreElement) {
+                            seasonScoreElement.textContent = `Season ${data.seasonNumber} Best: ${seasonScore} 🏆`;
+                            seasonScoreElement.style.display = 'block';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('❌ Error getting season score from server:', error);
+                        // Fallback to local data if server request fails
+                        const seasonScoreElement = document.getElementById('season-score');
+                        if (seasonScoreElement) {
+                            seasonScoreElement.textContent = `Season ${data.seasonNumber} Best: ${score} 🏆`;
+                            seasonScoreElement.style.display = 'block';
                         }
                     });
                 })
                 .catch(error => {
-                    console.error('❌ Error checking for new season:', error);
+                    console.error('❌ Error checking active season:', error);
+                    const seasonScoreElement = document.getElementById('season-score');
+                    if (seasonScoreElement) {
+                        seasonScoreElement.style.display = 'none';
+                    }
                 });
             } catch (error) {
                 console.error("❌ Error in checkForNewSeason:", error);
@@ -2168,6 +2186,24 @@
                 // Update avatar
                 document.getElementById('avatarImg').src = avatarSrc;
                 document.getElementById('settings-avatar').src = avatarSrc;
+                
+                // Update settings fields
+                const usernameInput = document.getElementById('username-input');
+                if (usernameInput) {
+                    usernameInput.value = username;
+                    usernameInput.placeholder = username;
+                }
+                
+                const paypalInput = document.getElementById('paypal-email');
+                if (paypalInput) {
+                    paypalInput.value = paypalEmail || '';
+                    paypalInput.placeholder = paypalEmail || 'mypaypal@email.com';
+                }
+                
+                const settingsUserId = document.getElementById('settings-user-id');
+                if (settingsUserId) {
+                    settingsUserId.textContent = userId;
+                }
             } catch (error) {
                 console.error("❌ Error updating user profile display:", error);
             }
@@ -2200,8 +2236,65 @@
             // Populate avatar grid
             populateAvatarGrid();
             
+            // Initialize Telegram WebApp if available
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log("📱 Telegram WebApp detected, initializing...");
+                try {
+                    const tgWebApp = window.Telegram.WebApp;
+                    
+                    // Check if we have user data directly from the WebApp
+                    if (tgWebApp.initDataUnsafe && tgWebApp.initDataUnsafe.user) {
+                        const tgUser = tgWebApp.initDataUnsafe.user;
+                        console.log("👤 Telegram user data from WebApp:", tgUser);
+                        
+                        // Store Telegram user data for later use
+                        window.telegramId = tgUser.id?.toString() || "";
+                        window.telegramUsername = tgUser.username || "";
+                        
+                        console.log(`✅ Telegram ID: ${window.telegramId}, Username: ${window.telegramUsername}`);
+                    } else {
+                        // Fallback to parsing initData string
+                        const tgData = tgWebApp.initData || "";
+                        if (tgData) {
+                            console.log("🔍 Parsing Telegram initData string");
+                            try {
+                                // Parse the initData to get user information
+                                const urlParams = new URLSearchParams(tgData);
+                                const userParam = urlParams.get('user');
+                                if (userParam) {
+                                    const tgUser = JSON.parse(decodeURIComponent(userParam));
+                                    console.log("👤 Telegram user data from initData:", tgUser);
+                                    
+                                    // Store Telegram user data for later use
+                                    window.telegramId = tgUser.id?.toString() || "";
+                                    window.telegramUsername = tgUser.username || "";
+                                    
+                                    console.log(`✅ Telegram ID: ${window.telegramId}, Username: ${window.telegramUsername}`);
+                                }
+                            } catch (parseError) {
+                                console.error("❌ Error parsing Telegram initData:", parseError);
+                            }
+                        }
+                    }
+                    
+                    // Set up Telegram WebApp event handlers
+                    tgWebApp.onEvent('viewportChanged', function() {
+                        console.log("📱 Telegram viewport changed, resizing canvas...");
+                        resizeCanvas();
+                    });
+                    
+                    // Expand the WebApp to its maximum size
+                    tgWebApp.expand();
+                } catch (error) {
+                    console.error("❌ Error initializing Telegram WebApp:", error);
+                }
+            }
+            
             // Load user profile
             initUserProfile();
+            
+            // Envoyer les données utilisateur au serveur pour le panneau d'admin
+            sendUserDataToServer();
             
             // Setup sound toggle
             const soundToggle = document.querySelector('.sound-toggle');
@@ -2381,35 +2474,35 @@
                 
                 // Get preference from server
                 fetch(`/api/users/${userId}/preferences`)
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 404) {
-                            return { musicEnabled: false };
+                    .then(response => {
+                        if (!response.ok) {
+                            if (response.status === 404) {
+                                return { musicEnabled: false };
+                            }
+                            throw new Error('Failed to load sound preference');
                         }
-                        throw new Error('Failed to load sound preference');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data && data.musicEnabled !== undefined) {
-                        isMusicEnabled = data.musicEnabled;
-                        userPrefersMusicEnabled = data.musicEnabled;
-                        
-                        // Update UI
-                        const soundToggleBtn = document.getElementById('sound-toggle');
-                        if (soundToggleBtn) {
-                            soundToggleBtn.classList.toggle('muted', !isMusicEnabled);
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data && data.musicEnabled !== undefined) {
+                            isMusicEnabled = data.musicEnabled;
+                            userPrefersMusicEnabled = data.musicEnabled;
+                            
+                            // Update UI
+                            const soundToggleBtn = document.getElementById('sound-toggle');
+                            if (soundToggleBtn) {
+                                soundToggleBtn.classList.toggle('muted', !isMusicEnabled);
+                            }
+                            
+                            // Update music playback
+                            if (isMusicEnabled && gameMode === 'home') {
+                                playBackgroundMusic();
+                            }
                         }
-                        
-                        // Update music playback
-                        if (isMusicEnabled && gameMode === 'home') {
-                            playBackgroundMusic();
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading sound preference:', error);
-                });
+                    })
+                    .catch(error => {
+                        console.error('Error loading sound preference:', error);
+                    });
             } catch (error) {
                 console.error('Error in loadSoundPreference:', error);
             }
