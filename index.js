@@ -343,37 +343,74 @@ app.get('/api/users', async (req, res) => {
     
     // Only add search conditions if a search term was provided
     if (search && search.trim() !== '') {
-      // For SQLite, we need to use the LIKE operator differently
-      const searchPattern = `%${search}%`;
-      
-      // Use raw query for SQLite compatibility
-      whereCondition = {
-        [Op.or]: [
-          sequelize.literal(`"gameId" LIKE '${searchPattern}'`),
-          sequelize.literal(`"gameUsername" LIKE '${searchPattern}'`),
-          sequelize.literal(`"telegramId" LIKE '${searchPattern}'`),
-          sequelize.literal(`"telegramUsername" LIKE '${searchPattern}'`),
-          sequelize.literal(`"paypalEmail" LIKE '${searchPattern}'`)
-        ]
-      };
+      try {
+        // Approche plus sûre pour SQLite - utiliser Op.like directement
+        const searchPattern = `%${search}%`;
+        
+        whereCondition = {
+          [Op.or]: [
+            { gameId: { [Op.like]: searchPattern } },
+            { gameUsername: { [Op.like]: searchPattern } },
+            // Gestion sécurisée des champs potentiellement null
+            Sequelize.or(
+              { telegramId: { [Op.like]: searchPattern } },
+              { telegramId: null }
+            ),
+            Sequelize.or(
+              { telegramUsername: { [Op.like]: searchPattern } },
+              { telegramUsername: null }
+            ),
+            Sequelize.or(
+              { paypalEmail: { [Op.like]: searchPattern } },
+              { paypalEmail: null }
+            )
+          ]
+        };
+      } catch (searchError) {
+        // En cas d'erreur dans la construction de la recherche, on continue sans filtre
+        console.error('❌ Error building search condition:', searchError);
+        // Continuer sans filtre de recherche plutôt que d'échouer complètement
+      }
     }
     
-    // Récupérer les utilisateurs avec pagination
-    const { count, rows } = await User.findAndCountAll({
-      where: whereCondition,
-      order: [['bestScore', 'DESC']],
-      limit,
-      offset
-    });
-    
-    console.log(`✅ Found ${count} users matching criteria`);
-    
-    res.json({
-      total: count,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page,
-      users: rows
-    });
+    // Utiliser une approche plus robuste pour récupérer les utilisateurs
+    try {
+      // Récupérer les utilisateurs avec pagination
+      const { count, rows } = await User.findAndCountAll({
+        where: whereCondition,
+        order: [['bestScore', 'DESC']],
+        limit,
+        offset
+      });
+      
+      console.log(`✅ Found ${count} users matching criteria`);
+      
+      res.json({
+        total: count,
+        totalPages: Math.ceil(count / limit),
+        currentPage: page,
+        users: rows
+      });
+    } catch (dbError) {
+      // Si la requête échoue, essayer une approche plus simple sans conditions de recherche
+      console.error('❌ Error with search query, falling back to simple query:', dbError);
+      
+      // Requête de secours sans conditions de recherche
+      const { count, rows } = await User.findAndCountAll({
+        order: [['bestScore', 'DESC']],
+        limit,
+        offset
+      });
+      
+      console.log(`✅ Fallback query found ${count} users`);
+      
+      res.json({
+        total: count,
+        totalPages: Math.ceil(count / limit),
+        currentPage: page,
+        users: rows
+      });
+    }
   } catch (error) {
     console.error('❌ Error retrieving users:', error);
     res.status(500).json({ 

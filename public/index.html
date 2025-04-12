@@ -1765,41 +1765,48 @@
         // Initialiser ou récupérer le profil utilisateur
         function initUserProfile() {
             try {
-                console.log(" Initializing user profile...");
+                console.log("👤 Initializing user profile...");
                 
-                // Get device ID from cookie
+                // Vérifier d'abord si nous avons déjà un ID utilisateur en mémoire
+                // Cela aidera à éviter la réinitialisation des données lors du rechargement de la page
+                const storedUserId = localStorage.getItem("tidashUserId");
+                const storedUsername = localStorage.getItem("tidashUsername");
+                
+                if (storedUserId) {
+                    console.log("💾 Found stored user ID in localStorage:", storedUserId);
+                }
+                
+                // Get device ID from cookie (plus persistant que localStorage)
                 let deviceId = getCookie("tidashDeviceId");
                 if (!deviceId) {
                     deviceId = generateRandomUserId();
-                    setCookie("tidashDeviceId", deviceId, 365);
-                    console.log(" Generated new device ID:", deviceId);
+                    setCookie("tidashDeviceId", deviceId, 365); // Cookie valide 1 an
+                    console.log("🆕 Generated new device ID:", deviceId);
                 } else {
-                    console.log(" Found existing device ID:", deviceId);
+                    console.log("📱 Found existing device ID in cookie:", deviceId);
                 }
                 
-                // Fetch user data from server
+                // Fetch user data from server using device ID
                 fetch(`/api/users/device/${deviceId}`)
                     .then(response => {
                         if (response.status === 404) {
                             // User not found, create a new user
-                            console.log(" User not found, creating new user...");
+                            console.log("👤 User not found on server, creating new user...");
                             
                             // Generate random user ID and username
-                            userId = generateRandomUserId();
-                            username = generateRandomUsername();
+                            userId = storedUserId || generateRandomUserId();
+                            username = storedUsername || generateRandomUsername();
                             
                             // Create new user data
                             const userData = {
                                 gameId: userId,
                                 gameUsername: username,
-                                deviceId: deviceId,
-                                avatarSrc: '/avatars/avatar_default.jpg',
                                 bestScore: 0,
                                 seasonScore: 0,
                                 musicEnabled: true
                             };
                             
-                            console.log(" Creating new user:", userData);
+                            console.log("📝 Creating new user:", userData);
                             
                             // Send new user data to server
                             return fetch('/api/users', {
@@ -1816,7 +1823,11 @@
                                 return response.json();
                             })
                             .then(data => {
-                                console.log(" New user created:", data);
+                                console.log("✅ New user created:", data);
+                                
+                                // Stocker l'ID et le nom d'utilisateur localement pour la persistance
+                                localStorage.setItem("tidashUserId", userId);
+                                localStorage.setItem("tidashUsername", username);
                                 
                                 // Update UI
                                 updateUserProfileDisplay();
@@ -1833,29 +1844,49 @@
                     })
                     .then(data => {
                         if (data) {
-                            console.log(" User data loaded from server:", data);
+                            console.log("✅ User data loaded from server:", data);
                             
-                            // Only update fields if they are missing or empty
+                            // IMPORTANT: Conserver les données existantes de l'utilisateur
+                            // Ne pas générer de nouveaux ID ou noms d'utilisateur s'ils existent déjà
                             let needsUpdate = false;
                             
-                            // Only set gameId if it's missing or empty
-                            if (!data.gameId || data.gameId === "") {
+                            // Utiliser l'ID du serveur s'il existe
+                            if (data.gameId) {
+                                userId = data.gameId;
+                                console.log("👤 Using existing game ID from server:", userId);
+                                // Mettre à jour le stockage local
+                                localStorage.setItem("tidashUserId", userId);
+                            } 
+                            // Sinon, utiliser l'ID stocké localement s'il existe
+                            else if (storedUserId) {
+                                userId = storedUserId;
+                                needsUpdate = true;
+                                console.log("💾 Using stored game ID from localStorage:", userId);
+                            } 
+                            // En dernier recours, générer un nouvel ID
+                            else {
                                 userId = generateRandomUserId();
                                 needsUpdate = true;
-                                console.log(" Generated new game ID for existing user:", userId);
-                            } else {
-                                userId = data.gameId;
-                                console.log(" Using existing game ID:", userId);
+                                console.log("🆕 Generated new game ID as last resort:", userId);
+                                localStorage.setItem("tidashUserId", userId);
                             }
                             
-                            // Only set gameUsername if it's missing or empty
-                            if (!data.gameUsername || data.gameUsername === "") {
+                            // Même logique pour le nom d'utilisateur
+                            if (data.gameUsername) {
+                                username = data.gameUsername;
+                                console.log("👤 Using existing username from server:", username);
+                                localStorage.setItem("tidashUsername", username);
+                            } 
+                            else if (storedUsername) {
+                                username = storedUsername;
+                                needsUpdate = true;
+                                console.log("💾 Using stored username from localStorage:", username);
+                            } 
+                            else {
                                 username = generateRandomUsername();
                                 needsUpdate = true;
-                                console.log(" Generated new username for existing user:", username);
-                            } else {
-                                username = data.gameUsername;
-                                console.log(" Using existing username:", username);
+                                console.log("🆕 Generated new username as last resort:", username);
+                                localStorage.setItem("tidashUsername", username);
                             }
                             
                             // Handle avatar path correctly
@@ -1873,6 +1904,7 @@
                                 avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
                             }
                             
+                            // Conserver les autres données utilisateur
                             paypalEmail = data.paypalEmail || "";
                             bestScore = parseInt(data.bestScore || "0");
                             seasonScore = parseInt(data.seasonScore || "0");
@@ -1880,41 +1912,58 @@
                             // Set music preference from server
                             isMusicEnabled = data.musicEnabled !== undefined ? data.musicEnabled : true;
                             
-                            // Only update the server if we needed to generate new ID or username
+                            // Only update the server if we needed to update ID or username
                             if (needsUpdate) {
-                                console.log(" Updating user with new ID or username");
+                                console.log("🔄 Updating user data on server with preserved information");
                                 setTimeout(() => sendUserDataToServer(), 500);
                             } else {
-                                console.log(" User data is complete, no updates needed");
+                                console.log("✅ User data is complete, no updates needed");
                             }
                             
                             // Update UI elements
                             updateUserProfileDisplay();
                             updateScoreDisplay();
                             updateSoundToggleDisplay();
+                            
+                            // Initialize avatar selection
+                            initAvatarSelection();
+                            
+                            // Check for active season
+                            checkForNewSeason();
+                            
+                            return data;
                         }
                         
-                        // Initialize avatar selection
-                        initAvatarSelection();
-                        
-                        // Check for active season
-                        checkForNewSeason();
-                        
-                        return data;
+                        // Fallback - utiliser les données stockées localement si disponibles
+                        if (storedUserId && storedUsername) {
+                            console.log("💾 Falling back to stored user data due to server error");
+                            userId = storedUserId;
+                            username = storedUsername;
+                            avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            
+                            // Update UI elements
+                            updateUserProfileDisplay();
+                            updateScoreDisplay();
+                            updateSoundToggleDisplay();
+                        } else {
+                            console.log("🔄 No stored data available, creating temporary user");
+                            // Créer un utilisateur temporaire
+                            userId = generateRandomUserId();
+                            username = generateRandomUsername();
+                            avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            
+                            // Stocker localement
+                            localStorage.setItem("tidashUserId", userId);
+                            localStorage.setItem("tidashUsername", username);
+                            
+                            // Update UI elements
+                            updateUserProfileDisplay();
+                            updateScoreDisplay();
+                            updateSoundToggleDisplay();
+                        }
                     })
                     .catch(error => {
-                        console.error(" Error initializing user profile:", error);
-                        console.log("🔄 Falling back to local user creation due to error");
-                        
-                        // Update UI elements
-                        updateUserProfileDisplay();
-                        updateScoreDisplay();
-                        
-                        // Try to send user data to server as a fallback
-                        sendUserDataToServer();
-                        
-                        // Initialize avatar selection
-                        initAvatarSelection();
+                        console.error("❌ Error initializing user profile:", error);
                     });
             } catch (error) {
                 console.error("❌ Error in initUserProfile:", error);
