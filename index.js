@@ -791,6 +791,41 @@ app.delete('/api/seasons/:id', async (req, res) => {
   }
 });
 
+// Route pour récupérer le score de saison d'un utilisateur spécifique
+app.get('/api/seasons/:seasonId/scores/:userId', async (req, res) => {
+  try {
+    const { seasonId, userId } = req.params;
+    
+    // Vérifier si la saison existe
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Récupérer le score de saison de l'utilisateur
+    const seasonScore = await SeasonScore.findOne({
+      where: { 
+        seasonId: seasonId,
+        userId: userId
+      }
+    });
+    
+    if (!seasonScore) {
+      // Si aucun score n'est trouvé, renvoyer 0
+      return res.json({ score: 0 });
+    }
+    
+    console.log(`📊 Retrieved season score for user ${userId} in season ${seasonId}: ${seasonScore.score}`);
+    res.json({ score: seasonScore.score });
+  } catch (error) {
+    console.error('❌ Error retrieving season score:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving season score', 
+      details: error.message
+    });
+  }
+});
+
 // Démarrer le serveur
 app.listen(port, '0.0.0.0', () => {
   console.log(`Serveur démarré sur le port ${port}`);

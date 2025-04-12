@@ -1489,6 +1489,10 @@
                         const currentSeasonScore = localStorage.getItem(userSeasonScoreKey) || "0";
                         seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${currentSeasonScore}`;
                         seasonScoreElement.style.display = 'block';
+                        
+                        // S'assurer que l'élément est visible
+                        seasonScoreElement.style.opacity = '1';
+                        seasonScoreElement.style.transform = 'translateY(0)';
                     } else {
                         seasonScoreElement.style.display = 'none';
                     }
@@ -1916,11 +1920,13 @@
                     // Récupérer l'ID de la dernière saison connue
                     const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
                     
+                    console.log(`🔍 Checking season - Current active season: ${data.id}, Last known: ${lastKnownSeasonId}`);
+                    
                     // Si c'est une nouvelle saison ou la première saison pour cet utilisateur
                     if (!lastKnownSeasonId || lastKnownSeasonId !== data.id.toString()) {
-                        console.log('Nouvelle saison détectée:', data);
+                        console.log('🔄 New season detected:', data);
                         
-                        // Réinitialiser le score de saison
+                        // IMPORTANT: Réinitialiser complètement le score de saison
                         seasonScore = 0;
                         localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                         
@@ -1941,19 +1947,63 @@
                             }
                         }
                         
-                        console.log('Score de saison réinitialisé pour la nouvelle saison');
+                        console.log('🔄 Season score reset for new season');
                         
                         // Force une synchronisation immédiate avec le serveur pour s'assurer que le score est réinitialisé
                         sendUserDataToServer();
                         
                         // Mettre à jour l'affichage
                         updateScoreDisplay();
+                    } else {
+                        // Même si c'est la même saison, vérifier avec le serveur pour le score correct
+                        fetch(`/api/seasons/${data.id}/scores/${userId}`)
+                        .then(response => response.ok ? response.json() : { score: 0 })
+                        .then(scoreData => {
+                            // Si le score du serveur est différent du score local, mettre à jour le score local
+                            if (scoreData && scoreData.score !== undefined) {
+                                const serverScore = parseInt(scoreData.score);
+                                const localScore = parseInt(localStorage.getItem(`tidashSeasonScore_${userId}`) || "0");
+                                
+                                console.log(`🔍 Score check - Server: ${serverScore}, Local: ${localScore}`);
+                                
+                                // Utiliser le score du serveur comme source de vérité
+                                if (serverScore !== localScore) {
+                                    seasonScore = serverScore;
+                                    localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                                    console.log(`📊 Season score synchronized from server: ${seasonScore}`);
+                                    
+                                    // Mettre à jour l'affichage
+                                    updateScoreDisplay();
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.error('❌ Error checking season score:', error);
+                        });
                     }
                 }
             })
             .catch(error => {
-                console.error('Erreur lors de la vérification de la saison:', error);
+                console.error('❌ Error checking for new season:', error);
             });
+        }
+        
+        // Fonction pour mettre à jour l'affichage du score
+        function updateScoreDisplay() {
+            const scoreElement = document.getElementById('score-display');
+            if (scoreElement) {
+                scoreElement.textContent = score;
+            }
+            
+            const bestScoreElement = document.getElementById('best-score');
+            if (bestScoreElement) {
+                bestScoreElement.textContent = `Best: ${bestScore}`;
+            }
+            
+            const seasonScoreElement = document.getElementById('season-score');
+            if (seasonScoreElement) {
+                seasonScoreElement.textContent = `Season Best: ${seasonScore}`;
+            }
         }
         
         // Fonction pour jouer une musique de fond aléatoire
