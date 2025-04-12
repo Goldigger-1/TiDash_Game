@@ -469,9 +469,6 @@
             overflow-y: auto;
             -webkit-overflow-scrolling: touch; /* Pour un défilement fluide sur iOS */
             padding-bottom: 20px; /* Espace supplémentaire en bas */
-            margin-bottom: 10px; /* Marge pour éviter le voile noir */
-            background-color: #fff; /* Fond blanc pour éviter la transparence */
-            z-index: 2; /* S'assurer que la grille est au-dessus */
         }
         
         .avatar-item {
@@ -569,16 +566,6 @@
         
         .sound-toggle:not(.muted) .sound-off {
             display: none;
-        }
-        
-        /* Correction pour la section des paramètres sur iOS */
-        .settings-section {
-            position: relative;
-            overflow: visible; /* Éviter les débordements cachés */
-            z-index: 1; /* Assurer que le contenu est au-dessus */
-            -webkit-transform: translateZ(0); /* Forcer l'accélération matérielle sur iOS */
-            transform: translateZ(0);
-            background-color: #fff; /* Fond blanc pour éviter la transparence */
         }
     </style>
 </head>
