@@ -1044,44 +1044,55 @@
             }
         }
         
-        // Initialiser les étoiles
+        // Initialize stars for the background
         function initStars() {
+            // Clear existing stars array
             stars = [];
+            
+            // Create new stars
             for (let i = 0; i < maxStars; i++) {
                 stars.push({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height,
-                    radius: Math.random() * 1.2 + 0.3, // Taille entre 0.3 et 1.5 pixels
-                    opacity: Math.random() * 0.4 + 0.3, // Opacité entre 0.3 et 0.7 (augmentée pour plus de visibilité)
-                    speed: Math.random() * 0.2 + 0.05, // Vitesse entre 0.05 et 0.25 pixels par frame
-                    direction: Math.random() * Math.PI * 2 // Direction aléatoire en radians
+                    radius: Math.random() * 1.2 + 0.3, // Size between 0.3 and 1.5 pixels
+                    opacity: Math.random() * 0.4 + 0.3, // Opacity between 0.3 and 0.7
+                    speed: Math.random() * 0.2 + 0.05, // Speed between 0.05 and 0.25 pixels per frame
+                    direction: Math.random() * Math.PI * 2 // Random direction in radians
                 });
             }
+            
+            console.log(`🌟 Created ${stars.length} stars for background`);
         }
         
-        // Dessiner les étoiles
+        // Draw stars in the background
         function drawStars() {
-            // Ne dessiner les étoiles que sur l'écran d'accueil et pendant le jeu
-            if (gameMode === 'home' || gameMode === 'game') {
-                for (let i = 0; i < stars.length; i++) {
-                    const star = stars[i];
-                    
-                    // Mise à jour de la position
-                    star.x += Math.cos(star.direction) * star.speed;
-                    star.y += Math.sin(star.direction) * star.speed;
-                    
-                    // Si l'étoile sort de l'écran, la replacer de l'autre côté
-                    if (star.x < 0) star.x = canvas.width;
-                    if (star.x > canvas.width) star.x = 0;
-                    if (star.y < 0) star.y = canvas.height;
-                    if (star.y > canvas.height) star.y = 0;
-                    
-                    // Dessiner l'étoile
-                    ctx.beginPath();
-                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
-                    ctx.fill();
-                }
+            // Always draw stars in all game modes for consistent background
+            // This ensures the background is never empty
+            
+            // Check if stars array is empty or undefined
+            if (!stars || stars.length === 0) {
+                console.log("🔄 Stars array is empty, reinitializing stars");
+                initStars();
+            }
+            
+            for (let i = 0; i < stars.length; i++) {
+                const star = stars[i];
+                
+                // Update position
+                star.x += Math.cos(star.direction) * star.speed;
+                star.y += Math.sin(star.direction) * star.speed;
+                
+                // Wrap stars around screen edges
+                if (star.x < 0) star.x = canvas.width;
+                if (star.x > canvas.width) star.x = 0;
+                if (star.y < 0) star.y = canvas.height;
+                if (star.y > canvas.height) star.y = 0;
+                
+                // Draw the star
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+                ctx.fill();
             }
         }
 
@@ -1331,12 +1342,18 @@
 
         // Create explosion particles from the ball
         function createExplosion(x, y, color) {
-            const particleCount = 120; // Augmenter légèrement le nombre de particules
-            const particleSize = ball.radius / 4; // Particules plus fines (divisé par 4 au lieu de 2)
+            // Clear any existing particles to avoid memory issues
+            if (particles.length > 500) {
+                console.log("🧹 Clearing excess particles");
+                particles = [];
+            }
+            
+            const particleCount = 120; // Slightly increased number of particles
+            const particleSize = ball.radius / 4; // Finer particles
             
             for (let i = 0; i < particleCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 8 + 3; // Vitesse plus élevée
+                const speed = Math.random() * 8 + 3; // Higher speed
                 const distance = Math.random() * ball.radius;
                 
                 particles.push({
@@ -1344,27 +1361,29 @@
                     y: y + Math.sin(angle) * distance,
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
-                    size: particleSize * (Math.random() * 0.5 + 0.3), // Particules plus fines
+                    size: particleSize * (Math.random() * 0.5 + 0.3), // Finer particles
                     color: color || '#00FF9D',
                     alpha: 1,
-                    fadeSpeed: 0.01 + Math.random() * 0.02 // Ralentir la disparition
+                    fadeSpeed: 0.01 + Math.random() * 0.02 // Slower fade
                 });
             }
+            
+            console.log(`💥 Created explosion with ${particleCount} particles at (${Math.round(x)}, ${Math.round(y)})`);
         }
 
         // Update and draw particles
         function updateParticles(deltaTime) {
-            // Si aucune particule, ne rien faire
+            // If no particles, do nothing
             if (particles.length === 0) return;
             
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
                 
-                // Update position - augmenter la vitesse de déplacement
+                // Update position with consistent speed regardless of frame rate
                 particle.x += particle.vx * deltaTime * 0.1;
                 particle.y += particle.vy * deltaTime * 0.1;
                 
-                // Update alpha - ralentir la disparition
+                // Update alpha with consistent fade speed
                 particle.alpha -= particle.fadeSpeed * deltaTime * 0.03;
                 
                 // Remove faded particles
@@ -1384,9 +1403,22 @@
                 ctx.restore();
             }
             
-            // Check if all particles are gone
+            // Safety check to prevent memory leaks - remove old particles
+            if (particles.length > 0 && !gameOverAnimation) {
+                // If we're not in game over animation but still have particles,
+                // check if they're too old (over 5 seconds)
+                const currentTime = Date.now();
+                if (!window.lastParticleCleanup || currentTime - window.lastParticleCleanup > 5000) {
+                    console.log(`🧹 Cleaning up ${particles.length} lingering particles`);
+                    particles = [];
+                    window.lastParticleCleanup = currentTime;
+                }
+            }
+            
+            // Check if all particles are gone to complete game over animation
             if (particles.length === 0 && fadingSquares.length === 0 && gameOverAnimation) {
                 gameOverAnimationComplete = true;
+                console.log("🎮 Game over animation complete");
             }
         }
 
