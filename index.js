@@ -12,7 +12,7 @@ const DB_PATH = '/var/lib/tidash_database.sqlite';
 if (!fs.existsSync(DB_PATH)) {
   try {
     fs.writeFileSync(DB_PATH, '', { flag: 'wx' });
-    console.log(`Fichier de base de données créé à ${DB_PATH}`);
+    console.log(`📁 Database file created at ${DB_PATH}`);
   } catch (err) {
     console.error(`Erreur lors de la création du fichier de base de données: ${err.message}`);
   }
@@ -130,7 +130,7 @@ const SeasonScore = sequelize.define('SeasonScore', {
     // Synchroniser les modèles sans supprimer les tables existantes
     // Utiliser { alter: true } pour mettre à jour la structure si nécessaire, mais sans supprimer les données
     await sequelize.sync({ alter: true });
-    console.log('Base de données synchronisée avec succès');
+    console.log('🔄 Database synchronized successfully');
   } catch (err) {
     console.error('Erreur lors de la synchronisation de la base de données:', err);
   }
@@ -142,7 +142,7 @@ const SeasonScore = sequelize.define('SeasonScore', {
     // Vérifier si la table users existe et contient des données
     try {
       const count = await User.count();
-      console.log(`Nombre d'utilisateurs dans la base de données: ${count}`);
+      console.log(`📊 ${count} users found in the database`);
       
       // Si la table est vide, migrer les données existantes si nécessaire
       if (count === 0) {
@@ -524,21 +524,55 @@ app.post('/api/seasons', async (req, res) => {
       return res.status(400).json({ error: 'Tous les champs sont requis (seasonNumber, endDate, prizeMoney)' });
     }
     
-    // Désactiver toutes les saisons actives
-    await Season.update({ isActive: false }, { where: { isActive: true } });
+    // Utiliser une transaction pour s'assurer que toutes les opérations sont atomiques
+    const transaction = await sequelize.transaction();
     
-    // Créer une nouvelle saison
-    const newSeason = await Season.create({
-      seasonNumber: parseInt(seasonNumber),
-      endDate: new Date(endDate),
-      prizeMoney: parseFloat(prizeMoney),
-      isActive: true,
-      isClosed: false,
-      winnerId: null
-    });
-    
-    console.log('Nouvelle saison créée:', newSeason.toJSON());
-    res.status(201).json(newSeason);
+    try {
+      // Désactiver toutes les saisons actives
+      await Season.update({ isActive: false }, { 
+        where: { isActive: true },
+        transaction
+      });
+      
+      // Créer une nouvelle saison
+      const newSeason = await Season.create({
+        seasonNumber: parseInt(seasonNumber),
+        endDate: new Date(endDate),
+        prizeMoney: parseFloat(prizeMoney),
+        isActive: true,
+        isClosed: false,
+        winnerId: null
+      }, { transaction });
+      
+      // Récupérer tous les utilisateurs pour réinitialiser leurs scores de saison côté client
+      const users = await User.findAll({
+        attributes: ['gameId'],
+        transaction
+      });
+      
+      // Créer des scores de saison initialisés à 0 pour tous les utilisateurs existants
+      const seasonScores = users.map(user => ({
+        userId: user.gameId,
+        seasonId: newSeason.id,
+        score: 0
+      }));
+      
+      if (seasonScores.length > 0) {
+        // Insérer tous les scores de saison en une seule opération
+        await SeasonScore.bulkCreate(seasonScores, { transaction });
+        console.log(`✅ ${seasonScores.length} season scores initialized to 0 for new season ${newSeason.seasonNumber} 🏆`);
+      }
+      
+      // Valider la transaction
+      await transaction.commit();
+      
+      console.log('🎮 New season created:', newSeason.toJSON());
+      res.status(201).json(newSeason);
+    } catch (innerError) {
+      // Annuler la transaction en cas d'erreur
+      await transaction.rollback();
+      throw innerError;
+    }
   } catch (error) {
     console.error('Erreur lors de la création de la saison:', error);
     res.status(500).json({ error: 'Erreur lors de la création de la saison', details: error.message });

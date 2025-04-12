@@ -1888,6 +1888,20 @@
                         // Sauvegarder l'ID de la nouvelle saison
                         localStorage.setItem(`tidashLastSeasonId_${userId}`, data.id.toString());
                         
+                        // Informer l'utilisateur de la nouvelle saison en anglais avec des emojis
+                        if (lastKnownSeasonId) {
+                            // Seulement si ce n'est pas la première fois que l'utilisateur joue
+                            if (tg && tg.showPopup) {
+                                tg.showPopup({
+                                    title: '🏆 New Season Started! 🏆',
+                                    message: `Season ${data.seasonNumber} has begun! 🚀\nYour season score has been reset to 0. Good luck! 🍀`,
+                                    buttons: [{ type: 'ok' }]
+                                });
+                            } else {
+                                alert(`🏆 New Season ${data.seasonNumber} has begun! 🚀\nYour season score has been reset to 0. Good luck! 🍀`);
+                            }
+                        }
+                        
                         console.log('Score de saison réinitialisé pour la nouvelle saison');
                     }
                 }
