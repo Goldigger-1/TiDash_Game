@@ -127,8 +127,11 @@ const SeasonScore = sequelize.define('SeasonScore', {
 // Synchroniser les modèles avec la base de données
 (async () => {
   try {
-    // Synchroniser les modèles sans forcer la recréation des tables
-    // Utiliser { alter: true } pour mettre à jour la structure si nécessaire, mais sans supprimer les données
+    // Forcer la recréation des tables pour résoudre le problème de clé étrangère
+    await sequelize.query('DROP TABLE IF EXISTS "SeasonScores"');
+    await sequelize.query('DROP TABLE IF EXISTS "Seasons"');
+    
+    // Synchroniser les modèles
     await sequelize.sync({ alter: true });
     console.log('Base de données synchronisée avec succès');
   } catch (err) {
