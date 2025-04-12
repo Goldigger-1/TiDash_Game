@@ -295,24 +295,18 @@
             height: 100%;
             background-color: #000;
             display: none;
-            z-index: 10;
-            -webkit-transform: translateZ(0); /* Forcer l'accélération matérielle */
-            transform: translateZ(0);
+            z-index: 100;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* Pour iOS */
+            overscroll-behavior: contain; /* Empêcher le scroll de se propager */
+            touch-action: pan-y; /* Autoriser explicitement le défilement vertical */
         }
         
         .settings-content {
-            width: 100%;
-            height: 100%;
-            overflow-y: scroll;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-            touch-action: pan-y;
             padding: 20px;
-            box-sizing: border-box;
-            position: relative;
-            z-index: 1;
-            -webkit-transform: translateZ(0); /* Forcer l'accélération matérielle */
-            transform: translateZ(0);
+            max-width: 500px;
+            margin: 0 auto;
+            color: white;
         }
         
         .settings-header {
@@ -2037,6 +2031,30 @@
             const usernameInput = document.getElementById('username-input');
             const paypalEmailInput = document.getElementById('paypal-email');
             const avatarsGrid = document.getElementById('avatars-grid');
+            const settingsScreen = document.getElementById('settings-screen');
+            
+            // Améliorer le défilement sur Android
+            let touchStartY = 0;
+            
+            settingsScreen.addEventListener('touchstart', function(e) {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+            
+            settingsScreen.addEventListener('touchmove', function(e) {
+                const touchY = e.touches[0].clientY;
+                const scrollTop = settingsScreen.scrollTop;
+                const scrollHeight = settingsScreen.scrollHeight;
+                const clientHeight = settingsScreen.clientHeight;
+                
+                // Empêcher le défilement du body si on est au début ou à la fin du contenu
+                if ((scrollTop <= 0 && touchY > touchStartY) || 
+                    (scrollTop + clientHeight >= scrollHeight && touchY < touchStartY)) {
+                    // Ne pas empêcher complètement le défilement, mais permettre un petit rebond
+                    if (Math.abs(touchY - touchStartY) > 10) {
+                        e.preventDefault();
+                    }
+                }
+            }, { passive: false });
             
             // Charger tous les avatars disponibles
             loadAvatars();
