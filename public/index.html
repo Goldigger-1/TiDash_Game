@@ -724,6 +724,7 @@
         let gameMode = 'home'; // 'home', 'game', 'gameOver'
         let score = 0;
         let bestScore = 0; // Sera initialisé correctement dans initUserProfile
+        let seasonScore = 0; // Ajout d'une variable pour suivre le score de la saison en cours
         
         // Variables pour les étoiles
         let stars = [];
@@ -1404,6 +1405,7 @@
                         
                         // Increment score
                         score++;
+                        seasonScore++;
                         
                         // Create explosion effect
                         createExplosion(square.x + square.size / 2, square.y + square.size / 2, '#00FF9D');
@@ -1674,10 +1676,19 @@
                         bestScore = 0;
                     }
                     
+                    // Récupérer le score de la saison en cours
+                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                    if (localStorage.getItem(userSeasonScoreKey)) {
+                        seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey));
+                    } else {
+                        seasonScore = 0;
+                    }
+                    
                     // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     localStorage.setItem(userBestScoreKey, bestScore);
+                    localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
                     // Mettre à jour le profil Telegram avec le chemin absolu de l'avatar
                     profileData.avatarSrc = avatarSrc;
@@ -1694,11 +1705,13 @@
                     // Utiliser un chemin absolu pour l'avatar par défaut
                     avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
                     bestScore = 0;
+                    seasonScore = 0;
                     
                     // Sauvegarder le profil avec les clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
+                    localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                     
                     // Enregistrer l'association entre l'ID Telegram et l'ID du jeu
                     localStorage.setItem(telegramProfileKey, JSON.stringify({
@@ -1749,18 +1762,28 @@
                             bestScore = 0;
                         }
                     }
+                    
+                    // Récupérer le score de la saison en cours
+                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                    if (localStorage.getItem(userSeasonScoreKey)) {
+                        seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey));
+                    } else {
+                        seasonScore = 0;
+                    }
                 } else {
                     // Générer un nouveau profil
                     username = generateRandomUsername();
                     userId = generateRandomUserId();
                     avatarSrc = getRandomAvatar();
                     bestScore = 0;
+                    seasonScore = 0;
                     
                     // Sauvegarder le profil
                     localStorage.setItem("tidashUsername", username);
                     localStorage.setItem("tidashUserId", userId);
                     localStorage.setItem("tidashAvatarSrc", avatarSrc);
                     localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
+                    localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                     
                     // Enregistrer la date d'inscription
                     localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
@@ -1793,6 +1816,7 @@
                 telegramUsername: telegramUsername,
                 paypalEmail: paypalEmail || "",
                 bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
+                seasonScore: localStorage.getItem(`tidashSeasonScore_${userId}`) || "0",
                 registrationDate: localStorage.getItem(`tidashRegistrationDate_${userId}`) || localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
                 lastLogin: new Date().toISOString().split('T')[0],
                 avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
@@ -1820,9 +1844,47 @@
             })
             .then(data => {
                 console.log('Données utilisateur envoyées avec succès:', data);
+                
+                // Vérifier si une nouvelle saison a été créée
+                checkForNewSeason();
             })
             .catch(error => {
                 console.error('Erreur:', error);
+            });
+        }
+        
+        // Fonction pour vérifier si une nouvelle saison a été créée
+        function checkForNewSeason() {
+            fetch('/api/seasons/active')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erreur lors de la récupération de la saison active');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Vérifier si une saison active existe
+                if (data && data.id) {
+                    // Récupérer l'ID de la dernière saison connue
+                    const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
+                    
+                    // Si c'est une nouvelle saison ou la première saison pour cet utilisateur
+                    if (!lastKnownSeasonId || lastKnownSeasonId !== data.id.toString()) {
+                        console.log('Nouvelle saison détectée:', data);
+                        
+                        // Réinitialiser le score de saison
+                        seasonScore = 0;
+                        localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                        
+                        // Sauvegarder l'ID de la nouvelle saison
+                        localStorage.setItem(`tidashLastSeasonId_${userId}`, data.id.toString());
+                        
+                        console.log('Score de saison réinitialisé pour la nouvelle saison');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erreur lors de la vérification de la saison:', error);
             });
         }
         
