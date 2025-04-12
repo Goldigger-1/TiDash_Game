@@ -431,32 +431,58 @@ function showUserDetails(userId) {
 
 // Supprimer un utilisateur
 function deleteUser(userId) {
-    console.log('Suppression de l\'utilisateur:', userId);
+    console.log('Deleting user:', userId);
+    
+    // Show confirmation dialog before deleting
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+        return;
+    }
+    
+    // Show loading notification
+    showNotification('Deleting user...', 'info');
     
     fetch(`/api/users/${encodeURIComponent(userId)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
     })
-        .then(response => {
-            console.log('Réponse de suppression:', response.status, response.statusText);
-            
-            if (!response.ok) {
-                return response.json().then(errorData => {
-                    console.error('Détails de l\'erreur:', errorData);
-                    throw new Error(errorData.details || 'Erreur lors de la suppression de l\'utilisateur');
-                });
+    .then(response => {
+        console.log('Delete response:', response.status, response.statusText);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('User not found');
             }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Données de suppression reçues:', data);
-            // Recharger les données après la suppression
-            fetchUsers();
-            showNotification('Utilisateur supprimé avec succès', 'success');
-        })
-        .catch(error => {
-            console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-            showNotification(`Erreur lors de la suppression de l'utilisateur: ${error.message}`, 'error');
-        });
+            
+            // Try to parse error JSON, but handle HTML responses too
+            return response.text().then(text => {
+                try {
+                    // Try to parse as JSON
+                    const errorData = JSON.parse(text);
+                    throw new Error(errorData.details || errorData.error || 'Error deleting user');
+                } catch (e) {
+                    // If not valid JSON (like HTML), provide a clearer error
+                    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                        throw new Error(`Server returned HTML instead of JSON. Status: ${response.status}`);
+                    }
+                    throw new Error(`Error deleting user: ${text}`);
+                }
+            });
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('Delete data received:', data);
+        // Reload data after deletion
+        fetchUsers();
+        showNotification('User deleted successfully! 🗑️', 'success');
+    })
+    .catch(error => {
+        console.error('Error deleting user:', error);
+        showNotification(`Error deleting user: ${error.message}`, 'error');
+    });
 }
 
 // Récupérer les saisons depuis l'API
