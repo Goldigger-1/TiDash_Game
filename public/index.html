@@ -481,7 +481,7 @@
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
             margin-top: 15px;
-            width: 100%;
+            padding: 0 10px;
         }
         
         .avatar-item {
@@ -490,10 +490,10 @@
             height: 60px;
             border-radius: 50%;
             overflow: hidden;
+            border: 2px solid #333;
             cursor: pointer;
+            transition: all 0.2s ease;
             margin: 0 auto;
-            border: 3px solid transparent;
-            box-sizing: content-box;
         }
         
         .avatar-item img {
@@ -503,7 +503,7 @@
         }
         
         .avatar-item.selected {
-            border: 3px solid #4CAF50;
+            border: 2px solid #4CAF50;
             box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
         }
         
@@ -1760,7 +1760,7 @@
                                     return null; // Return null to indicate we've handled this case
                                 });
                             } else if (!response.ok) {
-                                throw new Error(`Server error: ${response.status}`);
+                                throw new Error('Network response was not ok');
                             } else {
                                 return response.json();
                             }
@@ -1808,7 +1808,7 @@
                             }, 1000);
                         })
                         .catch(error => {
-                            console.error("❌ Error fetching user data:", error);
+                            console.error('❌ Error fetching user data:', error);
                             
                             // Fallback to creating a new user if fetch fails
                             username = generateRandomUsername();
@@ -1839,6 +1839,59 @@
             }
         }
         
+        // Function to populate the avatar grid
+        function populateAvatarGrid() {
+            try {
+                console.log("🖼️ Populating avatar grid...");
+                const avatarsGrid = document.getElementById('avatars-grid');
+                
+                // Clear existing avatars
+                avatarsGrid.innerHTML = '';
+                
+                // List of available avatars
+                const avatars = [
+                    'avatar_default.jpg',
+                    'avatar_1.jpg',
+                    'avatar_2.jpg',
+                    'avatar_3.jpg',
+                    'avatar_4.jpg',
+                    'avatar_5.jpg',
+                    'avatar_6.jpg',
+                    'avatar_7.jpg',
+                    'avatar_8.jpg',
+                    'avatar_9.jpg',
+                    'avatar_10.jpg',
+                    'avatar_11.jpg',
+                    'avatar_12.jpg'
+                ];
+                
+                // Create avatar items
+                avatars.forEach(avatar => {
+                    const avatarItem = document.createElement('div');
+                    avatarItem.className = 'avatar-item';
+                    
+                    const img = document.createElement('img');
+                    img.src = `avatars/${avatar}`;
+                    img.alt = 'Avatar';
+                    
+                    const check = document.createElement('div');
+                    check.className = 'avatar-check';
+                    check.innerHTML = '✓';
+                    
+                    avatarItem.appendChild(img);
+                    avatarItem.appendChild(check);
+                    avatarsGrid.appendChild(avatarItem);
+                });
+                
+                console.log(`✅ Added ${avatars.length} avatars to the grid`);
+                
+                // Initialize avatar selection
+                initAvatarSelection();
+            } catch (error) {
+                console.error("❌ Error populating avatar grid:", error);
+            }
+        }
+
         // Function to initialize avatar selection
         function initAvatarSelection() {
             try {
@@ -1930,22 +1983,29 @@
         // Function to send user data to server
         function sendUserDataToServer() {
             try {
-                console.log("🔄 Sending user data to server...");
+                console.log("📤 Sending user data to server...");
                 
+                // Get device ID from cookie
+                const deviceId = getCookie("tidashDeviceId") || "";
+                
+                // Prepare user data
                 const userData = {
                     gameId: userId,
                     gameUsername: username,
-                    telegramId: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null,
-                    telegramUsername: tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username : null,
-                    paypalEmail: paypalEmail || "",
-                    bestScore: bestScore.toString(),
-                    seasonScore: seasonScore.toString(),
-                    lastLogin: new Date().toISOString().split('T')[0],
-                    avatarSrc: avatarSrc || "avatars/avatar_default.jpg",
-                    deviceId: getCookie("tidashDeviceId") || null
+                    bestScore: bestScore,
+                    seasonScore: seasonScore,
+                    avatarSrc: avatarSrc.includes('/avatars/') ? 
+                        '/avatars/' + avatarSrc.split('/avatars/').pop() : 
+                        avatarSrc,
+                    paypalEmail: paypalEmail,
+                    deviceId: deviceId,
+                    musicEnabled: isMusicEnabled
                 };
                 
-                fetch('/api/users', {
+                console.log("📋 User data to send:", userData);
+                
+                // Send data to server
+                return fetch('/api/users', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1954,80 +2014,109 @@
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        throw new Error(`Server error: ${response.status}`);
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log("✅ User data sent successfully");
+                    console.log("✅ User data saved successfully:", data);
                     
-                    // If the server returned season data, update our local variables
-                    if (data.seasonData) {
-                        seasonScore = parseInt(data.seasonData.currentScore);
+                    // Update user data from response if available
+                    if (data.user) {
+                        userId = data.user.gameId || userId;
+                        bestScore = parseInt(data.user.bestScore || bestScore);
+                        
+                        // Update UI
+                        updateUserProfileDisplay();
+                        updateScoreDisplay();
                     }
                     
-                    // If the server returned updated user data, update best score
-                    if (data.user && data.user.bestScore !== undefined) {
-                        bestScore = parseInt(data.user.bestScore);
-                    }
+                    return data;
                 })
                 .catch(error => {
-                    console.error('❌ Error sending user data to server:', error);
+                    console.error('❌ Error saving user data:', error);
                 });
             } catch (error) {
-                console.error("Error in sendUserDataToServer:", error);
+                console.error("❌ Error in sendUserDataToServer:", error);
             }
         }
         
         // Function to check for new season
         function checkForNewSeason(forceReset = false) {
             try {
-                console.log("🔍 Checking for new season...");
+                console.log("🔍 Checking for active season...");
                 
                 fetch('/api/seasons/active')
                 .then(response => {
                     if (!response.ok) {
+                        if (response.status === 404) {
+                            console.log("⚠️ No active season found");
+                            return null;
+                        }
                         throw new Error('Error retrieving active season');
                     }
                     return response.json();
                 })
                 .then(data => {
-                    if (data && data.id) {
-                        console.log(`🔍 Active season found: ${data.id}, Season ${data.seasonNumber}`);
-                        
-                        fetch(`/api/seasons/${data.id}/scores/${userId}`)
-                        .then(response => {
-                            if (response.status === 404) {
-                                return { score: 0, isNewSeason: true };
-                            }
-                            return response.json();
-                        })
-                        .then(scoreData => {
-                            const isNewSeason = scoreData.isNewSeason || scoreData.score === 0 || forceReset;
-                            
-                            if (isNewSeason) {
-                                console.log("🆕 New season detected or reset forced!");
-                                seasonScore = 0;
-                                sendUserDataToServer();
-                            } else {
-                                console.log(`✅ Current season is up to date. Season score: ${scoreData.score}`);
-                                seasonScore = parseInt(scoreData.score || 0);
-                            }
-                            
-                            updateScoreDisplay();
-                        })
-                        .catch(error => {
-                            console.error('❌ Error checking season score:', error);
-                        });
-                    } else {
-                        console.log("⚠️ No active season found");
+                    if (!data) {
+                        // No active season, reset season score
+                        seasonScore = 0;
+                        updateScoreDisplay();
+                        return;
                     }
+                    
+                    console.log(`✅ Active season found: ${data.id}, Season ${data.seasonNumber}`);
+                    
+                    // Get user's score for this season
+                    return fetch(`/api/seasons/${data.id}/scores/${userId}`)
+                    .then(response => {
+                        if (response.status === 404) {
+                            console.log(`⚠️ No score found for user ${userId} in season ${data.id}`);
+                            return { score: 0, isNewSeason: true };
+                        }
+                        if (!response.ok) {
+                            throw new Error('Error retrieving season score');
+                        }
+                        return response.json();
+                    })
+                    .then(scoreData => {
+                        const isNewSeason = scoreData.isNewSeason || scoreData.score === 0 || forceReset;
+                        
+                        if (isNewSeason) {
+                            console.log("🆕 New season detected or reset forced!");
+                            seasonScore = 0;
+                            
+                            // Create initial season score for user
+                            const seasonScoreData = {
+                                userId: userId,
+                                seasonId: data.id,
+                                score: 0
+                            };
+                            
+                            // Save to server
+                            return fetch(`/api/seasons/${data.id}/scores`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(seasonScoreData)
+                            })
+                            .then(() => {
+                                console.log("✅ Initial season score created");
+                                updateScoreDisplay();
+                            });
+                        } else {
+                            console.log(`✅ Current season score: ${scoreData.score}`);
+                            seasonScore = parseInt(scoreData.score || 0);
+                            updateScoreDisplay();
+                        }
+                    });
                 })
                 .catch(error => {
                     console.error('❌ Error checking for new season:', error);
                 });
             } catch (error) {
-                console.error("Error in checkForNewSeason:", error);
+                console.error("❌ Error in checkForNewSeason:", error);
             }
         }
         
@@ -2050,6 +2139,39 @@
             document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Strict";
         }
         
+        // Function to update user profile display
+        function updateUserProfileDisplay() {
+            try {
+                // Update username
+                document.getElementById('username').textContent = username;
+                
+                // Update user ID
+                document.getElementById('userId').textContent = userId;
+                
+                // Update avatar
+                document.getElementById('avatarImg').src = avatarSrc;
+                document.getElementById('settings-avatar').src = avatarSrc;
+            } catch (error) {
+                console.error("❌ Error updating user profile display:", error);
+            }
+        }
+        
+        // Function to update score display
+        function updateScoreDisplay() {
+            try {
+                // Update best score
+                document.getElementById('best-score').textContent = `Best: ${bestScore}`;
+                
+                // Update season score
+                const seasonScoreElement = document.getElementById('season-score');
+                if (seasonScoreElement) {
+                    seasonScoreElement.textContent = `Season Best: ${seasonScore} 🏆`;
+                }
+            } catch (error) {
+                console.error("❌ Error updating score display:", error);
+            }
+        }
+        
         // Initialize the game
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize canvas dimensions
@@ -2058,32 +2180,25 @@
             // Initialize stars
             initStars();
             
-            // Setup audio activation on user interaction
-            setupAudioActivation();
+            // Populate avatar grid
+            populateAvatarGrid();
             
-            // Initialize user profile
+            // Load user profile
             initUserProfile();
             
-            // Initialize sound toggle button
-            const soundToggleBtn = document.getElementById('sound-toggle');
-            if (soundToggleBtn) {
-                soundToggleBtn.addEventListener('click', function() {
+            // Setup sound toggle
+            const soundToggle = document.querySelector('.sound-toggle');
+            if (soundToggle) {
+                soundToggle.addEventListener('click', function() {
                     // Toggle music state
                     isMusicEnabled = !isMusicEnabled;
-                    userPrefersMusicEnabled = isMusicEnabled;
                     
-                    // Update button appearance
-                    this.classList.toggle('muted', !isMusicEnabled);
-                    
-                    // Mark as activated by user
-                    musicActivatedByUser = true;
-                    
-                    // Update music playback
+                    // Update UI
                     if (isMusicEnabled) {
-                        // Start playing music if enabled
+                        soundToggle.classList.remove('muted');
                         playBackgroundMusic();
                     } else {
-                        // Stop music if disabled
+                        soundToggle.classList.add('muted');
                         stopBackgroundMusic();
                     }
                     
@@ -2111,6 +2226,31 @@
                 closeSettingsBtn.addEventListener('click', function() {
                     // Hide settings screen
                     document.getElementById('settings-screen').style.display = 'none';
+                });
+            }
+            
+            // Setup username input
+            const usernameInput = document.getElementById('username-input');
+            if (usernameInput) {
+                usernameInput.addEventListener('change', function() {
+                    // Update username
+                    username = this.value;
+                    document.getElementById('username').textContent = username;
+                    
+                    // Save to server
+                    sendUserDataToServer();
+                });
+            }
+            
+            // Setup PayPal email input
+            const paypalEmailInput = document.getElementById('paypal-email');
+            if (paypalEmailInput) {
+                paypalEmailInput.addEventListener('change', function() {
+                    // Update PayPal email
+                    paypalEmail = this.value;
+                    
+                    // Save to server
+                    sendUserDataToServer();
                 });
             }
             

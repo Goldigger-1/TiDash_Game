@@ -1210,6 +1210,143 @@ app.post('/api/users/preferences', async (req, res) => {
   }
 });
 
+// API endpoint for admin to get all users with pagination
+app.get('/api/users', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+    
+    console.log(`🔍 Admin fetching users - Page: ${page}, Limit: ${limit}`);
+    
+    // Get total count of users
+    const totalUsers = await User.count();
+    
+    // Get users with pagination
+    const users = await User.findAll({
+      order: [['lastLogin', 'DESC']],
+      limit: limit,
+      offset: offset
+    });
+    
+    // Format the response
+    const formattedUsers = users.map(user => {
+      const userData = user.toJSON();
+      
+      // Format dates for better readability
+      if (userData.createdAt) {
+        userData.createdAt = new Date(userData.createdAt).toLocaleString();
+      }
+      if (userData.lastLogin) {
+        userData.lastLogin = new Date(userData.lastLogin).toLocaleString();
+      }
+      
+      return userData;
+    });
+    
+    console.log(`✅ Found ${users.length} users (total: ${totalUsers})`);
+    
+    // Send response with pagination info
+    res.status(200).json({
+      users: formattedUsers,
+      pagination: {
+        total: totalUsers,
+        pages: Math.ceil(totalUsers / limit),
+        currentPage: page,
+        limit: limit
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching users for admin:', error);
+    res.status(500).json({ 
+      error: 'Error fetching users', 
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint for admin to get active season (alternative endpoint for compatibility)
+app.get('/api/active-season', async (req, res) => {
+  try {
+    console.log('🔍 Admin fetching active season');
+    
+    // Find the active season
+    const activeSeason = await Season.findOne({ 
+      where: { isActive: true }
+    });
+    
+    if (!activeSeason) {
+      console.log('⚠️ No active season found');
+      return res.status(404).json({ error: 'No active season found' });
+    }
+    
+    console.log(`✅ Active season found: ${activeSeason.id}, Season ${activeSeason.seasonNumber}`);
+    res.status(200).json(activeSeason);
+  } catch (error) {
+    console.error('❌ Error retrieving active season:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving active season', 
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to create or update a season score
+app.post('/api/seasons/:seasonId/scores', async (req, res) => {
+  try {
+    const { seasonId } = req.params;
+    const { userId, score } = req.body;
+    
+    console.log(`🔍 Creating/updating score for user ${userId} in season ${seasonId}`);
+    
+    // Validate required fields
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    // Find the season
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Find the user
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Find or create the season score
+    const [seasonScore, created] = await SeasonScore.findOrCreate({
+      where: {
+        userId: userId,
+        seasonId: seasonId
+      },
+      defaults: {
+        score: score || 0
+      }
+    });
+    
+    // If not created, update the score if the new score is higher
+    if (!created && score > seasonScore.score) {
+      await seasonScore.update({ score });
+      console.log(`✅ Updated score for user ${userId} in season ${seasonId}: ${score}`);
+    } else if (created) {
+      console.log(`✅ Created new score for user ${userId} in season ${seasonId}: ${score || 0}`);
+    } else {
+      console.log(`ℹ️ No update needed for user ${userId} in season ${seasonId}`);
+    }
+    
+    res.status(created ? 201 : 200).json(seasonScore);
+  } catch (error) {
+    console.error('❌ Error creating/updating season score:', error);
+    res.status(500).json({ 
+      error: 'Error creating/updating season score', 
+      details: error.message 
+    });
+  }
+});
+
 // Démarrer le serveur
 app.listen(port, '0.0.0.0', () => {
   console.log(`Serveur démarré sur le port ${port}`);
