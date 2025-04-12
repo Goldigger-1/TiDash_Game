@@ -289,47 +289,63 @@ function fetchUsers() {
     const url = `/api/users?page=${currentPage}&limit=${usersPerPage}${searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''}`;
     
     fetch(url)
-        .then(response => response.json())
+        .then(response => {
+            // First check if the response is ok (status in the range 200-299)
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            // Ensure data has the expected structure
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid response format');
+            }
+            
+            // Ensure users is always an array
+            const users = Array.isArray(data.users) ? data.users : [];
+            
             // Mettre à jour les variables globales
-            totalUsers = data.total;
-            totalPages = data.totalPages;
+            totalUsers = data.total || 0;
+            totalPages = data.totalPages || 1;
             
             // Afficher les utilisateurs
-            displayUsers(data.users);
+            displayUsers(users);
             
             // Mettre à jour les informations de pagination
             updatePagination();
             
             // Mettre à jour les statistiques
-            updateStats(data.users);
+            updateStats(users);
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des utilisateurs:', error);
             usersTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Erreur lors du chargement des données</td></tr>';
+            
+            // Reset pagination and stats on error
+            totalUsers = 0;
+            totalPages = 1;
+            updatePagination();
+            updateStats([]);
         });
 }
 
-// Gérer la recherche
-function handleSearch() {
-    searchTerm = searchInput.value.toLowerCase();
-    currentPage = 1; // Réinitialiser à la première page lors d'une recherche
-    fetchUsers();
-}
-
-// Afficher les utilisateurs
+// Afficher les utilisateurs dans le tableau
 function displayUsers(users) {
+    // Ensure users is always an array
+    const safeUsers = Array.isArray(users) ? users : [];
+    
     // Vider le tableau
     usersTableBody.innerHTML = '';
     
     // Si aucun utilisateur n'est trouvé
-    if (users.length === 0) {
+    if (safeUsers.length === 0) {
         const row = document.createElement('tr');
         row.innerHTML = `<td colspan="7" style="text-align: center;">Aucun utilisateur trouvé</td>`;
         usersTableBody.appendChild(row);
     } else {
         // Afficher les utilisateurs
-        users.forEach(user => {
+        safeUsers.forEach(user => {
             const row = document.createElement('tr');
             
             row.innerHTML = `
@@ -534,34 +550,47 @@ function fetchActiveSeason() {
 // Récupérer le classement d'une saison
 function fetchSeasonRanking(seasonId) {
     fetch(`/api/seasons/${seasonId}/ranking`)
-        .then(response => response.json())
+        .then(response => {
+            // Check if the response is ok (status in the range 200-299)
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            displaySeasonRanking(data);
+            // Ensure data is an array
+            const safeData = Array.isArray(data) ? data : [];
+            displaySeasonRanking(safeData);
         })
         .catch(error => {
             console.error('Erreur lors de la récupération du classement de la saison:', error);
+            // Display empty ranking on error
+            displaySeasonRanking([]);
         });
 }
 
 // Afficher le classement d'une saison
 function displaySeasonRanking(data) {
+    // Ensure data is always an array
+    const safeData = Array.isArray(data) ? data : [];
+    
     // Vider le tableau
     seasonRankingTable.innerHTML = '';
     
     // Si aucun score n'est trouvé
-    if (data.length === 0) {
+    if (safeData.length === 0) {
         const row = document.createElement('tr');
         row.innerHTML = `<td colspan="3" style="text-align: center;">Aucun score enregistré</td>`;
         seasonRankingTable.appendChild(row);
     } else {
         // Afficher les scores
-        data.forEach((score, index) => {
+        safeData.forEach((score, index) => {
             const row = document.createElement('tr');
             
             row.innerHTML = `
                 <td>${index + 1}</td>
-                <td>${score.username}</td>
-                <td>${score.score}</td>
+                <td>${score.username || 'Utilisateur inconnu'}</td>
+                <td>${score.score || '0'}</td>
             `;
             
             seasonRankingTable.appendChild(row);
