@@ -859,20 +859,23 @@ app.get('/api/seasons/:id/ranking', async (req, res) => {
       limit
     });
     
-    // Récupérer les informations utilisateur pour chaque score
+    // Get user details for each score
     const ranking = [];
     for (const score of seasonScores) {
       const user = await User.findByPk(score.userId);
       if (user) {
         ranking.push({
-          userId: score.userId,
-          username: user.gameUsername,
-          score: score.score // Utiliser le score spécifique à la saison, pas le score global
+          userId: user.gameId,
+          username: user.gameUsername || 'Unknown User',
+          score: score.score || 0
         });
       }
     }
     
-    res.json(ranking);
+    console.log(`✅ Found ${ranking.length} users in ranking for season ${id}`);
+    
+    // Return as array, not object
+    res.status(200).json(ranking);
   } catch (error) {
     console.error('Erreur lors de la récupération du classement de la saison:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération du classement de la saison' });
@@ -1246,15 +1249,12 @@ app.get('/api/users', async (req, res) => {
     
     console.log(`✅ Found ${users.length} users (total: ${totalUsers})`);
     
-    // Send response with pagination info
+    // Send response with pagination info that matches what admin.js expects
     res.status(200).json({
       users: formattedUsers || [], // Ensure users is always an array
-      pagination: {
-        total: totalUsers,
-        pages: Math.ceil(totalUsers / limit),
-        currentPage: page,
-        limit: limit
-      }
+      total: totalUsers,
+      totalPages: Math.ceil(totalUsers / limit),
+      currentPage: page
     });
   } catch (error) {
     console.error('❌ Error fetching users for admin:', error);
@@ -1388,6 +1388,51 @@ app.post('/api/seasons/:seasonId/scores', async (req, res) => {
     console.error('❌ Error creating/updating season score:', error);
     res.status(500).json({ 
       error: 'Error creating/updating season score', 
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to get season ranking
+app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
+  try {
+    const { seasonId } = req.params;
+    console.log(`🔍 Fetching ranking for season ${seasonId}`);
+    
+    // Find the season
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Get all scores for this season, ordered by score descending
+    const scores = await SeasonScore.findAll({
+      where: { seasonId: seasonId },
+      order: [['score', 'DESC']],
+      limit: 100 // Limit to top 100 scores
+    });
+    
+    // Get user details for each score
+    const ranking = [];
+    for (const score of scores) {
+      const user = await User.findByPk(score.userId);
+      if (user) {
+        ranking.push({
+          userId: user.gameId,
+          username: user.gameUsername || 'Unknown User',
+          score: score.score || 0
+        });
+      }
+    }
+    
+    console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
+    
+    // Return as array, not object
+    res.status(200).json(ranking);
+  } catch (error) {
+    console.error('❌ Error fetching season ranking:', error);
+    res.status(500).json({ 
+      error: 'Error fetching season ranking', 
       details: error.message 
     });
   }
