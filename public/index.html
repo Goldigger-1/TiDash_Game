@@ -1715,6 +1715,22 @@
                     console.log(`🔍 Found existing device ID: ${deviceId}`);
                 }
                 
+                // Get Telegram data if available
+                let telegramId = "";
+                let telegramUsername = "";
+                
+                // Check if we're in Telegram WebApp and get user data
+                if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+                    const tgData = window.Telegram.WebApp.initDataUnsafe;
+                    console.log("📱 Telegram WebApp data:", tgData);
+                    
+                    if (tgData && tgData.user) {
+                        telegramId = tgData.user.id ? tgData.user.id.toString() : "";
+                        telegramUsername = tgData.user.username || "";
+                        console.log(`✅ Got Telegram data - ID: ${telegramId}, Username: ${telegramUsername}`);
+                    }
+                }
+                
                 // Fetch user data from server using device ID
                 fetch(`/api/users/device/${deviceId}`)
                     .then(response => {
@@ -1728,7 +1744,7 @@
                             bestScore = 0;
                             seasonScore = 0;
                             
-                            // Create new user with device ID
+                            // Create new user with device ID and Telegram data if available
                             const userData = {
                                 gameId: userId,
                                 gameUsername: username,
@@ -1736,7 +1752,9 @@
                                 avatarSrc: '/avatars/avatar_default.jpg',
                                 bestScore: 0,
                                 seasonScore: 0,
-                                musicEnabled: true
+                                musicEnabled: true,
+                                telegramId: telegramId,
+                                telegramUsername: telegramUsername
                             };
                             
                             console.log("📝 Creating new user:", userData);
@@ -1794,6 +1812,10 @@
                                 avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
                             }
                             
+                            // Store Telegram data if available
+                            if (data.telegramId) telegramId = data.telegramId;
+                            if (data.telegramUsername) telegramUsername = data.telegramUsername;
+                            
                             paypalEmail = data.paypalEmail || "";
                             bestScore = parseInt(data.bestScore || "0");
                             
@@ -1804,6 +1826,10 @@
                             updateUserProfileDisplay();
                             updateScoreDisplay();
                             updateSoundToggleDisplay();
+                            
+                            // Update settings form fields
+                            document.getElementById('username-input').value = username || "";
+                            document.getElementById('paypal-email').value = paypalEmail || "";
                         }
                         
                         // Initialize avatar selection
@@ -2006,6 +2032,20 @@
                 // Get device ID from cookie
                 const deviceId = getCookie("tidashDeviceId") || "";
                 
+                // Get Telegram data if available
+                let telegramId = "";
+                let telegramUsername = "";
+                
+                // Check if we're in Telegram WebApp and get user data
+                if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+                    const tgData = window.Telegram.WebApp.initDataUnsafe;
+                    
+                    if (tgData && tgData.user) {
+                        telegramId = tgData.user.id ? tgData.user.id.toString() : "";
+                        telegramUsername = tgData.user.username || "";
+                    }
+                }
+                
                 // Prepare user data
                 const userData = {
                     gameId: userId,
@@ -2017,7 +2057,9 @@
                         avatarSrc,
                     paypalEmail: paypalEmail,
                     deviceId: deviceId,
-                    musicEnabled: isMusicEnabled
+                    musicEnabled: isMusicEnabled,
+                    telegramId: telegramId,
+                    telegramUsername: telegramUsername
                 };
                 
                 console.log("📋 User data to send:", userData);
@@ -2159,15 +2201,18 @@
         // Function to update user profile display
         function updateUserProfileDisplay() {
             try {
-                // Update username
+                // Update username display
                 document.getElementById('username').textContent = username;
-                
-                // Update user ID
                 document.getElementById('userId').textContent = userId;
                 
                 // Update avatar
                 document.getElementById('avatarImg').src = avatarSrc;
+                
+                // Update settings display if settings screen is visible
+                document.getElementById('settings-user-id').textContent = userId;
                 document.getElementById('settings-avatar').src = avatarSrc;
+                document.getElementById('username-input').value = username;
+                document.getElementById('paypal-email').value = paypalEmail || '';
             } catch (error) {
                 console.error("❌ Error updating user profile display:", error);
             }
@@ -2249,24 +2294,32 @@
             // Setup username input
             const usernameInput = document.getElementById('username-input');
             if (usernameInput) {
-                usernameInput.addEventListener('change', function() {
-                    // Update username
-                    username = this.value;
+                usernameInput.addEventListener('input', function(e) {
+                    username = e.target.value.trim();
                     document.getElementById('username').textContent = username;
-                    
-                    // Save to server
-                    sendUserDataToServer();
+                });
+                
+                usernameInput.addEventListener('blur', function() {
+                    if (username.trim() !== '') {
+                        console.log(`✏️ Username updated to: ${username}`);
+                        sendUserDataToServer();
+                    } else {
+                        this.value = username = generateRandomUsername();
+                        console.log(`⚠️ Empty username, generated new one: ${username}`);
+                        sendUserDataToServer();
+                    }
                 });
             }
             
             // Setup PayPal email input
             const paypalEmailInput = document.getElementById('paypal-email');
             if (paypalEmailInput) {
-                paypalEmailInput.addEventListener('change', function() {
-                    // Update PayPal email
-                    paypalEmail = this.value;
-                    
-                    // Save to server
+                paypalEmailInput.addEventListener('input', function(e) {
+                    paypalEmail = e.target.value.trim();
+                });
+                
+                paypalEmailInput.addEventListener('blur', function() {
+                    console.log(`✏️ PayPal email updated to: ${paypalEmail}`);
                     sendUserDataToServer();
                 });
             }
