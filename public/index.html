@@ -1044,101 +1044,76 @@
             }
         }
         
-        // Initialize stars for the background
+        // Initialiser les étoiles
         function initStars() {
-            // Clear existing stars array
             stars = [];
-            
-            // Create new stars
             for (let i = 0; i < maxStars; i++) {
                 stars.push({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height,
-                    radius: Math.random() * 1.2 + 0.3, // Size between 0.3 and 1.5 pixels
-                    opacity: Math.random() * 0.4 + 0.3, // Opacity between 0.3 and 0.7
-                    speed: Math.random() * 0.2 + 0.05, // Speed between 0.05 and 0.25 pixels per frame
-                    direction: Math.random() * Math.PI * 2 // Random direction in radians
+                    radius: Math.random() * 1.2 + 0.3, // Taille entre 0.3 et 1.5 pixels
+                    opacity: Math.random() * 0.4 + 0.3, // Opacité entre 0.3 et 0.7 (augmentée pour plus de visibilité)
+                    speed: Math.random() * 0.2 + 0.05, // Vitesse entre 0.05 et 0.25 pixels par frame
+                    direction: Math.random() * Math.PI * 2 // Direction aléatoire en radians
                 });
             }
-            
-            console.log(`🌟 Created ${stars.length} stars for background`);
         }
         
-        // Draw stars in the background
+        // Dessiner les étoiles
         function drawStars() {
-            // Always draw stars in all game modes for consistent background
-            // This ensures the background is never empty
-            
-            // Check if stars array is empty or undefined
-            if (!stars || stars.length === 0) {
-                console.log("🔄 Stars array is empty, reinitializing stars");
-                initStars();
-            }
-            
-            for (let i = 0; i < stars.length; i++) {
-                const star = stars[i];
-                
-                // Update position
-                star.x += Math.cos(star.direction) * star.speed;
-                star.y += Math.sin(star.direction) * star.speed;
-                
-                // Wrap stars around screen edges
-                if (star.x < 0) star.x = canvas.width;
-                if (star.x > canvas.width) star.x = 0;
-                if (star.y < 0) star.y = canvas.height;
-                if (star.y > canvas.height) star.y = 0;
-                
-                // Draw the star
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
-                ctx.fill();
+            // Ne dessiner les étoiles que sur l'écran d'accueil et pendant le jeu
+            if (gameMode === 'home' || gameMode === 'game') {
+                for (let i = 0; i < stars.length; i++) {
+                    const star = stars[i];
+                    
+                    // Mise à jour de la position
+                    star.x += Math.cos(star.direction) * star.speed;
+                    star.y += Math.sin(star.direction) * star.speed;
+                    
+                    // Si l'étoile sort de l'écran, la replacer de l'autre côté
+                    if (star.x < 0) star.x = canvas.width;
+                    if (star.x > canvas.width) star.x = 0;
+                    if (star.y < 0) star.y = canvas.height;
+                    if (star.y > canvas.height) star.y = 0;
+                    
+                    // Dessiner l'étoile
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+                    ctx.fill();
+                }
             }
         }
 
         // Start the actual gameplay
         function startGame() {
+            console.log("🎮 Starting new game from home screen");
+            
             // Hide home screen
             homeScreen.style.display = 'none';
             
             // Masquer le profil utilisateur pendant le jeu
             document.getElementById("profile-button").style.display = 'none';
             
-            // Reset game state
+            // Effacer complètement le canvas pour éviter les artefacts visuels
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Reset game state - Utiliser la fonction resetGame() sans réinitialiser à nouveau
             resetGame();
             
-            // Réinitialiser les variables de jeu
-            gameOverAnimation = false;
-            gameOverAnimationComplete = false;
-            
-            // Set game mode to 'game'
-            gameMode = 'game';
-            
-            // Gérer la musique de fond (arrêter pendant le jeu)
-            manageBackgroundMusic();
-            
-            // Force restart game loop
-            gameRunning = true;
-            lastFrameTime = null;
-            
-            // Réinitialiser la position et la vitesse de la balle
-            ball.x = canvas.width / 2;
-            ball.y = canvas.height * 0.5;
-            ball.direction = Math.random() > 0.5 ? 1 : -1;
-            ball.speed = canvas.width * 0.0008;
-            
-            // Réinitialiser la position de la ligne
-            line.x = (canvas.width - line.width) / 2;
-            line.y = ball.y - ball.radius;
-            
-            // Démarrer la boucle de jeu
-            requestAnimationFrame(gameLoop);
+            // Play sound effect
+            playSound('userTap');
         }
 
         // Game loop
         function gameLoop(timestamp) {
+            // Gérer le deltaTime avec une limite maximale pour éviter les comportements erratiques après pause
             if (!lastFrameTime) lastFrameTime = timestamp;
-            const deltaTime = timestamp - lastFrameTime;
+            let deltaTime = timestamp - lastFrameTime;
+            
+            // Limiter deltaTime à 100ms max pour éviter les sauts trop grands après pause/inactivité
+            if (deltaTime > 100) deltaTime = 100;
+            
             lastFrameTime = timestamp;
             
             // Clear canvas
@@ -1179,6 +1154,7 @@
                 drawBall();
             }
             
+            // Gestion des éléments de jeu (particules, carrés, etc.)
             if (gameMode === 'game' || gameMode === 'gameOver') {
                 // Update and draw particles - Déplacer avant les carrés pour que les particules soient visibles
                 updateParticles(deltaTime);
@@ -1189,20 +1165,27 @@
                 // Update and draw fading squares
                 updateFadingSquares(deltaTime);
                 
+                // Vérifier si l'animation de game over est terminée
+                if (gameMode === 'gameOver' && gameOverAnimation && particles.length === 0 && fadingSquares.length === 0) {
+                    gameOverAnimationComplete = true;
+                    console.log("💥 Game over animation completed");
+                }
+                
                 if (gameMode === 'game') {
                     // Check for collisions
                     if (checkCollisions()) {
-                        return;
-                    }
-                    
-                    // Spawn new squares
-                    if ((squares.length === 0) || (squares.length > 0 && squares[squares.length-1].y > canvas.height * 0.20)) {
-                        spawnSquare();
-                        lastSquareTime = Date.now();
-                        
-                        // Gradually decrease spawn interval
-                        if (squareInterval > 500) {
-                            squareInterval -= 10;
+                        // Ne pas quitter la boucle de jeu, laisser l'animation de game over se dérouler
+                        console.log("💥 Collision detected, starting game over animation");
+                    } else {
+                        // Spawn new squares seulement si on n'est pas en game over
+                        if ((squares.length === 0) || (squares.length > 0 && squares[squares.length-1].y > canvas.height * 0.20)) {
+                            spawnSquare();
+                            lastSquareTime = Date.now();
+                            
+                            // Gradually decrease spawn interval
+                            if (squareInterval > 500) {
+                                squareInterval -= 10;
+                            }
                         }
                     }
                     
@@ -1211,10 +1194,17 @@
                 }
             }
             
-            // Continue the game loop
+            // Continue the game loop avec une meilleure gestion des animation frames
             if (gameRunning) {
+                // Annuler l'animation frame précédente si elle existe
+                if (window.gameLoopAnimationId) {
+                    cancelAnimationFrame(window.gameLoopAnimationId);
+                }
+                
+                // Demander une nouvelle frame
                 window.gameLoopAnimationId = requestAnimationFrame(gameLoop);
             } else if (window.gameLoopAnimationId) {
+                // Nettoyer l'animation frame si le jeu est arrêté
                 cancelAnimationFrame(window.gameLoopAnimationId);
                 window.gameLoopAnimationId = null;
             }
@@ -1342,18 +1332,14 @@
 
         // Create explosion particles from the ball
         function createExplosion(x, y, color) {
-            // Clear any existing particles to avoid memory issues
-            if (particles.length > 500) {
-                console.log("🧹 Clearing excess particles");
-                particles = [];
-            }
+            console.log(`💥 Creating explosion at (${x}, ${y}) with color ${color}`);
             
-            const particleCount = 120; // Slightly increased number of particles
-            const particleSize = ball.radius / 4; // Finer particles
+            const particleCount = 120; // Augmenter légèrement le nombre de particules
+            const particleSize = ball.radius / 4; // Particules plus fines (divisé par 4 au lieu de 2)
             
             for (let i = 0; i < particleCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 8 + 3; // Higher speed
+                const speed = Math.random() * 8 + 3; // Vitesse plus élevée
                 const distance = Math.random() * ball.radius;
                 
                 particles.push({
@@ -1361,30 +1347,44 @@
                     y: y + Math.sin(angle) * distance,
                     vx: Math.cos(angle) * speed,
                     vy: Math.sin(angle) * speed,
-                    size: particleSize * (Math.random() * 0.5 + 0.3), // Finer particles
+                    size: particleSize * (Math.random() * 0.5 + 0.3), // Particules plus fines
                     color: color || '#00FF9D',
                     alpha: 1,
-                    fadeSpeed: 0.01 + Math.random() * 0.02 // Slower fade
+                    fadeSpeed: 0.01 + Math.random() * 0.02, // Ralentir la disparition
+                    creationTime: Date.now() // Ajouter un timestamp de création pour débogage
                 });
             }
-            
-            console.log(`💥 Created explosion with ${particleCount} particles at (${Math.round(x)}, ${Math.round(y)})`);
         }
 
         // Update and draw particles
         function updateParticles(deltaTime) {
-            // If no particles, do nothing
+            // Si aucune particule, ne rien faire
             if (particles.length === 0) return;
+            
+            // Limiter le deltaTime pour les particules pour éviter les comportements erratiques
+            const particleDeltaTime = Math.min(deltaTime, 100);
+            
+            // Tracer le nombre de particules pour débogage
+            if (particles.length > 0 && particles.length % 50 === 0) {
+                console.log(`✨ Updating ${particles.length} particles`);
+            }
             
             for (let i = particles.length - 1; i >= 0; i--) {
                 const particle = particles[i];
                 
-                // Update position with consistent speed regardless of frame rate
-                particle.x += particle.vx * deltaTime * 0.1;
-                particle.y += particle.vy * deltaTime * 0.1;
+                // Vérifier si la particule est trop ancienne (plus de 10 secondes) pour éviter les fuites de mémoire
+                const particleAge = Date.now() - (particle.creationTime || Date.now());
+                if (particleAge > 10000) { // 10 secondes max
+                    particles.splice(i, 1);
+                    continue;
+                }
                 
-                // Update alpha with consistent fade speed
-                particle.alpha -= particle.fadeSpeed * deltaTime * 0.03;
+                // Update position - avec un facteur de vitesse constant pour éviter les variations de deltaTime
+                particle.x += particle.vx * particleDeltaTime * 0.1;
+                particle.y += particle.vy * particleDeltaTime * 0.1;
+                
+                // Update alpha - ralentir la disparition
+                particle.alpha -= particle.fadeSpeed * particleDeltaTime * 0.03;
                 
                 // Remove faded particles
                 if (particle.alpha <= 0) {
@@ -1399,26 +1399,7 @@
                 ctx.beginPath();
                 ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.globalAlpha = 1;
-                ctx.restore();
-            }
-            
-            // Safety check to prevent memory leaks - remove old particles
-            if (particles.length > 0 && !gameOverAnimation) {
-                // If we're not in game over animation but still have particles,
-                // check if they're too old (over 5 seconds)
-                const currentTime = Date.now();
-                if (!window.lastParticleCleanup || currentTime - window.lastParticleCleanup > 5000) {
-                    console.log(`🧹 Cleaning up ${particles.length} lingering particles`);
-                    particles = [];
-                    window.lastParticleCleanup = currentTime;
-                }
-            }
-            
-            // Check if all particles are gone to complete game over animation
-            if (particles.length === 0 && fadingSquares.length === 0 && gameOverAnimation) {
-                gameOverAnimationComplete = true;
-                console.log("🎮 Game over animation complete");
+                ctx.restore(); // Toujours restaurer le contexte pour réinitialiser globalAlpha
             }
         }
 
@@ -1508,25 +1489,39 @@
                         // Jouer le son quand la balle touche un carré blanc
                         playSound('gameOver');
                         
-                        // Créer un effet d'explosion plus important pour la fin de jeu
-                        createExplosion(ball.x, ball.y, '#00FF9D');
-                        
-                        // Arrêter le mouvement des carrés
-                        for (let i = 0; i < squares.length; i++) {
-                            // Créer des explosions supplémentaires pour chaque carré
-                            createExplosion(squares[i].x + squares[i].size / 2, squares[i].y + squares[i].size / 2, 
-                                           squares[i].isGreen ? '#00FF9D' : '#FFFFFF');
-                        }
-                        
-                        // Set game over mode
+                        // Set game over mode first to prevent multiple collisions
                         gameMode = 'gameOver';
                         gameOverAnimation = true;
                         gameOverAnimationComplete = false;
                         
-                        // Afficher l'écran de game over avec un court délai
+                        console.log("🎮 Game over sequence started");
+                        
+                        // Créer un effet d'explosion plus important pour la fin de jeu
+                        createExplosion(ball.x, ball.y, '#00FF9D');
+                        
+                        // Arrêter le mouvement des carrés et créer des explosions pour chaque carré
+                        // avec un léger délai entre chaque pour créer un effet en cascade
+                        for (let i = 0; i < squares.length; i++) {
+                            // Utiliser une fonction anonyme pour capturer la valeur de i
+                            ((index) => {
+                                setTimeout(() => {
+                                    // Vérifier que le carré existe toujours (au cas où il aurait été supprimé)
+                                    if (index < squares.length) {
+                                        // Créer des explosions supplémentaires pour chaque carré
+                                        createExplosion(
+                                            squares[index].x + squares[index].size / 2, 
+                                            squares[index].y + squares[index].size / 2, 
+                                            squares[index].isGreen ? '#00FF9D' : '#FFFFFF'
+                                        );
+                                    }
+                                }, index * 50); // Délai progressif pour effet cascade
+                            })(i);
+                        }
+                        
+                        // Afficher l'écran de game over avec un délai plus long pour voir l'animation complète
                         setTimeout(() => {
                             showGameOverScreen();
-                        }, 500); // Délai augmenté pour voir l'animation
+                        }, 1000); // Délai augmenté pour voir l'animation complète
                         
                         return true;
                     }
@@ -1646,16 +1641,26 @@
 
         // Function to reset the game and start a new game
         function resetGame() {
+            console.log("🔄 Resetting game completely");
+            
             // Hide game over screen
             hideGameOver();
+            
+            // Annuler l'animation frame précédente pour éviter les doublons
+            if (window.gameLoopAnimationId) {
+                cancelAnimationFrame(window.gameLoopAnimationId);
+                window.gameLoopAnimationId = null;
+            }
             
             // Effacer complètement le canvas pour éviter les artefacts visuels
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Reset game state
-            squares = [];
-            fadingSquares = [];
-            particles = [];
+            // Reset game state - vider complètement les tableaux pour éviter les fuites de mémoire
+            squares.length = 0;
+            fadingSquares.length = 0;
+            particles.length = 0;
+            
+            // Réinitialiser les variables de jeu
             gameOverAnimation = false;
             gameOverAnimationComplete = false;
             score = 0;
@@ -1683,14 +1688,13 @@
             // Manage background music for game mode
             manageBackgroundMusic();
             
-            // Ensure the game loop is properly reset and running
-            gameRunning = true;
+            // Réinitialiser le temps de frame pour éviter les sauts
             lastFrameTime = null;
             
-            // Force a new animation frame to restart the game loop
-            if (window.gameLoopAnimationId) {
-                cancelAnimationFrame(window.gameLoopAnimationId);
-            }
+            // Ensure the game loop is properly reset and running
+            gameRunning = true;
+            
+            // Forcer un nouveau démarrage de la boucle de jeu
             window.gameLoopAnimationId = requestAnimationFrame(gameLoop);
             
             // Play sound effect
