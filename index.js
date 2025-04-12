@@ -383,8 +383,10 @@ app.post('/api/users', async (req, res) => {
     const userData = req.body;
     console.log('📝 User data received:', userData);
 
-    // Récupérer la saison active
+    // CRITICAL FIX: Get the active season first
     const activeSeason = await Season.findOne({ where: { isActive: true } });
+    
+    // Extract data from request
     const currentScore = userData.bestScore ? parseInt(userData.bestScore) : 0;
     const currentSeasonScore = userData.seasonScore ? parseInt(userData.seasonScore) : 0;
     const lastKnownSeasonId = userData.lastKnownSeasonId || null;
@@ -399,90 +401,149 @@ app.post('/api/users', async (req, res) => {
       user = await User.findOne({ where: { telegramId: userData.telegramId } });
     }
 
-    if (user) {
-      // Mettre à jour l'utilisateur existant
-      const updateData = {};
-      
-      // Mettre à jour les champs si fournis
-      if (userData.gameUsername) updateData.gameUsername = userData.gameUsername;
-      if (userData.telegramId) updateData.telegramId = userData.telegramId;
-      if (userData.telegramUsername) updateData.telegramUsername = userData.telegramUsername;
-      if (userData.paypalEmail) updateData.paypalEmail = userData.paypalEmail;
-      
-      // Mettre à jour le meilleur score global si le nouveau score est plus élevé
-      if (currentScore > user.bestScore) {
-        updateData.bestScore = currentScore;
-        console.log(`📈 Global score updated for ${user.gameId}: ${currentScore}`);
-      }
-      
-      // Mettre à jour la date de dernière connexion
-      updateData.lastLogin = new Date();
-      
-      await user.update(updateData);
-      
-      // Mettre à jour le score de la saison si une saison active existe
-      if (activeSeason) {
-        // IMPORTANT: Vérifier si l'utilisateur a changé de saison
-        const isNewSeason = lastKnownSeasonId && lastKnownSeasonId !== activeSeason.id.toString();
-        console.log(`🔍 Season check - Active: ${activeSeason.id}, Last known: ${lastKnownSeasonId}, Is new: ${isNewSeason}`);
+    // Start a transaction to ensure data consistency
+    const transaction = await sequelize.transaction();
+    
+    try {
+      if (user) {
+        // Mettre à jour l'utilisateur existant
+        const updateData = {};
         
-        // Récupérer ou créer un score de saison pour cet utilisateur
-        let seasonScore = await SeasonScore.findOne({
-          where: { userId: user.gameId, seasonId: activeSeason.id }
-        });
+        // Mettre à jour les champs si fournis
+        if (userData.gameUsername) updateData.gameUsername = userData.gameUsername;
+        if (userData.telegramId) updateData.telegramId = userData.telegramId;
+        if (userData.telegramUsername) updateData.telegramUsername = userData.telegramUsername;
+        if (userData.paypalEmail) updateData.paypalEmail = userData.paypalEmail;
         
-        if (!seasonScore) {
-          // Si l'utilisateur n'a pas encore de score pour cette saison, en créer un
-          seasonScore = await SeasonScore.create({
-            userId: user.gameId,
+        // Mettre à jour le meilleur score global si le nouveau score est plus élevé
+        if (currentScore > user.bestScore) {
+          updateData.bestScore = currentScore;
+          console.log(`📈 Global score updated for ${user.gameId}: ${currentScore}`);
+        }
+        
+        // Mettre à jour la date de dernière connexion
+        updateData.lastLogin = new Date();
+        
+        await user.update(updateData, { transaction });
+        
+        // RADICAL SOLUTION: Handle season scores completely separately from user data
+        if (activeSeason) {
+          // First, check if this is a new season for the user
+          const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
+          console.log(`🔄 Season check - Active: ${activeSeason.id}, Last known: ${lastKnownSeasonId}, Is new: ${isNewSeason}`);
+          
+          // Get the user's current season score from the database
+          let seasonScoreRecord = await SeasonScore.findOne({
+            where: { 
+              userId: user.gameId, 
+              seasonId: activeSeason.id 
+            },
+            transaction
+          });
+          
+          if (!seasonScoreRecord) {
+            // If no record exists, create one with score 0
+            seasonScoreRecord = await SeasonScore.create({
+              userId: user.gameId,
+              seasonId: activeSeason.id,
+              score: 0  // Always start with 0
+            }, { transaction });
+            console.log(`✨ New season score initialized to 0 for ${user.gameId}`);
+          }
+          
+          // Now handle the score update based on whether it's a new season
+          if (isNewSeason) {
+            // For a new season, we FORCE the score to the current value from client
+            // This ensures we're not carrying over scores from previous seasons
+            await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
+            console.log(`🔄 Season score reset for ${user.gameId} due to new season: ${currentSeasonScore}`);
+          } else if (currentSeasonScore > seasonScoreRecord.score) {
+            // Only update if the new score is better
+            await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
+            console.log(`📈 Season score updated for ${user.gameId}: ${currentSeasonScore}`);
+          } else {
+            console.log(`ℹ️ No season score update needed: current ${currentSeasonScore} <= existing ${seasonScoreRecord.score}`);
+          }
+          
+          // Return the current season score to the client for validation
+          const updatedScore = await SeasonScore.findOne({
+            where: { 
+              userId: user.gameId, 
+              seasonId: activeSeason.id 
+            },
+            transaction
+          });
+          
+          // Commit the transaction
+          await transaction.commit();
+          
+          // Return user data with the current season score
+          res.status(200).json({ 
+            message: 'User updated successfully', 
+            user,
+            seasonData: {
+              seasonId: activeSeason.id,
+              seasonNumber: activeSeason.seasonNumber,
+              currentScore: updatedScore ? updatedScore.score : 0
+            }
+          });
+        } else {
+          // No active season
+          await transaction.commit();
+          res.status(200).json({ message: 'User updated successfully', user });
+        }
+      } else {
+        // Créer un nouvel utilisateur
+        if (!userData.gameId || !userData.gameUsername) {
+          await transaction.rollback();
+          return res.status(400).json({ error: 'gameId and gameUsername are required to create a new user' });
+        }
+        
+        const newUser = await User.create({
+          gameId: userData.gameId,
+          gameUsername: userData.gameUsername,
+          telegramId: userData.telegramId || null,
+          telegramUsername: userData.telegramUsername || null,
+          paypalEmail: userData.paypalEmail || null,
+          bestScore: currentScore,
+          registrationDate: userData.registrationDate || new Date(),
+          lastLogin: new Date()
+        }, { transaction });
+        
+        console.log(`✨ New user created: ${newUser.gameId}`);
+        
+        // Si une saison active existe, créer un score de saison pour le nouvel utilisateur
+        if (activeSeason) {
+          await SeasonScore.create({
+            userId: newUser.gameId,
             seasonId: activeSeason.id,
             score: currentSeasonScore
+          }, { transaction });
+          console.log(`✨ Season score created for new user ${newUser.gameId}: ${currentSeasonScore}`);
+          
+          // Commit the transaction
+          await transaction.commit();
+          
+          // Return user data with the current season score
+          res.status(201).json({ 
+            message: 'New user created successfully', 
+            user: newUser,
+            seasonData: {
+              seasonId: activeSeason.id,
+              seasonNumber: activeSeason.seasonNumber,
+              currentScore: currentSeasonScore
+            }
           });
-          console.log(`✨ New season score created for ${user.gameId}: ${currentSeasonScore}`);
-        } else if (isNewSeason) {
-          // Si l'utilisateur a changé de saison, réinitialiser son score
-          await seasonScore.update({ score: currentSeasonScore });
-          console.log(`🔄 Season score reset for ${user.gameId} due to new season: ${currentSeasonScore}`);
-        } else if (currentSeasonScore > seasonScore.score) {
-          // Mettre à jour uniquement si le nouveau score est meilleur
-          await seasonScore.update({ score: currentSeasonScore });
-          console.log(`📈 Season score updated for ${user.gameId}: ${currentSeasonScore}`);
         } else {
-          console.log(`ℹ️ No season score update needed for ${user.gameId}: current ${currentSeasonScore} <= existing ${seasonScore.score}`);
+          // No active season
+          await transaction.commit();
+          res.status(201).json({ message: 'New user created successfully', user: newUser });
         }
       }
-      
-      res.status(200).json({ message: 'User updated successfully', user });
-    } else {
-      // Créer un nouvel utilisateur
-      if (!userData.gameId || !userData.gameUsername) {
-        return res.status(400).json({ error: 'gameId and gameUsername are required to create a new user' });
-      }
-      
-      const newUser = await User.create({
-        gameId: userData.gameId,
-        gameUsername: userData.gameUsername,
-        telegramId: userData.telegramId || null,
-        telegramUsername: userData.telegramUsername || null,
-        paypalEmail: userData.paypalEmail || null,
-        bestScore: currentScore,
-        registrationDate: userData.registrationDate || new Date(),
-        lastLogin: new Date()
-      });
-      
-      console.log(`✨ New user created: ${newUser.gameId}`);
-      
-      // Si une saison active existe, créer un score de saison pour le nouvel utilisateur
-      if (activeSeason) {
-        await SeasonScore.create({
-          userId: newUser.gameId,
-          seasonId: activeSeason.id,
-          score: currentSeasonScore
-        });
-        console.log(`✨ Season score created for new user ${newUser.gameId}: ${currentSeasonScore}`);
-      }
-      
-      res.status(201).json({ message: 'New user created successfully', user: newUser });
+    } catch (error) {
+      // Rollback the transaction in case of error
+      await transaction.rollback();
+      throw error;
     }
   } catch (error) {
     console.error('❌ Error saving user:', error);
@@ -832,6 +893,56 @@ app.get('/api/seasons/:seasonId/scores/:userId', async (req, res) => {
       error: 'Error retrieving season score', 
       details: error.message
     });
+  }
+});
+
+// CRITICAL FIX: New API endpoint to explicitly reset a user's season score
+app.post('/api/seasons/:seasonId/scores/:userId/reset', async (req, res) => {
+  try {
+    const { seasonId, userId } = req.params;
+    
+    // Verify the season exists
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Start a transaction
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // Find or create the season score record
+      let [seasonScore, created] = await SeasonScore.findOrCreate({
+        where: { seasonId, userId },
+        defaults: { score: 0 },
+        transaction
+      });
+      
+      if (!created) {
+        // If the record already exists, reset the score to 0
+        await seasonScore.update({ score: 0 }, { transaction });
+      }
+      
+      // Commit the transaction
+      await transaction.commit();
+      
+      console.log(`🔄 Season score explicitly reset to 0 for user ${userId} in season ${seasonId}`);
+      
+      // Return success
+      res.status(200).json({ 
+        message: 'Season score reset successfully',
+        userId,
+        seasonId,
+        score: 0
+      });
+    } catch (error) {
+      // Rollback the transaction in case of error
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ Error resetting season score:', error);
+    res.status(500).json({ error: 'Error resetting season score', details: error.message });
   }
 });
 
