@@ -2086,109 +2086,134 @@
                     avatarsList.push(`avatar${i}.jpg`);
                 }
                 
-                // Précharger les images
-                const preloadContainer = document.getElementById('preload-container');
-                preloadContainer.innerHTML = '';
-                
                 // Vider la grille d'avatars
                 avatarsGrid.innerHTML = '';
                 
                 // Créer un fragment de document pour améliorer les performances
                 const fragment = document.createDocumentFragment();
                 
-                // Ajouter chaque avatar à la grille
-                avatarsList.forEach(avatarFile => {
-                    // Utiliser un chemin absolu pour iOS
-                    const avatarPath = window.location.origin + '/avatars/' + avatarFile;
-                    const isSelected = avatarPath === avatarSrc || 
-                                      ('/avatars/' + avatarFile) === avatarSrc || 
-                                      ('avatars/' + avatarFile) === avatarSrc;
+                // Limiter le nombre d'images chargées simultanément
+                const batchSize = 5;
+                let loadedCount = 0;
+                
+                // Fonction pour charger un lot d'avatars
+                function loadBatch(startIndex) {
+                    // Arrêter si tous les avatars sont chargés
+                    if (startIndex >= avatarsList.length) {
+                        return;
+                    }
                     
-                    // Précharger l'image
-                    const preloadImg = document.createElement('img');
-                    preloadImg.src = avatarPath;
-                    preloadImg.onerror = function() {
-                        console.error('Erreur de chargement de l\'image:', avatarPath);
-                    };
-                    preloadContainer.appendChild(preloadImg);
+                    // Charger un lot d'avatars
+                    const endIndex = Math.min(startIndex + batchSize, avatarsList.length);
                     
-                    // Créer l'élément d'avatar avec image préchargée
-                    const avatarItem = document.createElement('div');
-                    avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
-                    
-                    // Créer l'élément img séparément pour iOS
-                    const imgElement = document.createElement('img');
-                    imgElement.src = avatarPath;
-                    imgElement.alt = "Avatar";
-                    imgElement.setAttribute('loading', 'eager'); // Forcer le chargement immédiat sur iOS
-                    
-                    // Créer l'élément de coche
-                    const checkElement = document.createElement('div');
-                    checkElement.className = 'avatar-check';
-                    checkElement.textContent = '✓';
-                    
-                    // Ajouter les éléments au conteneur
-                    avatarItem.appendChild(imgElement);
-                    avatarItem.appendChild(checkElement);
-                    
-                    // Fonction de sélection d'avatar
-                    const selectAvatar = function() {
-                        // Désélectionner tous les avatars
-                        document.querySelectorAll('.avatar-item').forEach(item => {
-                            item.classList.remove('selected');
+                    for (let i = startIndex; i < endIndex; i++) {
+                        const avatarFile = avatarsList[i];
+                        // Utiliser un chemin absolu pour iOS
+                        const avatarPath = window.location.origin + '/avatars/' + avatarFile;
+                        const isSelected = avatarPath === avatarSrc || 
+                                          ('/avatars/' + avatarFile) === avatarSrc || 
+                                          ('avatars/' + avatarFile) === avatarSrc;
+                        
+                        // Créer l'élément d'avatar
+                        const avatarItem = document.createElement('div');
+                        avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
+                        
+                        // Créer l'élément img séparément pour iOS
+                        const imgElement = document.createElement('img');
+                        
+                        // Ajouter un gestionnaire d'événements pour le chargement de l'image
+                        imgElement.onload = function() {
+                            loadedCount++;
+                            
+                            // Charger le prochain lot si tous les avatars de ce lot sont chargés
+                            if (loadedCount === (endIndex - startIndex)) {
+                                loadedCount = 0;
+                                // Utiliser setTimeout pour éviter de bloquer le thread principal
+                                setTimeout(() => loadBatch(endIndex), 50);
+                            }
+                        };
+                        
+                        imgElement.onerror = function() {
+                            console.error('Erreur de chargement de l\'image:', avatarPath);
+                            loadedCount++;
+                            
+                            // Charger le prochain lot même en cas d'erreur
+                            if (loadedCount === (endIndex - startIndex)) {
+                                loadedCount = 0;
+                                setTimeout(() => loadBatch(endIndex), 50);
+                            }
+                        };
+                        
+                        // Définir les attributs de l'image
+                        imgElement.src = avatarPath;
+                        imgElement.alt = "Avatar";
+                        imgElement.setAttribute('loading', 'eager'); // Forcer le chargement immédiat sur iOS
+                        
+                        // Créer l'élément de coche
+                        const checkElement = document.createElement('div');
+                        checkElement.className = 'avatar-check';
+                        checkElement.textContent = '✓';
+                        
+                        // Ajouter les éléments au conteneur
+                        avatarItem.appendChild(imgElement);
+                        avatarItem.appendChild(checkElement);
+                        
+                        // Fonction de sélection d'avatar
+                        const selectAvatar = function() {
+                            // Désélectionner tous les avatars
+                            document.querySelectorAll('.avatar-item').forEach(item => {
+                                item.classList.remove('selected');
+                            });
+                            
+                            // Sélectionner cet avatar
+                            avatarItem.classList.add('selected');
+                            
+                            // Mettre à jour l'avatar de l'utilisateur
+                            avatarSrc = avatarPath;
+                            
+                            // Mettre à jour les images d'avatar dans l'interface
+                            const avatarImg = document.getElementById('avatarImg');
+                            const settingsAvatar = document.getElementById('settings-avatar');
+                            
+                            if (avatarImg) avatarImg.src = avatarPath;
+                            if (settingsAvatar) settingsAvatar.src = avatarPath;
+                            
+                            // Sauvegarder dans le localStorage avec une clé spécifique à l'utilisateur
+                            localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarPath);
+                            
+                            // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
+                            const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
+                            if (telegramId) {
+                                const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
+                                const storedProfile = localStorage.getItem(telegramProfileKey);
+                                if (storedProfile) {
+                                    const profileData = JSON.parse(storedProfile);
+                                    profileData.avatarSrc = avatarPath;
+                                    localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
+                                }
+                            }
+                            
+                            // Synchroniser avec le serveur
+                            sendUserDataToServer();
+                        };
+                        
+                        // Ajouter des événements pour iOS et Android
+                        avatarItem.addEventListener('click', selectAvatar);
+                        avatarItem.addEventListener('touchend', function(e) {
+                            e.preventDefault(); // Empêcher le double déclenchement sur iOS
+                            selectAvatar();
                         });
                         
-                        // Sélectionner cet avatar
-                        avatarItem.classList.add('selected');
-                        
-                        // Mettre à jour l'avatar de l'utilisateur
-                        avatarSrc = avatarPath;
-                        
-                        // Mettre à jour les images d'avatar dans l'interface
-                        const avatarImg = document.getElementById('avatarImg');
-                        const settingsAvatar = document.getElementById('settings-avatar');
-                        
-                        if (avatarImg) avatarImg.src = avatarPath;
-                        if (settingsAvatar) settingsAvatar.src = avatarPath;
-                        
-                        // Sauvegarder dans le localStorage avec une clé spécifique à l'utilisateur
-                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarPath);
-                        
-                        // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
-                        const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
-                        if (telegramId) {
-                            const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
-                            const storedProfile = localStorage.getItem(telegramProfileKey);
-                            if (storedProfile) {
-                                const profileData = JSON.parse(storedProfile);
-                                profileData.avatarSrc = avatarPath;
-                                localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
-                            }
-                        }
-                        
-                        // Synchroniser avec le serveur
-                        sendUserDataToServer();
-                        
-                        // Log pour débogage iOS
-                        console.log('Avatar sélectionné:', avatarPath);
-                    };
+                        // Ajouter au fragment
+                        fragment.appendChild(avatarItem);
+                    }
                     
-                    // Ajouter des événements pour iOS et Android
-                    avatarItem.addEventListener('click', selectAvatar);
-                    avatarItem.addEventListener('touchend', function(e) {
-                        e.preventDefault(); // Empêcher le double déclenchement sur iOS
-                        selectAvatar();
-                    });
-                    
-                    // Ajouter au fragment au lieu de directement à la grille
-                    fragment.appendChild(avatarItem);
-                });
+                    // Ajouter le fragment à la grille
+                    avatarsGrid.appendChild(fragment);
+                }
                 
-                // Ajouter le fragment à la grille en une seule opération
-                avatarsGrid.appendChild(fragment);
-                
-                // Log pour débogage iOS
-                console.log('Avatars chargés. Nombre d\'avatars:', avatarsList.length);
+                // Commencer le chargement par lots
+                loadBatch(0);
             }
         }
         
