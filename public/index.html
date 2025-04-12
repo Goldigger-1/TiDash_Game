@@ -1422,11 +1422,12 @@
                         // Increment score
                         score++;
                         
-                        // Mettre à jour le score de saison uniquement si c'est un nouveau record
+                        // CRITICAL FIX: Update season score logic
+                        // Only update the stored season score if the current game score is higher
                         if (score > seasonScore) {
                             seasonScore = score;
                             localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
-                            console.log(`Nouveau record de saison: ${seasonScore}`);
+                            console.log(`🏆 New season best: ${seasonScore}`);
                         }
                         
                         // Create explosion effect
@@ -1436,11 +1437,14 @@
                         if (score > bestScore) {
                             bestScore = score;
                             localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
-                            console.log(`Nouveau record global: ${bestScore}`);
+                            console.log(`🌟 New all-time best: ${bestScore}`);
                         }
                         
-                        // Envoyer les données utilisateur au serveur
-                        sendUserDataToServer();
+                        // CRITICAL FIX: Only send data to server when we achieve a new best
+                        // This prevents unnecessary updates that could cause issues
+                        if (score === seasonScore || score === bestScore) {
+                            sendUserDataToServer();
+                        }
                         
                         return false;
                     } else {
@@ -1477,7 +1481,7 @@
             const userBestScoreKey = `tidashBestScore_${userId}`;
             document.getElementById('best-score').textContent = `Best: ${localStorage.getItem(userBestScoreKey)}`;
             
-            // Afficher le score de saison si une saison est active
+            // CRITICAL FIX: Handle season score correctly on game over
             const seasonScoreElement = document.getElementById('season-score');
             if (seasonScoreElement) {
                 // Vérifier s'il y a une saison active
@@ -1485,14 +1489,30 @@
                 .then(response => response.ok ? response.json() : null)
                 .then(activeSeason => {
                     if (activeSeason) {
+                        // CRITICAL FIX: Get the current game score and compare with the stored season best
                         const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                        const currentSeasonScore = localStorage.getItem(userSeasonScoreKey) || "0";
-                        seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${currentSeasonScore}`;
+                        let storedSeasonBest = parseInt(localStorage.getItem(userSeasonScoreKey) || "0");
+                        
+                        console.log(`🎮 Game Over - Current game score: ${score}, Stored season best: ${storedSeasonBest}`);
+                        
+                        // Update the season best if the current score is higher
+                        if (score > storedSeasonBest) {
+                            storedSeasonBest = score;
+                            localStorage.setItem(userSeasonScoreKey, storedSeasonBest);
+                            console.log(`🏆 New season best achieved: ${storedSeasonBest}`);
+                        }
+                        
+                        // Display the current season's best score
+                        seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${storedSeasonBest}`;
                         seasonScoreElement.style.display = 'block';
                         
                         // S'assurer que l'élément est visible
                         seasonScoreElement.style.opacity = '1';
                         seasonScoreElement.style.transform = 'translateY(0)';
+                        
+                        // CRITICAL FIX: Immediately send the updated score to the server
+                        // This ensures the server has the most up-to-date score
+                        sendUserDataToServer();
                     } else {
                         seasonScoreElement.style.display = 'none';
                     }
@@ -1510,6 +1530,7 @@
             manageBackgroundMusic();
             
             // Afficher l'écran de game over
+            const gameOverScreen = document.getElementById('game-over');
             gameOverScreen.style.display = 'flex';
             
             // Forcer un reflow pour que la transition fonctionne
