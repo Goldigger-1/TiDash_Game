@@ -762,7 +762,7 @@
         // Variables pour gérer séparément la musique de fond et les effets sonores
         let isMusicEnabled = false; // Contrôle uniquement la musique de fond
         let isGameSoundEnabled = true; // Contrôle uniquement les effets sonores du jeu (toujours activés par défaut)
-        let userPrefersMusicEnabled = localStorage.getItem('tidashMusicEnabled') === 'true';
+        let userPrefersMusicEnabled = false; // Changed from localStorage to variable
         
         // Variable pour suivre si la musique a déjà été activée par l'utilisateur
         let musicActivatedByUser = false;
@@ -1464,7 +1464,6 @@
             
             // Update score display
             document.getElementById('score-display').textContent = score;
-            const userBestScoreKey = `tidashBestScore_${userId}`;
             document.getElementById('best-score').textContent = `Best: ${bestScore}`;
             
             // CRITICAL FIX: Handle season score correctly on game over
@@ -1479,7 +1478,6 @@
                     return response.json();
                 })
                 .then(data => {
-                    // Check if an active season exists
                     if (data && data.id) {
                         // Get the current game score and compare with the stored season best
                         // First, get the latest season score from the server to ensure we have the correct data
@@ -1496,11 +1494,7 @@
                             // 1. If this is the first game in a new season, we should send the score regardless
                             // 2. If the current score is better than the stored season best
                             
-                            // REMOVED: No longer use localStorage for season ID
-                            // const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
-                            // const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
-                            
-                            // Instead, check with the server if this is a new season for the user
+                            // Check with the server if this is a new season for the user
                             const isFirstGame = serverSeasonBest === 0;
                             
                             if (isFirstGame || score > serverSeasonBest) {
@@ -1513,10 +1507,6 @@
                                     // Even if it's not a personal best, we need to record it for the first game
                                     seasonScore = score;
                                 }
-                                
-                                // REMOVED: No longer store in localStorage
-                                // localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
-                                // localStorage.setItem(`tidashLastSeasonId_${userId}`, activeSeason.id.toString());
                                 
                                 // Send updated score to server immediately
                                 sendUserDataToServer();
@@ -1563,13 +1553,56 @@
             gameOverScreen.classList.add('visible');
             console.log("Game over screen displayed");
         }
-
+        
         // Function to hide game over screen
         function hideGameOver() {
             // Masquer immédiatement l'écran de game over sans animation
             gameOverScreen.style.display = 'none';
             // Réinitialiser la classe visible pour les futures utilisations
             gameOverScreen.classList.remove('visible');
+        }
+
+        // Function to reset the game and start a new game
+        function resetGame() {
+            // Hide game over screen
+            hideGameOver();
+            
+            // Reset game state
+            squares = [];
+            fadingSquares = [];
+            particles = [];
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
+            score = 0;
+            
+            // Update game mode
+            gameMode = 'game';
+            
+            // Reset ball position and speed
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height * 0.5;
+            ball.direction = Math.random() > 0.5 ? 1 : -1;
+            ball.speed = canvas.width * 0.0008;
+            
+            // Reset line position
+            line.x = (canvas.width - line.width) / 2;
+            line.y = ball.y - ball.radius;
+            
+            // Hide profile button during gameplay
+            document.getElementById("profile-button").style.display = 'none';
+            
+            // Manage background music for game mode
+            manageBackgroundMusic();
+            
+            // Make sure game loop is running
+            if (!gameRunning) {
+                gameRunning = true;
+                lastFrameTime = null;
+                requestAnimationFrame(gameLoop);
+            }
+            
+            // Play sound effect
+            playSound('userTap');
         }
 
         // Handle screen tap/click
@@ -1597,115 +1630,7 @@
         window.addEventListener('resize', handleResize);
         
         // Handle play again button click
-        playAgainBtn.addEventListener('click', function() {
-            // Désactiver le bouton immédiatement pour éviter les clics multiples
-            playAgainBtn.disabled = true;
-            homeBtn.disabled = true;
-            
-            // Masquer l'écran de game over immédiatement
-            hideGameOver();
-            
-            // Réinitialiser et démarrer le jeu
-            resetGame();
-            startGame();
-            
-            // Réactiver les boutons après un court délai
-            setTimeout(() => {
-                playAgainBtn.disabled = false;
-                homeBtn.disabled = false;
-            }, 500);
-        });
-
-        // Handle home button click
-        homeBtn.addEventListener('click', function() {
-            // Désactiver le bouton immédiatement pour éviter les clics multiples
-            homeBtn.disabled = true;
-            playAgainBtn.disabled = true;
-            
-            // Masquer l'écran de game over immédiatement
-            hideGameOver();
-            
-            // Réinitialiser et aller à l'écran d'accueil
-            resetGame();
-            goToHome();
-            
-            // Réactiver les boutons après un court délai
-            setTimeout(() => {
-                homeBtn.disabled = false;
-                playAgainBtn.disabled = false;
-            }, 500);
-        });
-        
-        // Function to reset game
-        function resetGame() {
-            // Reset game variables
-            score = 0;
-            squares = [];
-            fadingSquares = [];
-            particles = [];
-            gameOverAnimation = false;
-            gameOverAnimationComplete = false;
-            lastSquareTime = 0;
-            squareInterval = 1100;
-            
-            // Réinitialiser les étoiles
-            initStars();
-            
-            // Reset ball position
-            ball.x = canvas.width / 2;
-            ball.y = canvas.height * 0.5;
-            ball.direction = Math.random() > 0.5 ? 1 : -1;
-            
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // CRITICAL FIX: Force a check with the server to ensure we have the latest scores
-            // This is important to prevent the game from using stale score data
-            fetch('/api/seasons/active')
-            .then(response => response.ok ? response.json() : null)
-            .then(activeSeason => {
-                if (activeSeason) {
-                    // Get the latest season score from the server
-                    fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
-                    .then(response => response.ok ? response.json() : { score: 0 })
-                    .then(serverData => {
-                        // Use the server's score as the source of truth
-                        const serverScore = serverData && serverData.score ? parseInt(serverData.score) : 0;
-                        console.log(`🔄 Game reset - Server season score: ${serverScore}`);
-                        seasonScore = serverScore;
-                        
-                        // Update the score display
-                        updateScoreDisplay();
-                    })
-                    .catch(error => {
-                        console.error('❌ Error getting season score from server during reset:', error);
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('❌ Error checking active season during reset:', error);
-            });
-        }
-        
-        // Function to show home screen
-        function showHomeScreen() {
-            homeScreen.style.display = 'flex';
-            gameOverScreen.style.display = 'none';
-            gameMode = 'home';
-            
-            // Réinitialiser les animations de game over
-            gameOverAnimation = false;
-            gameOverAnimationComplete = false;
-            
-            // Make sure the game loop is running for the home screen animation
-            if (!gameRunning) {
-                gameRunning = true;
-                requestAnimationFrame(gameLoop);
-            }
-            
-            // Gérer la musique de fond (démarrer sur l'écran d'accueil)
-            manageBackgroundMusic();
-        }
+        playAgainBtn.addEventListener('click', resetGame);
 
         playBtn.addEventListener('click', startGame);
 
@@ -1753,188 +1678,159 @@
             // Si l'utilisateur est connecté via Telegram, vérifier s'il a déjà un profil associé à cet ID Telegram
             if (telegramId) {
                 console.log("Initialisation du profil pour l'utilisateur Telegram:", telegramId);
-                const telegramProfileKey = `tidashTelegramProfile_${telegramId}`;
-                const storedProfile = localStorage.getItem(telegramProfileKey);
                 
-                if (storedProfile) {
-                    console.log("Profil Telegram existant trouvé");
-                    // Récupérer l'ID du jeu associé à ce compte Telegram
-                    const profileData = JSON.parse(storedProfile);
-                    userId = profileData.userId;
-                    
-                    // Récupérer les autres informations du profil
-                    username = localStorage.getItem(`tidashUsername_${userId}`) || profileData.username;
-                    
-                    // Gestion de l'avatar avec chemin absolu pour iOS
-                    const storedAvatarSrc = localStorage.getItem(`tidashAvatarSrc_${userId}`) || profileData.avatarSrc;
-                    
-                    // Normaliser le chemin de l'avatar pour assurer la compatibilité entre plateformes
-                    if (storedAvatarSrc) {
-                        // Si le chemin est déjà absolu, l'utiliser tel quel
-                        if (storedAvatarSrc.startsWith('http')) {
-                            avatarSrc = storedAvatarSrc;
-                        } 
-                        // Si le chemin commence par un slash, ajouter l'origine
-                        else if (storedAvatarSrc.startsWith('/')) {
-                            avatarSrc = window.location.origin + storedAvatarSrc;
+                // Fetch user data from server instead of localStorage
+                fetch(`/api/users/telegram/${telegramId}`)
+                    .then(response => {
+                        if (response.status === 404) {
+                            // User not found, create new profile
+                            console.log("Création d'un nouveau profil Telegram");
+                            username = generateRandomUsername();
+                            userId = generateRandomUserId();
+                            
+                            // Utiliser un chemin absolu pour l'avatar par défaut
+                            avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            bestScore = 0;
+                            seasonScore = 0;
+                            
+                            // Send new user data to server
+                            sendUserDataToServer();
+                        } else {
+                            return response.json();
                         }
-                        // Si le chemin est relatif sans slash, ajouter l'origine et un slash
-                        else {
-                            avatarSrc = window.location.origin + '/' + storedAvatarSrc;
+                    })
+                    .then(data => {
+                        if (data) {
+                            console.log("Profil Telegram existant trouvé", data);
+                            // Set user data from server response
+                            userId = data.gameId;
+                            username = data.gameUsername;
+                            
+                            // Handle avatar path
+                            if (data.avatarSrc) {
+                                // If the path is already absolute, use it as is
+                                if (data.avatarSrc.startsWith('http')) {
+                                    avatarSrc = data.avatarSrc;
+                                } 
+                                // If the path starts with a slash, add the origin
+                                else if (data.avatarSrc.startsWith('/')) {
+                                    avatarSrc = window.location.origin + data.avatarSrc;
+                                }
+                                // If the path is relative without slash, add the origin and a slash
+                                else {
+                                    avatarSrc = window.location.origin + '/' + data.avatarSrc;
+                                }
+                            } else {
+                                // Default avatar with absolute path
+                                avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            }
+                            
+                            // Set PayPal email if available
+                            paypalEmail = data.paypalEmail || "";
+                            
+                            // Set scores
+                            bestScore = parseInt(data.bestScore || "0");
+                            
+                            // Update UI
+                            updateUserProfileDisplay();
+                            updateScoreDisplay();
+                            loadSoundPreference();
                         }
-                    } else {
-                        // Avatar par défaut avec chemin absolu
+                        
+                        // CRITICAL FIX: Force a season check immediately to ensure we have the correct season score
+                        setTimeout(function() {
+                            // Force a complete reset of season data to ensure we're starting fresh
+                            console.log("🔄 Forcing season check and potential reset on startup");
+                            checkForNewSeason(true); // Pass true to force a reset if needed
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        console.error("Error fetching user data:", error);
+                        
+                        // Fallback to creating a new user if fetch fails
+                        username = generateRandomUsername();
+                        userId = generateRandomUserId();
                         avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                    }
-                    
-                    // Récupérer l'email PayPal
-                    paypalEmail = localStorage.getItem(`tidashPaypalEmail_${userId}`) || "";
-                    
-                    // Récupérer les scores depuis localStorage pour l'initialisation
-                    const userBestScoreKey = `tidashBestScore_${userId}`;
-                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                    
-                    bestScore = parseInt(localStorage.getItem(userBestScoreKey) || "0");
-                    seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey) || "0");
-                    
-                    // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
-                    localStorage.setItem(`tidashUsername_${userId}`, username);
-                    localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                    
-                    // Stocker les scores dans localStorage pour l'initialisation
-                    localStorage.setItem(userBestScoreKey, bestScore);
-                    localStorage.setItem(userSeasonScoreKey, seasonScore);
-                    
-                    // Enregistrer la date d'inscription
-                    localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
-                    
-                    // Enregistrer l'association entre l'ID Telegram et l'ID du jeu
-                    localStorage.setItem(telegramProfileKey, JSON.stringify({
-                        userId: userId,
-                        username: username,
-                        avatarSrc: avatarSrc,
-                        registrationDate: new Date().toISOString().split('T')[0]
-                    }));
-                    
-                    // Log pour débogage iOS
-                    console.log("Avatar initialisé:", avatarSrc);
-                    
-                    // Synchroniser avec le serveur après initialisation
-                    sendUserDataToServer();
-                    
-                    // Vérifier s'il y a une nouvelle saison
-                    setTimeout(function() {
-                        checkForNewSeason();
-                    }, 1000);
-                } else {
-                    console.log("Création d'un nouveau profil Telegram");
-                    // Créer un nouveau profil pour ce compte Telegram
-                    username = generateRandomUsername();
-                    userId = generateRandomUserId();
-                    
-                    // Utiliser un chemin absolu pour l'avatar par défaut
-                    avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                    bestScore = 0;
-                    seasonScore = 0;
-                    
-                    // Sauvegarder le profil avec les clés spécifiques à l'utilisateur
-                    localStorage.setItem(`tidashUsername_${userId}`, username);
-                    localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                    
-                    // Stocker les scores dans localStorage pour l'initialisation
-                    const userBestScoreKey = `tidashBestScore_${userId}`;
-                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                    localStorage.setItem(userBestScoreKey, bestScore);
-                    localStorage.setItem(userSeasonScoreKey, seasonScore);
-                    
-                    // Enregistrer la date d'inscription
-                    localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
-                    
-                    // Enregistrer l'association entre l'ID Telegram et l'ID du jeu
-                    localStorage.setItem(telegramProfileKey, JSON.stringify({
-                        userId: userId,
-                        username: username,
-                        avatarSrc: avatarSrc,
-                        registrationDate: new Date().toISOString().split('T')[0]
-                    }));
-                    
-                    // Log pour débogage iOS
-                    console.log("Nouveau profil créé avec avatar:", avatarSrc);
-                    
-                    // CRITICAL FIX: Envoyer immédiatement les données au serveur pour initialiser les scores
-                    setTimeout(sendUserDataToServer, 500);
-                }
-                
-                // CRITICAL FIX: Force a season check immediately to ensure we have the correct season score
-                setTimeout(function() {
-                    // Force a complete reset of season data to ensure we're starting fresh
-                    console.log("🔄 Forcing season check and potential reset on startup");
-                    checkForNewSeason(true); // Pass true to force a reset if needed
-                }, 1000);
+                        bestScore = 0;
+                        seasonScore = 0;
+                        
+                        // Send new user data to server
+                        sendUserDataToServer();
+                        
+                        // Check for new season
+                        setTimeout(function() {
+                            checkForNewSeason(true);
+                        }, 1000);
+                    });
             } else {
-                // Pas de Telegram, utiliser le comportement standard
-                if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
-                    // Récupérer les informations du profil standard
-                    username = localStorage.getItem("tidashUsername");
-                    userId = localStorage.getItem("tidashUserId");
-                    
-                    // Récupérer l'avatar s'il existe
-                    if (localStorage.getItem("tidashAvatarSrc")) {
-                        avatarSrc = localStorage.getItem("tidashAvatarSrc");
-                    }
-                    
-                    // Récupérer l'email PayPal s'il existe
-                    if (localStorage.getItem("tidashPaypalEmail")) {
-                        paypalEmail = localStorage.getItem("tidashPaypalEmail");
-                    }
-                    
-                    // Récupérer les scores depuis localStorage pour l'initialisation
-                    const userBestScoreKey = `tidashBestScore_${userId}`;
-                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                    
-                    bestScore = parseInt(localStorage.getItem(userBestScoreKey) || "0");
-                    seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey) || "0");
-                    
-                    // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
-                    localStorage.setItem(`tidashUsername_${userId}`, username);
-                    localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                    
-                    // Stocker les scores dans localStorage pour l'initialisation
-                    localStorage.setItem(userBestScoreKey, bestScore);
-                    localStorage.setItem(userSeasonScoreKey, seasonScore);
-                } else {
-                    // Générer un nouveau profil
-                    username = generateRandomUsername();
-                    userId = generateRandomUserId();
-                    avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                    bestScore = 0;
-                    seasonScore = 0;
-                    
-                    // Sauvegarder le profil
-                    localStorage.setItem("tidashUsername", username);
-                    localStorage.setItem("tidashUserId", userId);
-                    localStorage.setItem("tidashAvatarSrc", avatarSrc);
-                    
-                    // Stocker les scores dans localStorage pour l'initialisation
-                    const userBestScoreKey = `tidashBestScore_${userId}`;
-                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                    localStorage.setItem(userBestScoreKey, bestScore);
-                    localStorage.setItem(userSeasonScoreKey, seasonScore);
-                    
-                    // Enregistrer la date d'inscription
-                    localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
+                // No Telegram, use standard behavior with server-side storage
+                console.log("Initialisation du profil pour l'utilisateur standard");
+                
+                // Try to get a device identifier or generate a new one
+                let deviceId = getCookie("tidashDeviceId");
+                if (!deviceId) {
+                    deviceId = generateRandomUserId();
+                    setCookie("tidashDeviceId", deviceId, 365); // Store for 1 year
                 }
                 
-                // CRITICAL FIX: Force a complete synchronization with the server for non-Telegram users too
-                console.log("🔄 Forcing complete synchronization with server at startup (non-Telegram user)");
-                
-                // First, send our data to the server
-                sendUserDataToServer();
-                
-                // Then, force a check for new season
-                setTimeout(function() {
-                    checkForNewSeason(true); // Pass true to force a reset if needed
-                }, 1000);
+                // Fetch user data from server using device ID
+                fetch(`/api/users/device/${deviceId}`)
+                    .then(response => {
+                        if (response.status === 404) {
+                            // User not found, create new profile
+                            username = generateRandomUsername();
+                            userId = generateRandomUserId();
+                            avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            bestScore = 0;
+                            seasonScore = 0;
+                            
+                            // Send new user data to server
+                            sendUserDataToServer();
+                        } else {
+                            return response.json();
+                        }
+                    })
+                    .then(data => {
+                        if (data) {
+                            // Set user data from server response
+                            userId = data.gameId;
+                            username = data.gameUsername;
+                            avatarSrc = data.avatarSrc || window.location.origin + '/avatars/avatar_default.jpg';
+                            paypalEmail = data.paypalEmail || "";
+                            bestScore = parseInt(data.bestScore || "0");
+                            
+                            // Update UI
+                            updateUserProfileDisplay();
+                            updateScoreDisplay();
+                            loadSoundPreference();
+                        }
+                        
+                        // CRITICAL FIX: Force a complete synchronization with the server
+                        console.log("🔄 Forcing complete synchronization with server at startup (non-Telegram user)");
+                        
+                        // Check for new season
+                        setTimeout(function() {
+                            checkForNewSeason(true);
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        console.error("Error fetching user data:", error);
+                        
+                        // Fallback to creating a new user if fetch fails
+                        username = generateRandomUsername();
+                        userId = generateRandomUserId();
+                        avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                        bestScore = 0;
+                        seasonScore = 0;
+                        
+                        // Send new user data to server
+                        sendUserDataToServer();
+                        
+                        // Check for new season
+                        setTimeout(function() {
+                            checkForNewSeason(true);
+                        }, 1000);
+                    });
             }
             
             // Mettre à jour l'affichage du profil
@@ -1996,7 +1892,8 @@
                     bestScore: bestScore.toString(),
                     seasonScore: seasonScore.toString(),
                     lastLogin: new Date().toISOString().split('T')[0],
-                    avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
+                    avatarSrc: avatarSrc || "avatars/avatar_default.jpg",
+                    deviceId: getCookie("tidashDeviceId") || null
                 };
                 
                 fetch('/api/users', {
@@ -2082,6 +1979,236 @@
                 });
             } catch (error) {
                 console.error("Error in checkForNewSeason:", error);
+            }
+        }
+        
+        // Helper function to get cookie value
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+        
+        // Helper function to set cookie
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Strict";
+        }
+        
+        // Initialize the game
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize canvas dimensions
+            resizeCanvas();
+            
+            // Initialize stars
+            initStars();
+            
+            // Setup audio activation on user interaction
+            setupAudioActivation();
+            
+            // Initialize user profile
+            initUserProfile();
+            
+            // Initialize sound toggle button
+            const soundToggleBtn = document.getElementById('sound-toggle');
+            if (soundToggleBtn) {
+                soundToggleBtn.addEventListener('click', function() {
+                    // Toggle music state
+                    isMusicEnabled = !isMusicEnabled;
+                    userPrefersMusicEnabled = isMusicEnabled;
+                    
+                    // Update button appearance
+                    this.classList.toggle('muted', !isMusicEnabled);
+                    
+                    // Mark as activated by user
+                    musicActivatedByUser = true;
+                    
+                    // Update music playback
+                    if (isMusicEnabled) {
+                        // Start playing music if enabled
+                        playBackgroundMusic();
+                    } else {
+                        // Stop music if disabled
+                        stopBackgroundMusic();
+                    }
+                    
+                    // Save preference to server
+                    saveSoundPreference(isMusicEnabled);
+                });
+            }
+            
+            // Setup game event listeners
+            playAgainBtn.addEventListener('click', resetGame);
+            homeBtn.addEventListener('click', goToHome);
+            
+            // Setup profile button
+            const profileButton = document.getElementById('profile-button');
+            if (profileButton) {
+                profileButton.addEventListener('click', function() {
+                    // Show settings screen
+                    document.getElementById('settings-screen').style.display = 'block';
+                });
+            }
+            
+            // Setup settings close button
+            const closeSettingsBtn = document.getElementById('close-settings');
+            if (closeSettingsBtn) {
+                closeSettingsBtn.addEventListener('click', function() {
+                    // Hide settings screen
+                    document.getElementById('settings-screen').style.display = 'none';
+                });
+            }
+            
+            // Setup window resize handler
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Set initial game mode
+            gameMode = 'home';
+            
+            // Initialize background music
+            manageBackgroundMusic();
+            
+            // Start game loop
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        });
+        
+        // Function to manage background music
+        function manageBackgroundMusic() {
+            if (gameMode === 'home') {
+                // On home screen, play music if enabled
+                if (isMusicEnabled) {
+                    playBackgroundMusic();
+                }
+            } else if (gameMode === 'game') {
+                // During gameplay, stop music
+                stopBackgroundMusic();
+            }
+        }
+        
+        // Function to play background music
+        function playBackgroundMusic() {
+            try {
+                if (!isMusicEnabled) return;
+                
+                const backgroundMusicElement = document.getElementById('backgroundMusic');
+                if (!backgroundMusicElement) return;
+                
+                // If no music is currently selected or playing, pick a random one
+                if (currentMusicIndex === -1 || backgroundMusicElement.paused) {
+                    // Pick a random music from the list
+                    const newIndex = Math.floor(Math.random() * homeMusics.length);
+                    currentMusicIndex = newIndex;
+                    
+                    // Set the source
+                    backgroundMusicElement.src = homeMusics[currentMusicIndex];
+                    
+                    // Set volume
+                    backgroundMusicElement.volume = 0.3;
+                    
+                    // Play the music
+                    const playPromise = backgroundMusicElement.play();
+                    
+                    // Handle autoplay restrictions
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            console.log('Autoplay prevented:', error);
+                            window.musicPendingAutoplay = true;
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error playing background music:', error);
+            }
+        }
+        
+        // Function to stop background music
+        function stopBackgroundMusic() {
+            try {
+                const backgroundMusicElement = document.getElementById('backgroundMusic');
+                if (backgroundMusicElement && !backgroundMusicElement.paused) {
+                    backgroundMusicElement.pause();
+                }
+            } catch (error) {
+                console.error('Error stopping background music:', error);
+            }
+        }
+        
+        // Function to save sound preference to server
+        function saveSoundPreference(enabled) {
+            try {
+                // Send preference to server
+                fetch('/api/users/preferences', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        musicEnabled: enabled
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to save sound preference');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Sound preference saved:', data);
+                })
+                .catch(error => {
+                    console.error('Error saving sound preference:', error);
+                });
+            } catch (error) {
+                console.error('Error in saveSoundPreference:', error);
+            }
+        }
+        
+        // Function to load sound preference from server
+        function loadSoundPreference() {
+            try {
+                if (!userId) return;
+                
+                // Get preference from server
+                fetch(`/api/users/${userId}/preferences`)
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            return { musicEnabled: false };
+                        }
+                        throw new Error('Failed to load sound preference');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.musicEnabled !== undefined) {
+                        isMusicEnabled = data.musicEnabled;
+                        userPrefersMusicEnabled = data.musicEnabled;
+                        
+                        // Update UI
+                        const soundToggleBtn = document.getElementById('sound-toggle');
+                        if (soundToggleBtn) {
+                            soundToggleBtn.classList.toggle('muted', !isMusicEnabled);
+                        }
+                        
+                        // Update music playback
+                        if (isMusicEnabled && gameMode === 'home') {
+                            playBackgroundMusic();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading sound preference:', error);
+                });
+            } catch (error) {
+                console.error('Error in loadSoundPreference:', error);
             }
         }
     </script>

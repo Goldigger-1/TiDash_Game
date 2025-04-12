@@ -63,6 +63,15 @@ const User = sequelize.define('User', {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  deviceId: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  musicEnabled: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
   }
 });
 
@@ -296,6 +305,62 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// New route to get user by Telegram ID
+app.get('/api/users/telegram/:telegramId', async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+    
+    console.log(`🔍 Attempting to find user with Telegram ID: ${telegramId}`);
+    
+    // Find user by Telegram ID
+    const user = await User.findOne({ 
+      where: { telegramId: telegramId }
+    });
+    
+    if (!user) {
+      console.log(`👤 User with Telegram ID ${telegramId} not found`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log(`✅ User with Telegram ID ${telegramId} found`);
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('❌ Error retrieving user by Telegram ID:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving user by Telegram ID', 
+      details: error.message 
+    });
+  }
+});
+
+// New route to get user by device ID
+app.get('/api/users/device/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    console.log(`🔍 Attempting to find user with Device ID: ${deviceId}`);
+    
+    // Find user by device ID (stored in a new column)
+    const user = await User.findOne({ 
+      where: { deviceId: deviceId }
+    });
+    
+    if (!user) {
+      console.log(`👤 User with Device ID ${deviceId} not found`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log(`✅ User with Device ID ${deviceId} found`);
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('❌ Error retrieving user by Device ID:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving user by Device ID', 
+      details: error.message 
+    });
+  }
+});
+
 // Route pour récupérer un utilisateur spécifique
 app.get('/api/users/:id', async (req, res) => {
   try {
@@ -304,16 +369,15 @@ app.get('/api/users/:id', async (req, res) => {
     console.log(`Tentative de récupération de l'utilisateur avec ID: ${id}`);
     
     // Récupérer l'utilisateur par gameId (qui est la clé primaire)
-    const user = await User.findOne({ where: { gameId: id } });
+    const user = await User.findByPk(id);
     
     if (!user) {
       console.log(`Utilisateur avec ID ${id} non trouvé`);
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+      return res.status(404).json({ error: 'User not found' });
     }
     
-    console.log(`Utilisateur trouvé: ${user.gameUsername} (${user.gameId})`);
-    
-    res.json(user);
+    console.log(`Utilisateur avec ID ${id} trouvé`);
+    res.status(200).json(user);
   } catch (error) {
     console.error('Erreur lors de la récupération de l\'utilisateur:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur', details: error.message });
@@ -386,19 +450,14 @@ app.post('/api/users', async (req, res) => {
     // CRITICAL FIX: Get the active season first
     const activeSeason = await Season.findOne({ where: { isActive: true } });
     
-    // Extract data from request
-    const currentScore = userData.bestScore ? parseInt(userData.bestScore) : 0;
-    const currentSeasonScore = userData.seasonScore ? parseInt(userData.seasonScore) : 0;
-    const lastKnownSeasonId = userData.lastKnownSeasonId || null;
-
-    console.log(`🔍 Processing user ${userData.gameId} - Global score: ${currentScore}, Season score: ${currentSeasonScore}, Last known season: ${lastKnownSeasonId}`);
-
     // Vérifier si l'utilisateur existe déjà
     let user = null;
     if (userData.gameId) {
-      user = await User.findOne({ where: { gameId: userData.gameId } });
+      user = await User.findByPk(userData.gameId);
     } else if (userData.telegramId) {
       user = await User.findOne({ where: { telegramId: userData.telegramId } });
+    } else if (userData.deviceId) {
+      user = await User.findOne({ where: { deviceId: userData.deviceId } });
     }
 
     // Start a transaction to ensure data consistency
@@ -407,186 +466,107 @@ app.post('/api/users', async (req, res) => {
     try {
       if (user) {
         // Mettre à jour l'utilisateur existant
-        const updateData = {};
+        console.log(`🔄 Updating existing user: ${user.gameId}`);
         
-        // Mettre à jour les champs si fournis
-        if (userData.gameUsername) updateData.gameUsername = userData.gameUsername;
-        if (userData.telegramId) updateData.telegramId = userData.telegramId;
-        if (userData.telegramUsername) updateData.telegramUsername = userData.telegramUsername;
-        if (userData.paypalEmail) updateData.paypalEmail = userData.paypalEmail;
+        // Update user data
+        await user.update({
+          gameUsername: userData.gameUsername || user.gameUsername,
+          telegramId: userData.telegramId || user.telegramId,
+          telegramUsername: userData.telegramUsername || user.telegramUsername,
+          paypalEmail: userData.paypalEmail || user.paypalEmail,
+          bestScore: Math.max(parseInt(userData.bestScore) || 0, user.bestScore || 0),
+          lastLogin: new Date(),
+          avatarSrc: userData.avatarSrc || user.avatarSrc,
+          deviceId: userData.deviceId || user.deviceId,
+          musicEnabled: userData.musicEnabled !== undefined ? userData.musicEnabled : user.musicEnabled
+        }, { transaction });
         
-        // Mettre à jour le meilleur score global si le nouveau score est plus élevé
-        if (currentScore > user.bestScore) {
-          updateData.bestScore = currentScore;
-          console.log(`📈 Global score updated for ${user.gameId}: ${currentScore}`);
-        }
-        
-        // Mettre à jour la date de dernière connexion
-        updateData.lastLogin = new Date();
-        
-        await user.update(updateData, { transaction });
-        
-        // RADICAL SOLUTION: Handle season scores completely separately from user data
+        // If there's an active season, update or create the season score
         if (activeSeason) {
-          // First, check if this is a new season for the user
-          // FIXED: Make isNewSeason false by default to prevent resetting scores unnecessarily
-          // Only set it to true if we have explicit information that it's a new season
-          let isNewSeason = false;
-          
-          // Only check for new season if lastKnownSeasonId is provided and valid
-          if (lastKnownSeasonId) {
-            isNewSeason = lastKnownSeasonId !== activeSeason.id.toString();
-          }
-          
-          console.log(`🔄 Season check - Active: ${activeSeason.id}, Last known: ${lastKnownSeasonId}, Is new: ${isNewSeason}`);
-          
-          // Get the user's current season score from the database
-          let seasonScoreRecord = await SeasonScore.findOne({
-            where: { 
-              userId: user.gameId, 
-              seasonId: activeSeason.id 
+          // Find or create season score for this user
+          const [seasonScore, created] = await SeasonScore.findOrCreate({
+            where: {
+              userId: user.gameId,
+              seasonId: activeSeason.id
+            },
+            defaults: {
+              score: parseInt(userData.seasonScore) || 0
             },
             transaction
           });
           
-          if (!seasonScoreRecord) {
-            // If no record exists, create one with score 0
-            seasonScoreRecord = await SeasonScore.create({
-              userId: user.gameId,
-              seasonId: activeSeason.id,
-              score: 0  // Always start with 0
-            }, { transaction });
-            console.log(`✨ New season score initialized to 0 for ${user.gameId}`);
-          }
-          
-          // Now handle the score update based on whether it's a new season
-          if (isNewSeason) {
-            // CRITICAL FIX: For a new season, ALWAYS FORCE the score to 0 regardless of client data
-            await seasonScoreRecord.update({ score: 0 }, { transaction });
-            console.log(`🔄 FORCE RESET: Season score reset to 0 for ${user.gameId} due to new season detection`);
+          // If the season score already exists, update it only if the new score is higher
+          if (!created) {
+            const currentScore = seasonScore.score || 0;
+            const newScore = parseInt(userData.seasonScore) || 0;
             
-            // IMPORTANT FIX: If the client is sending a score > 0, this means they've played a game
-            // in the new season, so we should update their score
-            if (currentSeasonScore > 0) {
-              await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
-              console.log(`📈 First game in new season for ${user.gameId}: score set to ${currentSeasonScore}`);
+            if (newScore > currentScore) {
+              await seasonScore.update({
+                score: newScore
+              }, { transaction });
+              console.log(`📊 Updated season score for user ${user.gameId}: ${currentScore} -> ${newScore}`);
             }
-            
-            // Return early with the reset/updated score to force client to sync with the new season
-            const updatedScore = await SeasonScore.findOne({
-              where: { 
-                userId: user.gameId, 
-                seasonId: activeSeason.id 
-              },
-              transaction
-            });
-            
-            // Commit the transaction
-            await transaction.commit();
-            
-            // Return user data with the season score
-            return res.status(200).json({ 
-              message: 'New season detected! Season score updated.', 
-              user,
-              seasonData: {
-                seasonId: activeSeason.id,
-                seasonNumber: activeSeason.seasonNumber,
-                currentScore: updatedScore.score,
-                isNewSeason: true
-              }
-            });
-          } else {
-            // CRITICAL FIX: For existing seasons, we need to handle two cases:
-            // 1. If the score from the client is better than what we have stored
-            // 2. If the client has a score of 0 but we have a non-zero score (client needs to sync)
-            
-            if (currentSeasonScore > seasonScoreRecord.score) {
-              // Update if the new score is better
-              await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
-              console.log(`📈 Season score updated for ${user.gameId}: ${currentSeasonScore}`);
-            } else if (currentSeasonScore === 0 && seasonScoreRecord.score > 0) {
-              // Client has a score of 0 but we have a non-zero score - this indicates the client
-              // needs to sync with our data, so we don't update our record
-              console.log(`⚠️ Client has score 0 but server has ${seasonScoreRecord.score} for ${user.gameId} - sending server data`);
-            } else {
-              console.log(`ℹ️ No season score update needed: current ${currentSeasonScore} <= existing ${seasonScoreRecord.score}`);
-            }
-            
-            // Return the current season score to the client for validation
-            const updatedScore = await SeasonScore.findOne({
-              where: { 
-                userId: user.gameId, 
-                seasonId: activeSeason.id 
-              },
-              transaction
-            });
-            
-            // Commit the transaction
-            await transaction.commit();
-            
-            // Return user data with the current season score
-            res.status(200).json({ 
-              message: 'User updated successfully', 
-              user,
-              seasonData: {
-                seasonId: activeSeason.id,
-                seasonNumber: activeSeason.seasonNumber,
-                currentScore: updatedScore ? updatedScore.score : 0
-              }
-            });
           }
-        } else {
-          // No active season
-          await transaction.commit();
-          res.status(200).json({ message: 'User updated successfully', user });
         }
+        
+        // Commit the transaction
+        await transaction.commit();
+        
+        // Return updated user data
+        res.status(200).json({
+          message: 'User updated successfully',
+          user: user,
+          seasonData: activeSeason ? {
+            id: activeSeason.id,
+            seasonNumber: activeSeason.seasonNumber,
+            endDate: activeSeason.endDate,
+            currentScore: userData.seasonScore
+          } : null
+        });
       } else {
         // Créer un nouvel utilisateur
-        if (!userData.gameId || !userData.gameUsername) {
-          await transaction.rollback();
-          return res.status(400).json({ error: 'gameId and gameUsername are required to create a new user' });
-        }
+        console.log('➕ Creating new user');
         
-        const newUser = await User.create({
+        // Create new user
+        user = await User.create({
           gameId: userData.gameId,
           gameUsername: userData.gameUsername,
-          telegramId: userData.telegramId || null,
-          telegramUsername: userData.telegramUsername || null,
-          paypalEmail: userData.paypalEmail || null,
-          bestScore: currentScore,
-          registrationDate: userData.registrationDate || new Date(),
-          lastLogin: new Date()
+          telegramId: userData.telegramId,
+          telegramUsername: userData.telegramUsername,
+          paypalEmail: userData.paypalEmail || '',
+          bestScore: parseInt(userData.bestScore) || 0,
+          registrationDate: new Date(),
+          lastLogin: new Date(),
+          avatarSrc: userData.avatarSrc,
+          deviceId: userData.deviceId,
+          musicEnabled: userData.musicEnabled !== undefined ? userData.musicEnabled : false
         }, { transaction });
         
-        console.log(`✨ New user created: ${newUser.gameId}`);
-        
-        // Si une saison active existe, créer un score de saison pour le nouvel utilisateur
+        // If there's an active season, create a season score for this user
         if (activeSeason) {
           await SeasonScore.create({
-            userId: newUser.gameId,
+            userId: user.gameId,
             seasonId: activeSeason.id,
-            score: currentSeasonScore
+            score: parseInt(userData.seasonScore) || 0
           }, { transaction });
-          console.log(`✨ Season score created for new user ${newUser.gameId}: ${currentSeasonScore}`);
           
-          // Commit the transaction
-          await transaction.commit();
-          
-          // Return user data with the current season score
-          res.status(201).json({ 
-            message: 'New user created successfully', 
-            user: newUser,
-            seasonData: {
-              seasonId: activeSeason.id,
-              seasonNumber: activeSeason.seasonNumber,
-              currentScore: currentSeasonScore
-            }
-          });
-        } else {
-          // No active season
-          await transaction.commit();
-          res.status(201).json({ message: 'New user created successfully', user: newUser });
+          console.log(`📊 Created new season score for user ${user.gameId}: ${parseInt(userData.seasonScore) || 0}`);
         }
+        
+        // Commit the transaction
+        await transaction.commit();
+        
+        // Return created user data
+        res.status(201).json({
+          message: 'User created successfully',
+          user: user,
+          seasonData: activeSeason ? {
+            id: activeSeason.id,
+            seasonNumber: activeSeason.seasonNumber,
+            endDate: activeSeason.endDate,
+            currentScore: userData.seasonScore
+          } : null
+        });
       }
     } catch (error) {
       // Rollback the transaction in case of error
@@ -594,8 +574,12 @@ app.post('/api/users', async (req, res) => {
       throw error;
     }
   } catch (error) {
-    console.error('❌ Error saving user:', error);
-    res.status(500).json({ error: 'Error saving user', details: error.message });
+    console.error('❌ Error creating/updating user:', error);
+    res.status(500).json({ 
+      error: 'Error creating/updating user', 
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 
@@ -1051,6 +1035,70 @@ app.get('/api/users/:userId/scores', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching user scores:', error);
     res.status(500).json({ error: 'Error fetching user scores', details: error.message });
+  }
+});
+
+// New API endpoint to get user preferences
+app.get('/api/users/:userId/preferences', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    console.log(`🔍 Fetching preferences for user ${userId}`);
+    
+    // Find the user
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Return user preferences
+    res.status(200).json({
+      musicEnabled: user.musicEnabled || false
+    });
+  } catch (error) {
+    console.error('❌ Error fetching user preferences:', error);
+    res.status(500).json({ 
+      error: 'Error fetching user preferences', 
+      details: error.message 
+    });
+  }
+});
+
+// New API endpoint to save user preferences
+app.post('/api/users/preferences', async (req, res) => {
+  try {
+    const { userId, musicEnabled } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    console.log(`🔄 Saving preferences for user ${userId}: musicEnabled=${musicEnabled}`);
+    
+    // Find the user
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Update user preferences
+    await user.update({
+      musicEnabled: musicEnabled !== undefined ? musicEnabled : user.musicEnabled
+    });
+    
+    // Return success
+    res.status(200).json({
+      message: 'Preferences saved successfully',
+      preferences: {
+        musicEnabled: user.musicEnabled
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error saving user preferences:', error);
+    res.status(500).json({ 
+      error: 'Error saving user preferences', 
+      details: error.message 
+    });
   }
 });
 
