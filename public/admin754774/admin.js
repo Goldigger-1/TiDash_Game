@@ -370,30 +370,27 @@ function updateStats(users) {
 
 // Afficher les détails d'un utilisateur
 function showUserDetails(userId) {
-    // Construire l'URL avec les paramètres de pagination et de recherche
-    const url = `/api/users?search=${encodeURIComponent(userId)}`;
-    
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data.users && data.users.length > 0) {
-                const user = data.users[0];
-                
-                // Remplir la modal avec les détails de l'utilisateur
-                document.getElementById('modal-user-id').textContent = user.gameId || 'N/A';
-                document.getElementById('modal-username').textContent = user.gameUsername || 'N/A';
-                document.getElementById('modal-telegram-id').textContent = user.telegramId || 'N/A';
-                document.getElementById('modal-telegram-username').textContent = user.telegramUsername || 'N/A';
-                document.getElementById('modal-paypal').textContent = user.paypalEmail || 'N/A';
-                document.getElementById('modal-best-score').textContent = user.bestScore || '0';
-                document.getElementById('modal-registration-date').textContent = user.registrationDate || 'N/A';
-                document.getElementById('modal-last-login').textContent = user.lastLogin || 'N/A';
-                
-                // Afficher la modal
-                userModal.style.display = 'flex';
-            } else {
-                alert('Utilisateur non trouvé');
+    // Utiliser la route API correcte pour récupérer un utilisateur spécifique
+    fetch(`/api/users/${userId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Erreur lors de la récupération des détails de l\'utilisateur');
             }
+            return response.json();
+        })
+        .then(user => {
+            // Remplir la modal avec les détails de l'utilisateur
+            document.getElementById('modal-user-id').textContent = user.gameId || 'N/A';
+            document.getElementById('modal-username').textContent = user.gameUsername || 'N/A';
+            document.getElementById('modal-telegram-id').textContent = user.telegramId || 'N/A';
+            document.getElementById('modal-telegram-username').textContent = user.telegramUsername || 'N/A';
+            document.getElementById('modal-paypal').textContent = user.paypalEmail || 'N/A';
+            document.getElementById('modal-best-score').textContent = user.bestScore || '0';
+            document.getElementById('modal-registration-date').textContent = formatDate(user.registrationDate) || 'N/A';
+            document.getElementById('modal-last-login').textContent = formatDate(user.lastLogin) || 'N/A';
+            
+            // Afficher la modal
+            userModal.style.display = 'flex';
         })
         .catch(error => {
             console.error('Erreur lors de la récupération des détails de l\'utilisateur:', error);

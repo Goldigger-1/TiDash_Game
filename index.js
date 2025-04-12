@@ -255,30 +255,30 @@ app.get('/admin754774', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin754774', 'index.html'));
 });
 
-// API pour récupérer les données utilisateurs avec pagination
+// API pour récupérer tous les utilisateurs (avec pagination et recherche)
 app.get('/api/users', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
     
-    let whereClause = {};
+    // Construire la condition de recherche
+    const whereCondition = search
+      ? {
+          [Op.or]: [
+            { gameId: { [Op.like]: `%${search}%` } },
+            { gameUsername: { [Op.like]: `%${search}%` } },
+            { telegramId: { [Op.like]: `%${search}%` } },
+            { telegramUsername: { [Op.like]: `%${search}%` } },
+            { paypalEmail: { [Op.like]: `%${search}%` } }
+          ]
+        }
+      : {};
     
-    if (search) {
-      whereClause = {
-        [Op.or]: [
-          { gameUsername: { [Op.like]: `%${search}%` } },
-          { gameId: { [Op.like]: `%${search}%` } },
-          { telegramUsername: { [Op.like]: `%${search}%` } },
-          { telegramId: { [Op.like]: `%${search}%` } },
-          { paypalEmail: { [Op.like]: `%${search}%` } }
-        ]
-      };
-    }
-    
+    // Récupérer les utilisateurs avec pagination
     const { count, rows } = await User.findAndCountAll({
-      where: whereClause,
+      where: whereCondition,
       order: [['bestScore', 'DESC']],
       limit,
       offset
@@ -292,27 +292,53 @@ app.get('/api/users', async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
   }
 });
 
-// API pour supprimer un utilisateur
-app.delete('/api/users/:id', async (req, res) => {
+// Route pour récupérer un utilisateur spécifique
+app.get('/api/users/:id', async (req, res) => {
   try {
-    const userId = req.params.id;
+    const { id } = req.params;
     
-    const result = await User.destroy({
-      where: { gameId: userId }
-    });
+    // Récupérer l'utilisateur par ID
+    const user = await User.findByPk(id);
     
-    if (result === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
+  }
+});
+
+// Route pour supprimer un utilisateur
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Vérifier si l'utilisateur existe
+    const user = await User.findByPk(id);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    // Supprimer les scores de saison associés à cet utilisateur
+    await SeasonScore.destroy({
+      where: { userId: id }
+    });
+    
+    // Supprimer l'utilisateur
+    await user.destroy();
     
     res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
   } catch (error) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
   }
 });
 

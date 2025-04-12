@@ -1407,6 +1407,12 @@
                         score++;
                         seasonScore++;
                         
+                        // Mettre à jour le score de saison dans le localStorage
+                        localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                        
+                        // Envoyer les données utilisateur au serveur
+                        sendUserDataToServer();
+                        
                         // Create explosion effect
                         createExplosion(square.x + square.size / 2, square.y + square.size / 2, '#00FF9D');
                         
