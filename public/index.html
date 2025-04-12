@@ -1173,7 +1173,10 @@
             
             // Continue the game loop
             if (gameRunning) {
-                requestAnimationFrame(gameLoop);
+                window.gameLoopAnimationId = requestAnimationFrame(gameLoop);
+            } else if (window.gameLoopAnimationId) {
+                cancelAnimationFrame(window.gameLoopAnimationId);
+                window.gameLoopAnimationId = null;
             }
         }
 
@@ -1594,21 +1597,30 @@
             line.x = (canvas.width - line.width) / 2;
             line.y = ball.y - ball.radius;
             
+            // Reset spawn interval
+            squareInterval = 1000; // Reset to initial spawn interval
+            lastSquareTime = Date.now();
+            
             // Hide profile button during gameplay
             document.getElementById("profile-button").style.display = 'none';
             
             // Manage background music for game mode
             manageBackgroundMusic();
             
-            // Make sure game loop is running
-            if (!gameRunning) {
-                gameRunning = true;
-                lastFrameTime = null;
-                requestAnimationFrame(gameLoop);
+            // Ensure the game loop is properly reset and running
+            gameRunning = true;
+            lastFrameTime = null;
+            
+            // Force a new animation frame to restart the game loop
+            if (window.gameLoopAnimationId) {
+                cancelAnimationFrame(window.gameLoopAnimationId);
             }
+            window.gameLoopAnimationId = requestAnimationFrame(gameLoop);
             
             // Play sound effect
             playSound('userTap');
+            
+            console.log("🎮 Game reset and restarted");
         }
 
         // Handle screen tap/click
