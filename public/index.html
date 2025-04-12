@@ -1864,6 +1864,9 @@
             const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : "N/A";
             const telegramUsername = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.username || "N/A" : "N/A";
             
+            // Get the last known season ID to help the server identify new seasons
+            const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
+            
             // Récupérer les données utilisateur du localStorage
             const userData = {
                 gameId: userId,
@@ -1871,10 +1874,11 @@
                 telegramId: telegramId,
                 telegramUsername: telegramUsername,
                 paypalEmail: paypalEmail || "",
-                bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
-                seasonScore: localStorage.getItem(`tidashSeasonScore_${userId}`) || "0",
+                bestScore: bestScore.toString(), // Use the in-memory value which is more accurate
+                seasonScore: seasonScore.toString(), // Use the in-memory value which is more accurate
                 lastLogin: new Date().toISOString().split('T')[0],
-                avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
+                avatarSrc: avatarSrc || "avatars/avatar_default.jpg",
+                lastKnownSeasonId: lastKnownSeasonId || null // Add this to help server identify new seasons
             };
 
             console.log("Envoi des données utilisateur au serveur:", userData);
