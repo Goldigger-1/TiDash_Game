@@ -266,7 +266,6 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: 5.5px;
         }
         
         .user-info {
@@ -473,41 +472,32 @@
         .avatars-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            position: relative;
-            z-index: 3;
+            gap: 15px;
+            margin-top: 15px;
+            width: 100%;
         }
         
         .avatar-item {
             position: relative;
-            margin: 5px;
-            cursor: pointer;
-            border-radius: 50%;
             width: 60px;
             height: 60px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: all 0.2s ease;
+            border-radius: 50%;
+            overflow: hidden;
+            cursor: pointer;
+            margin: 0 auto;
+            border: 3px solid transparent;
+            box-sizing: content-box;
         }
         
         .avatar-item img {
-            width: 60px;
-            height: 60px;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
-            border-radius: 50%;
-            transition: transform 0.2s;
-            will-change: transform;
         }
         
         .avatar-item.selected {
             border: 3px solid #4CAF50;
             box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
-            border-radius: 50%;
-        }
-        
-        .avatar-item:hover img {
-            transform: scale(1.05);
         }
         
         .avatar-check {
@@ -524,7 +514,6 @@
             align-items: center;
             font-size: 12px;
             opacity: 0;
-            transition: opacity 0.2s;
         }
         
         .avatar-item.selected .avatar-check {
@@ -2119,17 +2108,17 @@
                 
                 // Ajouter chaque avatar à la grille
                 avatarsList.forEach(avatarFile => {
-                    // Utiliser un chemin absolu pour iOS
-                    const avatarPath = window.location.origin + '/avatars/' + avatarFile;
-                    const isSelected = avatarPath === avatarSrc || 
-                                      ('/avatars/' + avatarFile) === avatarSrc || 
-                                      ('avatars/' + avatarFile) === avatarSrc;
+                    // Chemin simple pour l'avatar
+                    const avatarPath = 'avatars/' + avatarFile;
+                    
+                    // Vérifier si cet avatar est sélectionné
+                    const isSelected = avatarSrc.includes(avatarFile);
                     
                     // Créer l'élément d'avatar
                     const avatarItem = document.createElement('div');
                     avatarItem.className = `avatar-item${isSelected ? ' selected' : ''}`;
                     
-                    // Créer l'élément img séparément pour iOS
+                    // Créer l'élément img
                     const imgElement = document.createElement('img');
                     imgElement.src = avatarPath;
                     imgElement.alt = "Avatar";
@@ -2144,10 +2133,7 @@
                     avatarItem.appendChild(checkElement);
                     
                     // Fonction de sélection d'avatar
-                    const selectAvatar = function(e) {
-                        // Empêcher le comportement par défaut pour éviter les problèmes sur iOS
-                        if (e) e.preventDefault();
-                        
+                    avatarItem.onclick = function() {
                         // Désélectionner tous les avatars
                         document.querySelectorAll('.avatar-item').forEach(item => {
                             item.classList.remove('selected');
@@ -2156,8 +2142,8 @@
                         // Sélectionner cet avatar
                         avatarItem.classList.add('selected');
                         
-                        // Mettre à jour l'avatar de l'utilisateur
-                        avatarSrc = avatarPath;
+                        // Mettre à jour l'avatar de l'utilisateur (avec chemin absolu pour la cohérence)
+                        avatarSrc = window.location.origin + '/' + avatarPath;
                         
                         // Mettre à jour les images d'avatar dans l'interface
                         const avatarImg = document.getElementById('avatarImg');
@@ -2166,8 +2152,8 @@
                         if (avatarImg) avatarImg.src = avatarPath;
                         if (settingsAvatar) settingsAvatar.src = avatarPath;
                         
-                        // Sauvegarder dans le localStorage avec une clé spécifique à l'utilisateur
-                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarPath);
+                        // Sauvegarder dans le localStorage
+                        localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                         
                         // Si l'utilisateur est connecté via Telegram, mettre à jour son profil
                         const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
@@ -2177,7 +2163,7 @@
                             
                             if (storedProfile) {
                                 const profileData = JSON.parse(storedProfile);
-                                profileData.avatarSrc = avatarPath;
+                                profileData.avatarSrc = avatarSrc;
                                 localStorage.setItem(telegramProfileKey, JSON.stringify(profileData));
                             }
                         }
@@ -2185,10 +2171,6 @@
                         // Synchroniser avec le serveur
                         sendUserDataToServer();
                     };
-                    
-                    // Ajouter des événements pour iOS et Android
-                    avatarItem.addEventListener('click', selectAvatar);
-                    avatarItem.addEventListener('touchend', selectAvatar);
                     
                     // Ajouter au fragment
                     fragment.appendChild(avatarItem);
