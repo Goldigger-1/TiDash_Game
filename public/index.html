@@ -297,6 +297,8 @@
             background-color: #000;
             display: none;
             z-index: 10;
+            -webkit-transform: translateZ(0); /* Forcer l'accélération matérielle */
+            transform: translateZ(0);
         }
         
         .settings-content {
@@ -308,6 +310,10 @@
             touch-action: pan-y;
             padding: 20px;
             box-sizing: border-box;
+            position: relative;
+            z-index: 1;
+            -webkit-transform: translateZ(0); /* Forcer l'accélération matérielle */
+            transform: translateZ(0);
         }
         
         .settings-header {
@@ -459,12 +465,17 @@
         
         .avatars-section {
             margin-bottom: 30px;
+            position: relative;
+            z-index: 2;
+            padding-bottom: 30px; /* Ajouter de l'espace en bas */
         }
         
         .avatars-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 10px;
+            position: relative;
+            z-index: 3;
         }
         
         .avatar-item {
