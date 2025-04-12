@@ -301,17 +301,22 @@ app.get('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Récupérer l'utilisateur par ID
-    const user = await User.findByPk(id);
+    console.log(`Tentative de récupération de l'utilisateur avec ID: ${id}`);
+    
+    // Récupérer l'utilisateur par gameId (qui est la clé primaire)
+    const user = await User.findOne({ where: { gameId: id } });
     
     if (!user) {
+      console.log(`Utilisateur avec ID ${id} non trouvé`);
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
+    
+    console.log(`Utilisateur trouvé: ${user.gameUsername} (${user.gameId})`);
     
     res.json(user);
   } catch (error) {
     console.error('Erreur lors de la récupération de l\'utilisateur:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur' });
+    res.status(500).json({ error: 'Erreur lors de la récupération de l\'utilisateur', details: error.message });
   }
 });
 
@@ -320,25 +325,34 @@ app.delete('/api/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Vérifier si l'utilisateur existe
-    const user = await User.findByPk(id);
+    console.log(`Tentative de suppression de l'utilisateur avec ID: ${id}`);
+    
+    // Vérifier si l'utilisateur existe en utilisant gameId comme clé de recherche
+    const user = await User.findOne({ where: { gameId: id } });
     
     if (!user) {
+      console.log(`Utilisateur avec ID ${id} non trouvé`);
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
     
+    console.log(`Utilisateur trouvé: ${user.gameUsername} (${user.gameId})`);
+    
     // Supprimer les scores de saison associés à cet utilisateur
-    await SeasonScore.destroy({
+    const deletedScores = await SeasonScore.destroy({
       where: { userId: id }
     });
+    
+    console.log(`${deletedScores} scores de saison supprimés pour l'utilisateur ${id}`);
     
     // Supprimer l'utilisateur
     await user.destroy();
     
+    console.log(`Utilisateur ${id} supprimé avec succès`);
+    
     res.status(200).json({ message: 'Utilisateur supprimé avec succès' });
   } catch (error) {
     console.error('Erreur lors de la suppression de l\'utilisateur:', error);
-    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
+    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur', details: error.message });
   }
 });
 
