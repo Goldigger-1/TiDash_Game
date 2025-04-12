@@ -574,6 +574,17 @@
         .sound-toggle:not(.muted) .sound-off {
             display: none;
         }
+        
+        /* Correction pour iOS */
+        .avatars-wrapper {
+            position: relative;
+            padding-bottom: 60px; /* Espace supplémentaire en bas */
+        }
+        
+        .ios-spacer {
+            height: 60px; /* Espace supplémentaire pour éviter la zone noire */
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -669,9 +680,12 @@
                 </div>
                 
                 <div class="avatars-section">
-                    <div class="section-title">Select your avatar</div>
-                    <div class="avatars-grid" id="avatars-grid">
-                        <!-- Les avatars seront ajoutés dynamiquement ici -->
+                    <div class="avatars-wrapper">
+                        <div class="section-title">Select your avatar</div>
+                        <div class="avatars-grid" id="avatars-grid">
+                            <!-- Les avatars seront ajoutés dynamiquement ici -->
+                        </div>
+                        <div class="ios-spacer"></div>
                     </div>
                 </div>
             </div>
