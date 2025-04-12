@@ -6,23 +6,45 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config();
 
 // Chemin de la base de données persistante
-const DB_PATH = '/var/lib/tidash_database.sqlite';
+const DB_PATH = process.env.NODE_ENV === 'production' 
+  ? '/var/lib/tidash_database.sqlite'
+  : path.join(__dirname, 'tidash_database.sqlite');
 
 // Vérifier si le fichier de base de données existe, sinon le créer
 if (!fs.existsSync(DB_PATH)) {
   try {
+    // Create directory if it doesn't exist (for production path)
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(DB_PATH, '', { flag: 'wx' });
     console.log(`📁 Database file created at ${DB_PATH}`);
   } catch (err) {
-    console.error(`Erreur lors de la création du fichier de base de données: ${err.message}`);
+    console.error(`❌ Error creating database file: ${err.message}`);
+    // Critical: Don't crash the server, but log the error
   }
 }
 
-// Initialiser la base de données SQLite
+// Initialiser la base de données SQLite avec des options robustes
 const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: DB_PATH,
-  logging: false // Désactiver les logs SQL pour la production
+  logging: false, // Désactiver les logs SQL pour la production
+  retry: {
+    max: 3, // Maximum retry 3 times
+    match: [/SQLITE_BUSY/], // Only retry for SQLITE_BUSY errors
+  },
+  pool: {
+    max: 5, // Maximum number of connection in pool
+    min: 0, // Minimum number of connection in pool
+    acquire: 30000, // The maximum time, in milliseconds, that pool will try to get connection before throwing error
+    idle: 10000 // The maximum time, in milliseconds, that a connection can be idle before being released
+  },
+  // Add this to handle connection issues
+  dialectOptions: {
+    timeout: 15000 // Timeout in ms
+  }
 });
 
 // Définition des modèles
@@ -132,15 +154,32 @@ const SeasonScore = sequelize.define('SeasonScore', {
   }
 });
 
-// Synchroniser les modèles avec la base de données
+// Synchroniser les modèles avec la base de données de manière robuste
 (async () => {
-  try {
-    // Synchroniser les modèles sans supprimer les tables existantes
-    // Utiliser { alter: true } pour mettre à jour la structure si nécessaire, mais sans supprimer les données
-    await sequelize.sync({ alter: true });
-    console.log('🔄 Database synchronized successfully');
-  } catch (err) {
-    console.error('Erreur lors de la synchronisation de la base de données:', err);
+  let syncRetries = 0;
+  const maxRetries = 3;
+  
+  while (syncRetries < maxRetries) {
+    try {
+      // Synchroniser les modèles sans supprimer les tables existantes
+      // Utiliser { alter: true } pour mettre à jour la structure si nécessaire, mais sans supprimer les données
+      await sequelize.sync({ alter: true });
+      console.log('🔄 Database synchronized successfully');
+      break; // Exit the loop if successful
+    } catch (err) {
+      syncRetries++;
+      console.error(`❌ Database sync error (attempt ${syncRetries}/${maxRetries}):`, err);
+      
+      if (syncRetries >= maxRetries) {
+        console.error('❌ Failed to synchronize database after maximum retries');
+        // Don't crash the server, continue with potentially limited functionality
+      } else {
+        // Wait before retrying (exponential backoff)
+        const waitTime = Math.pow(2, syncRetries) * 1000;
+        console.log(`Retrying database sync in ${waitTime/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
   }
 })();
 
@@ -853,10 +892,25 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     const { seasonId } = req.params;
     console.log(`🔍 Fetching ranking for season ${seasonId}`);
     
-    // Find the season
+    // CRITICAL FIX: Check database connection before querying
+    if (sequelize.connectionManager.hasOwnProperty('pool') && 
+        !sequelize.connectionManager.pool.hasOwnProperty('_closed') && 
+        !sequelize.connectionManager.pool._closed) {
+      console.log('✅ Database connection is open for season ranking');
+    } else {
+      console.error('❌ Database connection appears to be closed for season ranking');
+      // Don't throw, continue with attempt to query
+    }
+    
+    // Find the season with error handling
     let season = null;
     try {
       season = await Season.findByPk(seasonId);
+      if (season) {
+        console.log(`✅ Found season ${seasonId}`);
+      } else {
+        console.log(`⚠️ Season ${seasonId} not found`);
+      }
     } catch (seasonError) {
       console.error(`❌ Error finding season ${seasonId}:`, seasonError);
       // Continue with season = null
@@ -864,8 +918,8 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     
     if (!season) {
       // Return empty array instead of error to prevent forEach error in admin.js
-      console.log(`⚠️ Season ${seasonId} not found`);
-      return res.json([]);
+      console.log(`⚠️ Returning empty array for non-existent season ${seasonId}`);
+      return res.status(200).json([]);
     }
     
     // Get all scores for this season, ordered by score descending
@@ -876,43 +930,75 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
         order: [['score', 'DESC']],
         limit: 100 // Limit to top 100 scores
       });
+      console.log(`✅ Found ${scores.length} scores for season ${seasonId}`);
     } catch (scoresError) {
       console.error(`❌ Error finding scores for season ${seasonId}:`, scoresError);
       // Continue with empty scores array
     }
     
-    // Get user details for each score
+    // Get user details for each score with comprehensive error handling
     const ranking = [];
-    for (const score of scores) {
-      try {
-        const user = await User.findByPk(score.userId);
-        if (user) {
-          ranking.push({
-            userId: user.gameId,
-            username: user.gameUsername || 'Unknown User',
-            score: score.score || 0
-          });
+    if (Array.isArray(scores)) {
+      for (const score of scores) {
+        try {
+          if (!score || !score.userId) {
+            console.error('❌ Invalid score object:', score);
+            continue;
+          }
+          
+          let user = null;
+          try {
+            user = await User.findByPk(score.userId);
+          } catch (findError) {
+            console.error(`❌ Error finding user ${score.userId}:`, findError);
+            // Continue with user = null
+          }
+          
+          if (user) {
+            try {
+              ranking.push({
+                userId: user.gameId || 'unknown',
+                username: user.gameUsername || 'Unknown User',
+                score: score.score || 0
+              });
+            } catch (pushError) {
+              console.error(`❌ Error adding user ${score.userId} to ranking:`, pushError);
+            }
+          } else {
+            // Add a placeholder entry to maintain ranking order
+            ranking.push({
+              userId: score.userId || 'unknown',
+              username: 'Unknown User',
+              score: score.score || 0
+            });
+          }
+        } catch (userError) {
+          console.error(`❌ Error processing score for user ${score?.userId}:`, userError);
+          // Add a placeholder entry to maintain ranking order
+          try {
+            ranking.push({
+              userId: 'error',
+              username: 'Error loading user',
+              score: score?.score || 0
+            });
+          } catch (fallbackError) {
+            console.error('❌ Error adding fallback user to ranking:', fallbackError);
+          }
         }
-      } catch (userError) {
-        console.error(`❌ Error fetching user ${score.userId}:`, userError);
-        // Add a placeholder entry to maintain ranking order
-        ranking.push({
-          userId: 'error',
-          username: 'Error loading user',
-          score: score.score || 0
-        });
       }
+    } else {
+      console.error('❌ Scores is not an array:', scores);
     }
     
-    console.log(`✅ Found ${ranking.length} users in ranking for season ${seasonId}`);
+    console.log(`✅ Final ranking has ${ranking.length} entries for season ${seasonId}`);
     
     // CRITICAL: admin.js expects an array at line 557 where it calls data.forEach
     // Make sure we always return an array, even if empty
-    return res.json(Array.isArray(ranking) ? ranking : []);
+    return res.status(200).json(Array.isArray(ranking) ? ranking : []);
   } catch (error) {
-    console.error('❌ Error fetching season ranking:', error);
+    console.error('❌ Unhandled error in season ranking endpoint:', error);
     // Even in error case, return an empty array to prevent forEach errors
-    return res.json([]);
+    return res.status(200).json([]);
   }
 });
 
@@ -1170,22 +1256,34 @@ app.post('/api/users/preferences', async (req, res) => {
 // API endpoint for admin to get all users with pagination
 app.get('/api/users', async (req, res) => {
   try {
+    // Parse query parameters with fallbacks
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
     
     console.log(`🔍 Admin fetching users - Page: ${page}, Limit: ${limit}`);
     
-    // Get total count of users
+    // CRITICAL FIX: Check database connection before querying
+    if (sequelize.connectionManager.hasOwnProperty('pool') && 
+        !sequelize.connectionManager.pool.hasOwnProperty('_closed') && 
+        !sequelize.connectionManager.pool._closed) {
+      console.log('✅ Database connection is open');
+    } else {
+      console.error('❌ Database connection appears to be closed');
+      // Don't throw, continue with attempt to query
+    }
+    
+    // Get total count of users with error handling
     let totalUsers = 0;
     try {
       totalUsers = await User.count();
+      console.log(`✅ User count successful: ${totalUsers} users`);
     } catch (countError) {
       console.error('❌ Error counting users:', countError);
       // Continue with totalUsers = 0
     }
     
-    // Get users with pagination
+    // Get users with pagination and error handling
     let users = [];
     try {
       users = await User.findAll({
@@ -1193,57 +1291,88 @@ app.get('/api/users', async (req, res) => {
         limit: limit,
         offset: offset
       });
+      console.log(`✅ Successfully retrieved ${users.length} users`);
     } catch (findError) {
       console.error('❌ Error finding users:', findError);
       // Continue with empty users array
     }
     
-    // Format the response - with additional error handling
+    // Format the response with comprehensive error handling
     let formattedUsers = [];
     try {
-      formattedUsers = users.map(user => {
-        try {
-          const userData = user.toJSON();
-          
-          // Format dates for better readability
-          if (userData.createdAt) {
-            userData.createdAt = new Date(userData.createdAt).toLocaleString();
+      if (Array.isArray(users)) {
+        formattedUsers = users.map(user => {
+          try {
+            if (!user || typeof user.toJSON !== 'function') {
+              console.error('❌ Invalid user object:', user);
+              return {
+                gameId: 'error',
+                gameUsername: 'Invalid user data',
+                bestScore: 0,
+                lastLogin: new Date().toLocaleString()
+              };
+            }
+            
+            const userData = user.toJSON();
+            
+            // Format dates for better readability with error handling
+            try {
+              if (userData.createdAt) {
+                userData.createdAt = new Date(userData.createdAt).toLocaleString();
+              }
+            } catch (dateError) {
+              console.error('❌ Error formatting createdAt date:', dateError);
+              userData.createdAt = 'Invalid date';
+            }
+            
+            try {
+              if (userData.lastLogin) {
+                userData.lastLogin = new Date(userData.lastLogin).toLocaleString();
+              }
+            } catch (dateError) {
+              console.error('❌ Error formatting lastLogin date:', dateError);
+              userData.lastLogin = 'Invalid date';
+            }
+            
+            return userData;
+          } catch (userError) {
+            console.error('❌ Error formatting user:', userError);
+            // Return a minimal valid user object to prevent errors
+            return {
+              gameId: 'error',
+              gameUsername: 'Error processing user',
+              bestScore: 0,
+              lastLogin: new Date().toLocaleString()
+            };
           }
-          if (userData.lastLogin) {
-            userData.lastLogin = new Date(userData.lastLogin).toLocaleString();
-          }
-          
-          return userData;
-        } catch (userError) {
-          console.error('❌ Error formatting user:', userError);
-          // Return a minimal valid user object to prevent errors
-          return {
-            gameId: 'error',
-            gameUsername: 'Error processing user',
-            bestScore: 0
-          };
-        }
-      });
+        });
+      } else {
+        console.error('❌ Users is not an array:', users);
+      }
     } catch (mapError) {
       console.error('❌ Error mapping users:', mapError);
       // Continue with empty formattedUsers array
     }
     
-    console.log(`✅ Found ${formattedUsers.length} users (total: ${totalUsers})`);
+    console.log(`✅ Final formatted users count: ${formattedUsers.length}`);
     
     // CRITICAL: admin.js expects this exact structure at lines 294-298
     // The error occurs at line 325 in admin.js where it checks users.length
     // So we MUST ensure users is a valid array
-    return res.json({
+    const responseData = {
       users: Array.isArray(formattedUsers) ? formattedUsers : [],
       total: totalUsers || 0,
       totalPages: Math.ceil((totalUsers || 0) / limit)
-    });
+    };
+    
+    console.log(`✅ Sending response with ${responseData.users.length} users, total: ${responseData.total}, pages: ${responseData.totalPages}`);
+    
+    return res.status(200).json(responseData);
   } catch (error) {
-    console.error('❌ Error fetching users for admin:', error);
+    console.error('❌ Unhandled error in /api/users endpoint:', error);
     // Even in error case, return a valid response structure
     // This is critical to prevent the TypeError in admin.js
-    return res.json({ 
+    return res.status(200).json({ 
       users: [], // Must be an array to prevent users.length error
       total: 0,
       totalPages: 0
@@ -1394,9 +1523,7 @@ app.get('/api/seasons/:seasonId/ranking', async (req, res) => {
     // Find the season
     const season = await Season.findByPk(seasonId);
     if (!season) {
-      // Return empty array instead of error to prevent forEach error
-      console.log(`⚠️ Season ${seasonId} not found`);
-      return res.json([]);
+      return res.status(404).json({ error: 'Season not found' });
     }
     
     // Get all scores for this season, ordered by score descending
