@@ -327,73 +327,44 @@ app.delete('/api/users/:id', async (req, res) => {
     
     console.log(`🗑️ Attempting to delete user with ID: ${id}`);
     
-    // Vérifier si l'utilisateur existe en utilisant gameId comme clé de recherche
-    const user = await User.findOne({ where: { gameId: id } });
-    
-    if (!user) {
-      console.log(`❌ User with ID ${id} not found`);
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    console.log(`✅ User found: ${user.gameUsername} (${user.gameId})`);
-    
     // Désactiver temporairement les contraintes de clé étrangère
     await sequelize.query('PRAGMA foreign_keys = OFF;');
     
-    // Utiliser une transaction pour s'assurer que toutes les opérations sont atomiques
-    const transaction = await sequelize.transaction();
-    
     try {
-      // 1. Vérifier et mettre à jour les saisons où cet utilisateur est le gagnant
-      await Season.update(
-        { winnerId: null },
-        { 
-          where: { winnerId: id },
-          transaction
-        }
-      );
-      console.log(`🔄 References to user ${id} removed from Seasons table`);
-      
-      // 2. Supprimer les scores de saison associés à cet utilisateur
-      const deletedScores = await SeasonScore.destroy({
-        where: { userId: id },
-        transaction
+      // Supprimer directement l'utilisateur avec une requête SQL brute
+      await sequelize.query('DELETE FROM "Users" WHERE "gameId" = ?', {
+        replacements: [id]
       });
-      console.log(`🗑️ ${deletedScores} season scores deleted for user ${id}`);
       
-      // 3. Vérifier s'il existe une table Seasons_backup et supprimer les références
+      // Supprimer les scores de saison associés
+      await sequelize.query('DELETE FROM "SeasonScores" WHERE "userId" = ?', {
+        replacements: [id]
+      });
+      
+      // Mettre à jour les références dans Seasons
+      await sequelize.query('UPDATE "Seasons" SET "winnerId" = NULL WHERE "winnerId" = ?', {
+        replacements: [id]
+      });
+      
+      // Mettre à jour les références dans Seasons_backup si elle existe
       try {
         await sequelize.query('UPDATE "Seasons_backup" SET "winnerId" = NULL WHERE "winnerId" = ?', {
-          replacements: [id],
-          transaction
+          replacements: [id]
         });
-        console.log(`🔄 References to user ${id} removed from Seasons_backup table`);
       } catch (backupError) {
-        // Si la table n'existe pas, ignorer l'erreur
-        console.log(`ℹ️ Seasons_backup table not found or other error: ${backupError.message}`);
+        // Ignorer les erreurs si la table n'existe pas
+        console.log(`ℹ️ Note: ${backupError.message}`);
       }
       
-      // 4. Supprimer directement de la base de données pour contourner les contraintes
-      await sequelize.query('DELETE FROM "Users" WHERE "gameId" = ?', {
-        replacements: [id],
-        transaction
-      });
-      console.log(`✅ User ${id} deleted successfully via direct SQL`);
-      
-      // Valider la transaction
-      await transaction.commit();
+      console.log(`✅ User ${id} deleted successfully`);
       
       // Réactiver les contraintes de clé étrangère
       await sequelize.query('PRAGMA foreign_keys = ON;');
       
       res.status(200).json({ message: 'User deleted successfully' });
     } catch (innerError) {
-      // Annuler la transaction en cas d'erreur
-      await transaction.rollback();
-      
       // Réactiver les contraintes de clé étrangère même en cas d'erreur
       await sequelize.query('PRAGMA foreign_keys = ON;');
-      
       throw innerError;
     }
   } catch (error) {
