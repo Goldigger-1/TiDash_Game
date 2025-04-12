@@ -79,12 +79,16 @@ const User = sequelize.define('User', {
 const Season = sequelize.define('Season', {
   id: {
     type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
+    primaryKey: true,
+    autoIncrement: true
   },
   seasonNumber: {
     type: DataTypes.INTEGER,
     allowNull: false
+  },
+  startDate: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   },
   endDate: {
     type: DataTypes.DATE,
@@ -92,17 +96,14 @@ const Season = sequelize.define('Season', {
   },
   prizeMoney: {
     type: DataTypes.FLOAT,
-    allowNull: false,
-    defaultValue: 0
+    allowNull: false
   },
   isActive: {
     type: DataTypes.BOOLEAN,
-    allowNull: false,
     defaultValue: true
   },
   isClosed: {
     type: DataTypes.BOOLEAN,
-    allowNull: false,
     defaultValue: false
   },
   winnerId: {
@@ -111,12 +112,11 @@ const Season = sequelize.define('Season', {
   }
 });
 
-// Définir le modèle SeasonScore
 const SeasonScore = sequelize.define('SeasonScore', {
   id: {
     type: DataTypes.INTEGER,
-    autoIncrement: true,
-    primaryKey: true
+    primaryKey: true,
+    autoIncrement: true
   },
   userId: {
     type: DataTypes.STRING,
@@ -128,7 +128,6 @@ const SeasonScore = sequelize.define('SeasonScore', {
   },
   score: {
     type: DataTypes.INTEGER,
-    allowNull: false,
     defaultValue: 0
   }
 });
@@ -211,6 +210,35 @@ async function migrateExistingData() {
     console.error('Erreur lors de la migration des données:', error);
   }
 }
+
+// Create initial season if none exists
+async function createInitialSeason() {
+  try {
+    const seasonCount = await Season.count();
+    if (seasonCount === 0) {
+      console.log('🏆 Creating initial season...');
+      
+      // Set end date to 30 days from now
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 30);
+      
+      const initialSeason = await Season.create({
+        seasonNumber: 1,
+        endDate: endDate,
+        prizeMoney: 100.00,
+        isActive: true,
+        isClosed: false
+      });
+      
+      console.log(`✅ Initial season created: Season ${initialSeason.seasonNumber}`);
+    }
+  } catch (error) {
+    console.error('❌ Error creating initial season:', error);
+  }
+}
+
+// Call this after database sync
+createInitialSeason();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -356,6 +384,60 @@ app.get('/api/users/device/:deviceId', async (req, res) => {
     console.error('❌ Error retrieving user by Device ID:', error);
     res.status(500).json({ 
       error: 'Error retrieving user by Device ID', 
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to get user by device ID
+app.get('/api/users/device/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    console.log(`🔍 Looking up user by device ID: ${deviceId}`);
+    
+    const user = await User.findOne({
+      where: { deviceId: deviceId }
+    });
+    
+    if (!user) {
+      console.log(`⚠️ No user found with device ID: ${deviceId}`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log(`✅ User found with device ID ${deviceId}: ${user.gameId}`);
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('❌ Error retrieving user by device ID:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving user by device ID', 
+      details: error.message 
+    });
+  }
+});
+
+// API endpoint to get user by Telegram ID
+app.get('/api/users/telegram/:telegramId', async (req, res) => {
+  try {
+    const { telegramId } = req.params;
+    
+    console.log(`🔍 Attempting to find user with Telegram ID: ${telegramId}`);
+    
+    // Find user by Telegram ID
+    const user = await User.findOne({ 
+      where: { telegramId: telegramId }
+    });
+    
+    if (!user) {
+      console.log(`👤 User with Telegram ID ${telegramId} not found`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log(`✅ User with Telegram ID ${telegramId} found`);
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('❌ Error retrieving user by Telegram ID:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving user by Telegram ID', 
       details: error.message 
     });
   }
@@ -820,40 +902,66 @@ app.get('/api/global-ranking', async (req, res) => {
   }
 });
 
-// Route pour récupérer la saison active
-app.get('/api/active-season', async (req, res) => {
-  try {
-    const activeSeason = await Season.findOne({
-      where: { isActive: true }
-    });
-    
-    if (!activeSeason) {
-      return res.status(404).json({ error: 'Aucune saison active' });
-    }
-    
-    res.json(activeSeason);
-  } catch (error) {
-    console.error('Erreur lors de la récupération de la saison active:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération de la saison active' });
-  }
-});
-
-// Route alternative pour récupérer la saison active (pour compatibilité)
+// New API endpoint to get the active season
 app.get('/api/seasons/active', async (req, res) => {
   try {
-    const activeSeason = await Season.findOne({
+    console.log('🔍 Fetching active season');
+    
+    // Find the active season
+    const activeSeason = await Season.findOne({ 
       where: { isActive: true }
     });
     
     if (!activeSeason) {
+      console.log('⚠️ No active season found');
       return res.status(404).json({ error: 'No active season found' });
     }
     
-    console.log('🏆 Active season requested:', activeSeason.toJSON());
-    res.json(activeSeason);
+    console.log(`✅ Active season found: ${activeSeason.id}, Season ${activeSeason.seasonNumber}`);
+    res.status(200).json(activeSeason);
   } catch (error) {
     console.error('❌ Error retrieving active season:', error);
-    res.status(500).json({ error: 'Error retrieving active season' });
+    res.status(500).json({ 
+      error: 'Error retrieving active season', 
+      details: error.message 
+    });
+  }
+});
+
+// New API endpoint to get season scores
+app.get('/api/seasons/:seasonId/scores/:userId', async (req, res) => {
+  try {
+    const { seasonId, userId } = req.params;
+    
+    console.log(`🔍 Fetching score for user ${userId} in season ${seasonId}`);
+    
+    // Find the season
+    const season = await Season.findByPk(seasonId);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Find the season score
+    const seasonScore = await SeasonScore.findOne({
+      where: {
+        userId: userId,
+        seasonId: seasonId
+      }
+    });
+    
+    if (!seasonScore) {
+      console.log(`⚠️ No score found for user ${userId} in season ${seasonId}`);
+      return res.status(404).json({ error: 'Season score not found' });
+    }
+    
+    console.log(`✅ Score found for user ${userId} in season ${seasonId}: ${seasonScore.score}`);
+    res.status(200).json(seasonScore);
+  } catch (error) {
+    console.error('❌ Error retrieving season score:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving season score', 
+      details: error.message 
+    });
   }
 });
 

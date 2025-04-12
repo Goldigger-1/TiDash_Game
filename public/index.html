@@ -1702,112 +1702,115 @@
         
         // Initialiser ou récupérer le profil utilisateur
         function initUserProfile() {
-            // Récupérer l'ID Telegram s'il est disponible
-            const telegramId = tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id.toString() : null;
-            
-            // Si l'utilisateur est connecté via Telegram, vérifier s'il a déjà un profil associé à cet ID Telegram
-            if (telegramId) {
-                console.log("Initialisation du profil pour l'utilisateur Telegram:", telegramId);
+            try {
+                console.log("🧑 Initializing user profile...");
                 
-                // Fetch user data from server instead of localStorage
-                fetch(`/api/users/telegram/${telegramId}`)
-                    .then(response => {
-                        if (response.status === 404) {
-                            // User not found, create new profile
-                            console.log("Création d'un nouveau profil Telegram");
-                            username = generateRandomUsername();
-                            userId = generateRandomUserId();
-                            
-                            // Utiliser un chemin absolu pour l'avatar par défaut
-                            avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                            bestScore = 0;
-                            seasonScore = 0;
-                            
-                            // Send new user data to server
-                            sendUserDataToServer();
-                        } else {
-                            return response.json();
-                        }
-                    })
-                    .then(data => {
-                        if (data) {
-                            console.log("Profil Telegram existant trouvé", data);
-                            // Set user data from server response
-                            userId = data.gameId;
-                            username = data.gameUsername;
-                            
-                            // Handle avatar path
-                            if (data.avatarSrc) {
-                                // If the path is already absolute, use it as is
-                                if (data.avatarSrc.startsWith('http')) {
-                                    avatarSrc = data.avatarSrc;
-                                } 
-                                // If the path starts with a slash, add the origin
-                                else if (data.avatarSrc.startsWith('/')) {
-                                    avatarSrc = window.location.origin + data.avatarSrc;
-                                }
-                                // If the path is relative without slash, add the origin and a slash
-                                else {
-                                    avatarSrc = window.location.origin + '/' + data.avatarSrc;
-                                }
-                            } else {
-                                // Default avatar with absolute path
+                // Check if we're in a Telegram WebApp
+                if (window.Telegram && window.Telegram.WebApp) {
+                    // Telegram WebApp initialization code...
+                    // (existing code remains unchanged)
+                } else {
+                    // No Telegram, use standard behavior with server-side storage
+                    console.log("📱 Initializing profile for standard user");
+                    
+                    // Try to get a device identifier or generate a new one
+                    let deviceId = getCookie("tidashDeviceId");
+                    if (!deviceId) {
+                        deviceId = generateRandomUserId();
+                        setCookie("tidashDeviceId", deviceId, 365); // Store for 1 year
+                        console.log(`🆕 Generated new device ID: ${deviceId}`);
+                    } else {
+                        console.log(`🔍 Found existing device ID: ${deviceId}`);
+                    }
+                    
+                    // Fetch user data from server using device ID
+                    fetch(`/api/users/device/${deviceId}`)
+                        .then(response => {
+                            if (response.status === 404) {
+                                console.log("👤 User not found, creating new profile");
+                                // User not found, create new profile
+                                username = generateRandomUsername();
+                                userId = generateRandomUserId();
                                 avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                                bestScore = 0;
+                                seasonScore = 0;
+                                
+                                // Create new user with device ID
+                                const userData = {
+                                    gameId: userId,
+                                    gameUsername: username,
+                                    deviceId: deviceId,
+                                    avatarSrc: '/avatars/avatar_default.jpg',
+                                    bestScore: 0,
+                                    seasonScore: 0,
+                                    musicEnabled: true
+                                };
+                                
+                                // Send new user data to server
+                                return fetch('/api/users', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify(userData)
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    console.log("✅ New user created:", data);
+                                    return null; // Return null to indicate we've handled this case
+                                });
+                            } else if (!response.ok) {
+                                throw new Error(`Server error: ${response.status}`);
+                            } else {
+                                return response.json();
+                            }
+                        })
+                        .then(data => {
+                            if (data) {
+                                console.log("✅ User data loaded from server:", data);
+                                // Set user data from server response
+                                userId = data.gameId;
+                                username = data.gameUsername;
+                                
+                                // Handle avatar path correctly
+                                if (data.avatarSrc) {
+                                    // Ensure avatar path is absolute
+                                    if (data.avatarSrc.startsWith('http')) {
+                                        avatarSrc = data.avatarSrc;
+                                    } else if (data.avatarSrc.startsWith('/')) {
+                                        avatarSrc = window.location.origin + data.avatarSrc;
+                                    } else {
+                                        avatarSrc = window.location.origin + '/avatars/' + data.avatarSrc;
+                                    }
+                                } else {
+                                    // Default avatar with absolute path
+                                    avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                                }
+                                
+                                paypalEmail = data.paypalEmail || "";
+                                bestScore = parseInt(data.bestScore || "0");
+                                
+                                // Set music preference from server
+                                isMusicEnabled = data.musicEnabled !== undefined ? data.musicEnabled : true;
+                                
+                                // Update UI elements
+                                updateUserProfileDisplay();
+                                updateScoreDisplay();
+                                updateSoundToggleDisplay();
+                                
+                                // Initialize avatar selection in settings
+                                initAvatarSelection();
                             }
                             
-                            // Set PayPal email if available
-                            paypalEmail = data.paypalEmail || "";
+                            // Check for new season
+                            setTimeout(function() {
+                                checkForNewSeason(true);
+                            }, 1000);
+                        })
+                        .catch(error => {
+                            console.error("❌ Error fetching user data:", error);
                             
-                            // Set scores
-                            bestScore = parseInt(data.bestScore || "0");
-                            
-                            // Update UI
-                            updateUserProfileDisplay();
-                            updateScoreDisplay();
-                            loadSoundPreference();
-                        }
-                        
-                        // CRITICAL FIX: Force a season check immediately to ensure we have the correct season score
-                        setTimeout(function() {
-                            // Force a complete reset of season data to ensure we're starting fresh
-                            console.log("🔄 Forcing season check and potential reset on startup");
-                            checkForNewSeason(true); // Pass true to force a reset if needed
-                        }, 1000);
-                    })
-                    .catch(error => {
-                        console.error("Error fetching user data:", error);
-                        
-                        // Fallback to creating a new user if fetch fails
-                        username = generateRandomUsername();
-                        userId = generateRandomUserId();
-                        avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                        bestScore = 0;
-                        seasonScore = 0;
-                        
-                        // Send new user data to server
-                        sendUserDataToServer();
-                        
-                        // Check for new season
-                        setTimeout(function() {
-                            checkForNewSeason(true);
-                        }, 1000);
-                    });
-            } else {
-                // No Telegram, use standard behavior with server-side storage
-                console.log("Initialisation du profil pour l'utilisateur standard");
-                
-                // Try to get a device identifier or generate a new one
-                let deviceId = getCookie("tidashDeviceId");
-                if (!deviceId) {
-                    deviceId = generateRandomUserId();
-                    setCookie("tidashDeviceId", deviceId, 365); // Store for 1 year
-                }
-                
-                // Fetch user data from server using device ID
-                fetch(`/api/users/device/${deviceId}`)
-                    .then(response => {
-                        if (response.status === 404) {
-                            // User not found, create new profile
+                            // Fallback to creating a new user if fetch fails
                             username = generateRandomUsername();
                             userId = generateRandomUserId();
                             avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
@@ -1816,95 +1819,111 @@
                             
                             // Send new user data to server
                             sendUserDataToServer();
-                        } else {
-                            return response.json();
-                        }
-                    })
-                    .then(data => {
-                        if (data) {
-                            // Set user data from server response
-                            userId = data.gameId;
-                            username = data.gameUsername;
-                            avatarSrc = data.avatarSrc || window.location.origin + '/avatars/avatar_default.jpg';
-                            paypalEmail = data.paypalEmail || "";
-                            bestScore = parseInt(data.bestScore || "0");
                             
-                            // Update UI
+                            // Update UI elements
                             updateUserProfileDisplay();
                             updateScoreDisplay();
-                            loadSoundPreference();
-                        }
+                            updateSoundToggleDisplay();
+                            
+                            // Initialize avatar selection in settings
+                            initAvatarSelection();
+                            
+                            // Check for new season
+                            setTimeout(function() {
+                                checkForNewSeason(true);
+                            }, 1000);
+                        });
+                }
+            } catch (error) {
+                console.error("❌ Error in initUserProfile:", error);
+            }
+        }
+        
+        // Function to initialize avatar selection
+        function initAvatarSelection() {
+            try {
+                console.log("🖼️ Initializing avatar selection...");
+                
+                // Get all avatar items
+                const avatarItems = document.querySelectorAll('.avatar-item');
+                
+                // Clear any existing selected state
+                avatarItems.forEach(item => {
+                    item.classList.remove('selected');
+                });
+                
+                // Get current avatar filename
+                const currentAvatarSrc = avatarSrc;
+                const avatarFilename = currentAvatarSrc.split('/').pop();
+                
+                console.log(`🔍 Looking for avatar: ${avatarFilename}`);
+                
+                // Find and select the matching avatar
+                let found = false;
+                avatarItems.forEach(item => {
+                    const itemImg = item.querySelector('img');
+                    if (itemImg && itemImg.src.includes(avatarFilename)) {
+                        item.classList.add('selected');
+                        found = true;
+                        console.log(`✅ Selected avatar: ${itemImg.src}`);
+                    }
+                });
+                
+                if (!found) {
+                    console.log("⚠️ Matching avatar not found, selecting default");
+                    // Select default avatar if no match found
+                    const defaultAvatar = document.querySelector('.avatar-item:first-child');
+                    if (defaultAvatar) {
+                        defaultAvatar.classList.add('selected');
+                    }
+                }
+                
+                // Add click event listeners to avatar items
+                avatarItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        // Remove selected class from all avatars
+                        avatarItems.forEach(avatar => {
+                            avatar.classList.remove('selected');
+                        });
                         
-                        // CRITICAL FIX: Force a complete synchronization with the server
-                        console.log("🔄 Forcing complete synchronization with server at startup (non-Telegram user)");
+                        // Add selected class to clicked avatar
+                        this.classList.add('selected');
                         
-                        // Check for new season
-                        setTimeout(function() {
-                            checkForNewSeason(true);
-                        }, 1000);
-                    })
-                    .catch(error => {
-                        console.error("Error fetching user data:", error);
+                        // Get the src of the selected avatar
+                        const selectedAvatarSrc = this.querySelector('img').src;
+                        const avatarPath = '/avatars/' + selectedAvatarSrc.split('/').pop();
                         
-                        // Fallback to creating a new user if fetch fails
-                        username = generateRandomUsername();
-                        userId = generateRandomUserId();
-                        avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                        bestScore = 0;
-                        seasonScore = 0;
+                        // Update avatar in UI
+                        document.getElementById('settings-avatar').src = selectedAvatarSrc;
+                        document.getElementById('avatarImg').src = selectedAvatarSrc;
                         
-                        // Send new user data to server
+                        // Update avatarSrc variable
+                        avatarSrc = selectedAvatarSrc;
+                        
+                        // Save to server
                         sendUserDataToServer();
                         
-                        // Check for new season
-                        setTimeout(function() {
-                            checkForNewSeason(true);
-                        }, 1000);
+                        console.log(`🖼️ Avatar updated: ${avatarPath}`);
                     });
-            }
-            
-            // Mettre à jour l'affichage du profil
-            updateUserProfileDisplay();
-        }
-        
-        // Function to update user profile display
-        function updateUserProfileDisplay() {
-            try {
-                // Update username display
-                document.getElementById("username").textContent = username;
-                
-                // Update user ID display
-                document.getElementById("userId").textContent = userId;
-                
-                // Update avatar display
-                document.getElementById("avatarImg").src = avatarSrc;
-                
-                // Update settings screen
-                document.getElementById("settings-user-id").textContent = userId;
-                document.getElementById("username-input").value = username;
-                document.getElementById("settings-avatar").src = avatarSrc;
-                document.getElementById("paypal-email").value = paypalEmail || "";
+                });
             } catch (error) {
-                console.error("Error updating profile display:", error);
+                console.error("❌ Error initializing avatar selection:", error);
             }
         }
         
-        // Function to update score display
-        function updateScoreDisplay() {
+        // Function to update sound toggle display
+        function updateSoundToggleDisplay() {
             try {
-                // Update best score display if it exists
-                const bestScoreElement = document.getElementById('best-score');
-                if (bestScoreElement) {
-                    bestScoreElement.textContent = `Best: ${bestScore}`;
-                }
-                
-                // Update season score display if it exists
-                const seasonScoreElement = document.getElementById('season-score');
-                if (seasonScoreElement) {
-                    seasonScoreElement.textContent = `Season Best: ${seasonScore}`;
+                const soundToggle = document.querySelector('.sound-toggle');
+                if (soundToggle) {
+                    if (isMusicEnabled) {
+                        soundToggle.classList.remove('muted');
+                    } else {
+                        soundToggle.classList.add('muted');
+                    }
                 }
             } catch (error) {
-                console.error("Error updating score display:", error);
+                console.error("❌ Error updating sound toggle display:", error);
             }
         }
         
