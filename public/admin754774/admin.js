@@ -741,7 +741,9 @@ function closeSeason(seasonId) {
         
         // Afficher les informations sur le gagnant
         if (data.winner) {
-            showNotification(`Le gagnant de la saison est ${data.winner.gameUsername} avec un score de ${data.winner.bestScore}!`, 'info', 10000);
+            // Utiliser directement le score de saison du gagnant fourni par l'API
+            const scoreToDisplay = data.winnerSeasonScore !== null ? data.winnerSeasonScore : 'inconnu';
+            showNotification(`Le gagnant de la saison est ${data.winner.gameUsername} avec un score de ${scoreToDisplay}!`, 'info', 10000);
         }
     })
     .catch(error => {

@@ -127,11 +127,8 @@ const SeasonScore = sequelize.define('SeasonScore', {
 // Synchroniser les modèles avec la base de données
 (async () => {
   try {
-    // Forcer la recréation des tables pour résoudre le problème de clé étrangère
-    await sequelize.query('DROP TABLE IF EXISTS "SeasonScores"');
-    await sequelize.query('DROP TABLE IF EXISTS "Seasons"');
-    
-    // Synchroniser les modèles
+    // Synchroniser les modèles sans supprimer les tables existantes
+    // Utiliser { alter: true } pour mettre à jour la structure si nécessaire, mais sans supprimer les données
     await sequelize.sync({ alter: true });
     console.log('Base de données synchronisée avec succès');
   } catch (err) {
@@ -525,10 +522,12 @@ app.post('/api/seasons/:id/close', async (req, res) => {
     
     let winnerId = null;
     let winner = null;
+    let winnerSeasonScore = null;
     
     if (topScore) {
       winnerId = topScore.userId;
       winner = await User.findByPk(winnerId);
+      winnerSeasonScore = topScore.score; // Stocker le score de saison du gagnant
     }
     
     // Mettre à jour la saison
@@ -543,7 +542,8 @@ app.post('/api/seasons/:id/close', async (req, res) => {
     res.json({ 
       message: 'Saison clôturée avec succès',
       season,
-      winner
+      winner,
+      winnerSeasonScore // Inclure le score de saison du gagnant dans la réponse
     });
   } catch (error) {
     console.error('Erreur lors de la clôture de la saison:', error);
@@ -571,7 +571,7 @@ app.get('/api/seasons/:id/ranking', async (req, res) => {
         ranking.push({
           userId: score.userId,
           username: user.gameUsername,
-          score: score.score
+          score: score.score // Utiliser le score spécifique à la saison, pas le score global
         });
       }
     }
