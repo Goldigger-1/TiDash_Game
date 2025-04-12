@@ -950,23 +950,52 @@
 
         // Return to home screen
         function goToHome() {
+            // Nettoyer l'état du jeu
+            squares = [];
+            fadingSquares = [];
+            particles = [];
+            
+            // Changer le mode de jeu
             gameMode = 'home';
+            
+            // Masquer l'écran de game over et afficher l'écran d'accueil
             gameOverScreen.style.display = 'none';
             homeScreen.style.display = 'flex';
+            
+            // Réinitialiser les variables d'animation
             gameOverAnimation = false;
             gameOverAnimationComplete = false;
+            
+            // Réinitialiser la position de la balle et de la ligne pour l'écran d'accueil
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height * 0.5;
+            ball.direction = Math.random() > 0.5 ? 1 : -1;
+            ball.speed = canvas.width * 0.0008;
+            
+            // Réinitialiser la position de la ligne
+            line.x = (canvas.width - line.width) / 2;
+            line.y = ball.y - ball.radius;
+            
+            // Effacer complètement le canvas pour éviter les artefacts visuels
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // Réafficher le profil utilisateur sur l'écran d'accueil
             document.getElementById("profile-button").style.display = 'flex';
             
-            // Make sure the game loop is running for the home screen animation
+            // Assurer que la boucle de jeu est en cours d'exécution pour l'animation de l'écran d'accueil
             if (!gameRunning) {
                 gameRunning = true;
-                requestAnimationFrame(gameLoop);
+                lastFrameTime = null;
+                if (window.gameLoopAnimationId) {
+                    cancelAnimationFrame(window.gameLoopAnimationId);
+                }
+                window.gameLoopAnimationId = requestAnimationFrame(gameLoop);
             }
             
             // Gérer la musique de fond (démarrer sur l'écran d'accueil)
             manageBackgroundMusic();
+            
+            console.log("🎮 Retour à l'écran d'accueil");
         }
 
         // Initialize the game
@@ -1447,17 +1476,25 @@
                         // Jouer le son quand la balle touche un carré blanc
                         playSound('gameOver');
                         
-                        // Create explosion effect
+                        // Créer un effet d'explosion plus important pour la fin de jeu
                         createExplosion(ball.x, ball.y, '#00FF9D');
+                        
+                        // Arrêter le mouvement des carrés
+                        for (let i = 0; i < squares.length; i++) {
+                            // Créer des explosions supplémentaires pour chaque carré
+                            createExplosion(squares[i].x + squares[i].size / 2, squares[i].y + squares[i].size / 2, 
+                                           squares[i].isGreen ? '#00FF9D' : '#FFFFFF');
+                        }
                         
                         // Set game over mode
                         gameMode = 'gameOver';
                         gameOverAnimation = true;
+                        gameOverAnimationComplete = false;
                         
                         // Afficher l'écran de game over avec un court délai
                         setTimeout(() => {
                             showGameOverScreen();
-                        }, 300); // Délai de 300ms
+                        }, 500); // Délai augmenté pour voir l'animation
                         
                         return true;
                     }
@@ -1569,12 +1606,19 @@
             gameOverScreen.style.display = 'none';
             // Réinitialiser la classe visible pour les futures utilisations
             gameOverScreen.classList.remove('visible');
+            
+            // Réinitialiser l'état de l'animation de fin de jeu
+            gameOverAnimation = false;
+            gameOverAnimationComplete = false;
         }
 
         // Function to reset the game and start a new game
         function resetGame() {
             // Hide game over screen
             hideGameOver();
+            
+            // Effacer complètement le canvas pour éviter les artefacts visuels
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // Reset game state
             squares = [];
