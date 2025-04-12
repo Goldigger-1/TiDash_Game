@@ -453,10 +453,17 @@ app.post('/api/users', async (req, res) => {
           
           // Now handle the score update based on whether it's a new season
           if (isNewSeason) {
-            // For a new season, we FORCE the score to the current value from client
+            // For a new season, we FORCE the score to 0
             // This ensures we're not carrying over scores from previous seasons
-            await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
-            console.log(`🔄 Season score reset for ${user.gameId} due to new season: ${currentSeasonScore}`);
+            await seasonScoreRecord.update({ score: 0 }, { transaction });
+            console.log(`🔄 Season score reset to 0 for ${user.gameId} due to new season`);
+            
+            // If the current score from client is greater than 0, update it
+            // This handles the case where this is the user's first game in the new season
+            if (currentSeasonScore > 0) {
+              await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
+              console.log(`📈 First game in new season for ${user.gameId}: score set to ${currentSeasonScore}`);
+            }
           } else if (currentSeasonScore > seasonScoreRecord.score) {
             // Only update if the new score is better
             await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
