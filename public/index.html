@@ -1496,10 +1496,10 @@
                         
                         console.log("🎮 Game over sequence started");
                         
-                        // Créer un effet d'explosion plus important pour la fin de jeu
+                        // Créer un effet d'explosion uniquement pour la balle
                         createExplosion(ball.x, ball.y, '#00FF9D');
                         
-                        // Arrêter le mouvement des carrés et créer des explosions pour chaque carré
+                        // Faire disparaitre progressivement les carrés en les transformant en carrés qui s'estompent
                         // avec un léger délai entre chaque pour créer un effet en cascade
                         for (let i = 0; i < squares.length; i++) {
                             // Utiliser une fonction anonyme pour capturer la valeur de i
@@ -1507,16 +1507,28 @@
                                 setTimeout(() => {
                                     // Vérifier que le carré existe toujours (au cas où il aurait été supprimé)
                                     if (index < squares.length) {
-                                        // Créer des explosions supplémentaires pour chaque carré
-                                        createExplosion(
-                                            squares[index].x + squares[index].size / 2, 
-                                            squares[index].y + squares[index].size / 2, 
-                                            squares[index].isGreen ? '#00FF9D' : '#FFFFFF'
-                                        );
+                                        const square = squares[index];
+                                        
+                                        // Ajouter le carré aux carrés qui s'estompent
+                                        fadingSquares.push({
+                                            x: square.x,
+                                            y: square.y,
+                                            originalSize: square.size,
+                                            rotation: square.rotation,
+                                            rotationSpeed: square.rotationSpeed * 2, // Rotation plus rapide pendant la disparition
+                                            isGreen: square.isGreen,
+                                            fadeStartTime: Date.now(),
+                                            fadeTime: 800 // Temps de disparition en ms
+                                        });
                                     }
-                                }, index * 50); // Délai progressif pour effet cascade
+                                }, index * 30); // Délai progressif pour effet cascade
                             })(i);
                         }
+                        
+                        // Vider le tableau des carrés après avoir créé les carrés qui s'estompent
+                        setTimeout(() => {
+                            squares.length = 0;
+                        }, squares.length * 30 + 50);
                         
                         // Afficher l'écran de game over avec un délai plus long pour voir l'animation complète
                         setTimeout(() => {
