@@ -387,8 +387,9 @@ app.post('/api/users', async (req, res) => {
     const activeSeason = await Season.findOne({ where: { isActive: true } });
     const currentScore = userData.bestScore ? parseInt(userData.bestScore) : 0;
     const currentSeasonScore = userData.seasonScore ? parseInt(userData.seasonScore) : 0;
+    const lastKnownSeasonId = userData.lastKnownSeasonId || null;
 
-    console.log(`🔍 Processing user ${userData.gameId} - Global score: ${currentScore}, Season score: ${currentSeasonScore}`);
+    console.log(`🔍 Processing user ${userData.gameId} - Global score: ${currentScore}, Season score: ${currentSeasonScore}, Last known season: ${lastKnownSeasonId}`);
 
     // Vérifier si l'utilisateur existe déjà
     let user = null;
@@ -421,6 +422,10 @@ app.post('/api/users', async (req, res) => {
       
       // Mettre à jour le score de la saison si une saison active existe
       if (activeSeason) {
+        // IMPORTANT: Vérifier si l'utilisateur a changé de saison
+        const isNewSeason = lastKnownSeasonId && lastKnownSeasonId !== activeSeason.id.toString();
+        console.log(`🔍 Season check - Active: ${activeSeason.id}, Last known: ${lastKnownSeasonId}, Is new: ${isNewSeason}`);
+        
         // Récupérer ou créer un score de saison pour cet utilisateur
         let seasonScore = await SeasonScore.findOne({
           where: { userId: user.gameId, seasonId: activeSeason.id }
@@ -434,6 +439,10 @@ app.post('/api/users', async (req, res) => {
             score: currentSeasonScore
           });
           console.log(`✨ New season score created for ${user.gameId}: ${currentSeasonScore}`);
+        } else if (isNewSeason) {
+          // Si l'utilisateur a changé de saison, réinitialiser son score
+          await seasonScore.update({ score: currentSeasonScore });
+          console.log(`🔄 Season score reset for ${user.gameId} due to new season: ${currentSeasonScore}`);
         } else if (currentSeasonScore > seasonScore.score) {
           // Mettre à jour uniquement si le nouveau score est meilleur
           await seasonScore.update({ score: currentSeasonScore });
