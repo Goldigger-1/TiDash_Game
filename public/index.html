@@ -1000,16 +1000,21 @@
 
         // Initialize the game
         function initGame() {
+            console.log("🎮 Initialisation du jeu...");
+            
             // Set canvas size to match container
             canvas.width = canvas.offsetWidth;
             canvas.height = canvas.offsetHeight;
+            
+            // Set initial game mode to home screen
+            gameMode = 'home';
             
             // Initialize ball - larger radius
             ball.radius = canvas.width * 0.035;
             ball.y = canvas.height * 0.5; // Middle of the screen vertically
             ball.x = canvas.width / 2;
             ball.speed = canvas.width * 0.0008; // Slightly faster speed
-            ball.direction = 1;
+            ball.direction = Math.random() > 0.5 ? 1 : -1; // Direction aléatoire comme dans goToHome()
             
             // Initialize line - 80% of width and same height as ball
             line.width = canvas.width * 0.8;
@@ -1037,11 +1042,22 @@
             gameOverAnimationComplete = false;
             score = 0;
             
-            // Start game loop if not already running
-            if (!gameRunning) {
-                gameRunning = true;
-                requestAnimationFrame(gameLoop);
+            // Réinitialiser le temps de frame pour éviter les sauts
+            lastFrameTime = null;
+            
+            // Assurer que la boucle de jeu est en cours d'exécution pour l'animation de l'écran d'accueil
+            // Utiliser la même approche que dans goToHome()
+            gameRunning = true;
+            
+            // Annuler l'animation frame précédente si elle existe
+            if (window.gameLoopAnimationId) {
+                cancelAnimationFrame(window.gameLoopAnimationId);
             }
+            
+            // Démarrer une nouvelle boucle de jeu
+            window.gameLoopAnimationId = requestAnimationFrame(gameLoop);
+            
+            console.log("🎮 Jeu initialisé avec la balle en mouvement sur l'écran d'accueil");
         }
         
         // Initialiser les étoiles
@@ -1122,7 +1138,8 @@
             // Dessiner les étoiles en arrière-plan
             drawStars();
             
-            // Mettre à jour la position de la balle pour tous les modes
+            // Mettre à jour la position de la balle pour tous les modes (y compris l'écran d'accueil)
+            // La balle doit bouger sur l'écran d'accueil mais sans faire de son
             if (gameMode !== 'gameOver' || !gameOverAnimation) {
                 ball.x += ball.speed * ball.direction * deltaTime;
                 
@@ -1496,27 +1513,29 @@
                         
                         console.log("🎮 Game over sequence started");
                         
-                        // Créer un effet d'explosion plus important pour la fin de jeu
+                        // Créer un effet d'explosion uniquement pour la balle
                         createExplosion(ball.x, ball.y, '#00FF9D');
                         
-                        // Arrêter le mouvement des carrés et créer des explosions pour chaque carré
-                        // avec un léger délai entre chaque pour créer un effet en cascade
+                        // Ajouter tous les carrés au tableau des carrés en train de disparaitre
+                        // pour qu'ils disparaissent progressivement comme à la fin de leur chute
                         for (let i = 0; i < squares.length; i++) {
-                            // Utiliser une fonction anonyme pour capturer la valeur de i
-                            ((index) => {
-                                setTimeout(() => {
-                                    // Vérifier que le carré existe toujours (au cas où il aurait été supprimé)
-                                    if (index < squares.length) {
-                                        // Créer des explosions supplémentaires pour chaque carré
-                                        createExplosion(
-                                            squares[index].x + squares[index].size / 2, 
-                                            squares[index].y + squares[index].size / 2, 
-                                            squares[index].isGreen ? '#00FF9D' : '#FFFFFF'
-                                        );
-                                    }
-                                }, index * 50); // Délai progressif pour effet cascade
-                            })(i);
+                            const square = squares[i];
+                            
+                            // Ajouter le carré aux carrés en train de disparaitre
+                            fadingSquares.push({
+                                x: square.x,
+                                y: square.y,
+                                originalSize: square.size,
+                                rotation: square.rotation,
+                                rotationSpeed: square.rotationSpeed,
+                                isGreen: square.isGreen,
+                                fadeStartTime: Date.now(),
+                                fadeTime: 1000 // Disparition en 1 seconde
+                            });
                         }
+                        
+                        // Vider le tableau des carrés originaux puisqu'ils sont maintenant en train de disparaitre
+                        squares.length = 0;
                         
                         // Afficher l'écran de game over avec un délai plus long pour voir l'animation complète
                         setTimeout(() => {
@@ -2529,15 +2548,12 @@
                 });
             }
             
-            // Set initial game mode
-            gameMode = 'home';
+            // Initialiser le jeu correctement en appelant la fonction initGame()
+            // au lieu de simplement définir quelques variables
+            initGame();
             
-            // Initialize background music
-            manageBackgroundMusic();
-            
-            // Start game loop
-            gameRunning = true;
-            requestAnimationFrame(gameLoop);
+            // Note: initGame() s'occupe déjà de définir gameMode, démarrer la boucle de jeu, etc.
+            // donc nous n'avons pas besoin de le faire ici
         });
         
         // Function to manage background music
