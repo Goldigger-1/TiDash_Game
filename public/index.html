@@ -288,7 +288,7 @@
         
         /* Styles pour la page de paramètres */
         #settings-screen {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
@@ -296,17 +296,24 @@
             background-color: #000;
             display: none;
             z-index: 100;
+        }
+        
+        .android-scroll-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             overflow-y: auto;
-            -webkit-overflow-scrolling: touch; /* Pour iOS */
-            overscroll-behavior: contain; /* Empêcher le scroll de se propager */
-            touch-action: pan-y; /* Autoriser explicitement le défilement vertical */
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
         }
         
         .settings-content {
             padding: 20px;
-            max-width: 500px;
-            margin: 0 auto;
+            box-sizing: border-box;
             color: white;
+            padding-bottom: 100px; /* Espace supplémentaire en bas pour faciliter le défilement */
         }
         
         .settings-header {
@@ -568,6 +575,11 @@
             height: 60px; /* Espace supplémentaire pour éviter la zone noire */
             width: 100%;
         }
+        
+        /* Styles spécifiques pour les appareils Android */
+        .android-device {
+            -webkit-tap-highlight-color: transparent; /* Désactiver le surlignage au toucher sur Android */
+        }
     </style>
 </head>
 <body>
@@ -622,30 +634,31 @@
         
         <!-- Page de paramètres -->
         <div id="settings-screen">
-            <div class="settings-content">
-                <div class="settings-header">
-                    <div class="settings-title">Settings</div>
-                    <div class="close-button" id="close-settings">
-                        <span class="close-icon">✕</span>
-                    </div>
-                </div>
-                
-                <div class="profile-card">
-                    <div class="profile-avatar">
-                        <img id="settings-avatar" src="avatars/avatar_default.jpg" alt="Avatar">
-                    </div>
-                    <div class="profile-info">
-                        <div class="username-container">
-                            <input type="text" id="username-input" class="username-input" value="Username">
-                            <div class="edit-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M16.4745 5.40768L18.5917 7.52483M17.8358 3.54254L11.6002 9.77806C11.3979 9.98031 11.2619 10.2384 11.2104 10.5192L10.5798 13.4209L13.4816 12.7903C13.7624 12.7388 14.0205 12.6028 14.2227 12.4006L20.4582 6.16508C20.5844 6.03889 20.6846 5.88909 20.7536 5.72343C20.8226 5.55777 20.8589 5.37966 20.8605 5.19938C20.8621 5.01909 20.8289 4.84039 20.7628 4.6736C20.6967 4.50681 20.5991 4.35537 20.4749 4.22718C20.3507 4.09899 20.2022 3.99691 20.0374 3.92553C19.8726 3.85415 19.6951 3.81549 19.5157 3.81169C19.3364 3.8079 19.1574 3.83906 18.9899 3.90281C18.8224 3.96656 18.6698 4.06188 18.5401 4.18348L12.3046 10.419C12.1023 10.6212 11.9664 10.8793 11.9149 11.1601L11.2843 14.0619L14.186 13.4313C14.4668 13.3798 14.7249 13.2438 14.9272 13.0416L21.1627 6.80608C21.8106 6.15818 22.1655 5.28206 22.1529 4.36728C22.1403 3.45249 21.7612 2.58647 21.0961 1.9549C20.431 1.32333 19.5401 0.96993 18.6146 1.00182C17.689 1.03372 16.8179 1.44959 16.1974 2.12483L9.96196 8.36035C9.35302 8.96929 8.94371 9.74882 8.79747 10.5981L7.7655 15.2322C7.73328 15.3697 7.73471 15.5131 7.76969 15.6498C7.80467 15.7864 7.87221 15.9122 7.96643 16.0172C8.06066 16.1222 8.17871 16.2034 8.31082 16.2544C8.44293 16.3054 8.58559 16.3247 8.72856 16.3108L13.3627 15.2788C14.212 15.1326 14.9915 14.7233 15.6004 14.1143L21.8359 7.87877L16.4745 5.40768Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+            <div class="android-scroll-container">
+                <div class="settings-content">
+                    <div class="settings-header">
+                        <div class="settings-title">Settings</div>
+                        <div class="close-button" id="close-settings">
+                            <span class="close-icon">✕</span>
                         </div>
                     </div>
-                    <div class="user-id-display">ID : <span id="settings-user-id">0000000000</span></div>
+                    
+                    <div class="profile-card">
+                        <div class="profile-avatar">
+                            <img id="settings-avatar" src="avatars/avatar_default.jpg" alt="Avatar">
+                        </div>
+                        <div class="profile-info">
+                            <div class="username-container">
+                                <input type="text" id="username-input" class="username-input" value="Username">
+                                <div class="edit-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M16.4745 5.40768L18.5917 7.52483M17.8358 3.54254L11.6002 9.77806C11.3979 9.98031 11.2619 10.2384 11.2104 10.5192L10.5798 13.4209L13.4816 12.7903C13.7624 12.7388 14.0205 12.6028 14.2227 12.4006L20.4582 6.16508C20.5844 6.03889 20.6846 5.88909 20.7536 5.72343C20.8226 5.55777 20.8589 5.37966 20.8605 5.19938C20.8621 5.01909 20.8289 4.84039 20.7628 4.6736C20.6967 4.50681 20.5991 4.35537 20.4749 4.22718C20.3507 4.09899 20.2022 3.99691 20.0374 3.92553C19.8726 3.85415 19.6951 3.81549 19.5157 3.81169C19.3364 3.8079 19.1574 3.83906 18.9899 3.90281C18.8224 3.96656 18.6698 4.06188 18.5401 4.18348L12.3046 10.419C12.1023 10.6212 11.9664 10.8793 11.9149 11.1601L11.2843 14.0619L14.186 13.4313C14.4668 13.3798 14.7249 13.2438 14.9272 13.0416L21.1627 6.80608C21.8106 6.15818 22.1655 5.28206 22.1529 4.36728C22.1403 3.45249 21.7612 2.58647 21.0961 1.9549C20.431 1.32333 19.5401 0.96993 18.6146 1.00182C17.689 1.03372 16.8179 1.44959 16.1974 2.12483L9.96196 8.36035C9.35302 8.96929 8.94371 9.74882 8.79747 10.5981L7.7655 15.2322C7.73328 15.3697 7.73471 15.5131 7.76969 15.6498C7.80467 15.7864 7.87221 15.9122 7.96643 16.0172C8.06066 16.1222 8.17871 16.2034 8.31082 16.2544C8.44293 16.3054 8.58559 16.3247 8.72856 16.3108L13.3627 15.2788C14.212 15.1326 14.9915 14.7233 15.6004 14.1143L21.8359 7.87877L16.4745 5.40768Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="user-id-display">ID : <span id="settings-user-id">0000000000</span></div>
+                    </div>
                 </div>
-            </div>
                 
                 <div class="paypal-section">
                     <div class="section-title">Enter your PayPal email address</div>
@@ -1996,7 +2009,13 @@
             document.getElementById("paypal-email").value = paypalEmail;
             
             // Afficher l'écran de paramètres
-            document.getElementById("settings-screen").style.display = 'flex';
+            document.getElementById("settings-screen").style.display = 'block';
+            
+            // Réinitialiser la position de défilement
+            const scrollContainer = document.querySelector('.android-scroll-container');
+            if (scrollContainer) {
+                scrollContainer.scrollTop = 0;
+            }
             
             // Sauvegarder le mode de jeu précédent pour y revenir à la fermeture
             settingsPreviousMode = gameMode;
@@ -2032,29 +2051,48 @@
             const paypalEmailInput = document.getElementById('paypal-email');
             const avatarsGrid = document.getElementById('avatars-grid');
             const settingsScreen = document.getElementById('settings-screen');
+            const androidScrollContainer = document.querySelector('.android-scroll-container');
             
-            // Améliorer le défilement sur Android
-            let touchStartY = 0;
+            // Détection d'Android
+            const isAndroid = /Android/i.test(navigator.userAgent);
             
-            settingsScreen.addEventListener('touchstart', function(e) {
-                touchStartY = e.touches[0].clientY;
-            }, { passive: true });
-            
-            settingsScreen.addEventListener('touchmove', function(e) {
-                const touchY = e.touches[0].clientY;
-                const scrollTop = settingsScreen.scrollTop;
-                const scrollHeight = settingsScreen.scrollHeight;
-                const clientHeight = settingsScreen.clientHeight;
+            // Solution spécifique pour les WebApps Telegram sur Android
+            if (isAndroid) {
+                console.log("Appareil Android détecté, application de correctifs spécifiques");
                 
-                // Empêcher le défilement du body si on est au début ou à la fin du contenu
-                if ((scrollTop <= 0 && touchY > touchStartY) || 
-                    (scrollTop + clientHeight >= scrollHeight && touchY < touchStartY)) {
-                    // Ne pas empêcher complètement le défilement, mais permettre un petit rebond
-                    if (Math.abs(touchY - touchStartY) > 10) {
+                // Empêcher le comportement par défaut des événements tactiles pour éviter les problèmes de défilement
+                document.addEventListener('touchmove', function(e) {
+                    // Ne pas bloquer les événements de défilement dans le conteneur de défilement Android
+                    if (!e.target.closest('.android-scroll-container')) {
                         e.preventDefault();
                     }
+                }, { passive: false });
+                
+                // Permettre explicitement le défilement dans le conteneur Android
+                if (androidScrollContainer) {
+                    androidScrollContainer.addEventListener('touchstart', function(e) {
+                        // Permettre le défilement
+                    }, { passive: true });
+                    
+                    androidScrollContainer.addEventListener('touchmove', function(e) {
+                        // Permettre le défilement
+                    }, { passive: true });
                 }
-            }, { passive: false });
+                
+                // Ajouter une classe spéciale au body pour les styles spécifiques à Android
+                document.body.classList.add('android-device');
+                
+                // Forcer la mise à jour de la disposition après l'affichage pour éviter les bugs de défilement
+                window.addEventListener('resize', function() {
+                    if (gameMode === 'settings' && androidScrollContainer) {
+                        // Forcer un recalcul de la mise en page
+                        androidScrollContainer.style.display = 'none';
+                        setTimeout(function() {
+                            androidScrollContainer.style.display = 'block';
+                        }, 0);
+                    }
+                });
+            }
             
             // Charger tous les avatars disponibles
             loadAvatars();
