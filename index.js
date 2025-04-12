@@ -453,17 +453,36 @@ app.post('/api/users', async (req, res) => {
           
           // Now handle the score update based on whether it's a new season
           if (isNewSeason) {
-            // For a new season, we FORCE the score to 0
-            // This ensures we're not carrying over scores from previous seasons
+            // CRITICAL FIX: For a new season, ALWAYS FORCE the score to 0 regardless of client data
             await seasonScoreRecord.update({ score: 0 }, { transaction });
-            console.log(`🔄 Season score reset to 0 for ${user.gameId} due to new season`);
+            console.log(`🔄 FORCE RESET: Season score reset to 0 for ${user.gameId} due to new season detection`);
             
-            // If the current score from client is greater than 0, update it
-            // This handles the case where this is the user's first game in the new season
-            if (currentSeasonScore > 0) {
-              await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
-              console.log(`📈 First game in new season for ${user.gameId}: score set to ${currentSeasonScore}`);
-            }
+            // DO NOT use the client's score data for the first game in a new season
+            // The client will need to send a new score update after this reset
+            
+            // Return early with the reset score to force client to sync with the new season
+            const updatedScore = await SeasonScore.findOne({
+              where: { 
+                userId: user.gameId, 
+                seasonId: activeSeason.id 
+              },
+              transaction
+            });
+            
+            // Commit the transaction
+            await transaction.commit();
+            
+            // Return user data with the reset season score
+            return res.status(200).json({ 
+              message: 'New season detected! Season score reset to 0.', 
+              user,
+              seasonData: {
+                seasonId: activeSeason.id,
+                seasonNumber: activeSeason.seasonNumber,
+                currentScore: 0,
+                isNewSeason: true
+              }
+            });
           } else if (currentSeasonScore > seasonScoreRecord.score) {
             // Only update if the new score is better
             await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
@@ -630,6 +649,15 @@ app.post('/api/seasons', async (req, res) => {
         await SeasonScore.bulkCreate(seasonScores, { transaction });
         console.log(`✅ ${seasonScores.length} season scores initialized to 0 for new season ${newSeason.seasonNumber} 🏆`);
       }
+      
+      // 6. ADDITIONAL FIX: Clear any potential cached season scores in the database
+      // This ensures no old scores from previous seasons with the same ID are kept
+      await sequelize.query('DELETE FROM "SeasonScores" WHERE "seasonId" != ? AND "score" > 0', {
+        replacements: [newSeason.id],
+        transaction
+      });
+      
+      console.log(`🧹 Cleared any potential cached season scores from previous seasons`);
       
       // Valider la transaction
       await transaction.commit();
@@ -970,18 +998,24 @@ app.get('/api/users/:userId/scores', async (req, res) => {
     // Prepare response with global best score
     const response = {
       bestScore: user.bestScore || 0,
-      seasonScore: 0
+      seasonScore: 0 // Always default to 0
     };
     
     // If there's an active season, get the user's season score
     if (activeSeason) {
-      const seasonScore = await SeasonScore.findOne({
-        where: { userId: user.gameId, seasonId: activeSeason.id }
+      // IMPORTANT FIX: Always ensure we have a valid season score record
+      let [seasonScore, created] = await SeasonScore.findOrCreate({
+        where: { userId: user.gameId, seasonId: activeSeason.id },
+        defaults: { score: 0 }
       });
       
-      if (seasonScore) {
-        response.seasonScore = seasonScore.score;
+      // Extra safeguard: If this is a new season (indicated by creation of record),
+      // ensure the score is set to 0
+      if (created) {
+        console.log(`🔄 Created new season score record for ${userId} in season ${activeSeason.id}`);
       }
+      
+      response.seasonScore = seasonScore.score;
       
       response.activeSeason = {
         id: activeSeason.id,
