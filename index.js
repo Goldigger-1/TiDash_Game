@@ -946,6 +946,51 @@ app.post('/api/seasons/:seasonId/scores/:userId/reset', async (req, res) => {
   }
 });
 
+// API pour récupérer les scores d'un utilisateur
+app.get('/api/users/:userId/scores', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Find the user
+    const user = await User.findOne({ where: { gameId: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get the active season
+    const activeSeason = await Season.findOne({ where: { isActive: true } });
+    
+    // Prepare response with global best score
+    const response = {
+      bestScore: user.bestScore || 0,
+      seasonScore: 0
+    };
+    
+    // If there's an active season, get the user's season score
+    if (activeSeason) {
+      const seasonScore = await SeasonScore.findOne({
+        where: { userId: user.gameId, seasonId: activeSeason.id }
+      });
+      
+      if (seasonScore) {
+        response.seasonScore = seasonScore.score;
+      }
+      
+      response.activeSeason = {
+        id: activeSeason.id,
+        seasonNumber: activeSeason.seasonNumber,
+        endDate: activeSeason.endDate
+      };
+    }
+    
+    console.log(`📊 Scores fetched for user ${userId}:`, response);
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('❌ Error fetching user scores:', error);
+    res.status(500).json({ error: 'Error fetching user scores', details: error.message });
+  }
+});
+
 // Démarrer le serveur
 app.listen(port, '0.0.0.0', () => {
   console.log(`Serveur démarré sur le port ${port}`);

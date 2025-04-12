@@ -101,10 +101,6 @@
             color: #fff;
             text-transform: uppercase;
             letter-spacing: 1px;
-            transform: translateY(20px);
-            opacity: 0;
-            transition: all 0.5s ease-out;
-            transition-delay: 0.6s;
         }
         
         #season-score {
@@ -113,10 +109,6 @@
             color: #fff;
             text-transform: uppercase;
             letter-spacing: 1px;
-            transform: translateY(20px);
-            opacity: 0;
-            transition: all 0.5s ease-out;
-            transition-delay: 0.9s;
             display: none;
         }
         
@@ -1422,29 +1414,24 @@
                         // Increment score
                         score++;
                         
-                        // CRITICAL FIX: Update season score logic
-                        // Only update the stored season score if the current game score is higher
+                        // Update season score if current score is better
                         if (score > seasonScore) {
                             seasonScore = score;
-                            localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                             console.log(`🏆 New season best: ${seasonScore}`);
+                        }
+                        
+                        // Update best score if needed
+                        if (score > bestScore) {
+                            bestScore = score;
+                            console.log(`🌟 New all-time best: ${bestScore}`);
                         }
                         
                         // Create explosion effect
                         createExplosion(square.x + square.size / 2, square.y + square.size / 2, '#00FF9D');
                         
-                        // Update best score if needed
-                        if (score > bestScore) {
-                            bestScore = score;
-                            localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
-                            console.log(`🌟 New all-time best: ${bestScore}`);
-                        }
-                        
-                        // CRITICAL FIX: Only send data to server when we achieve a new best
-                        // This prevents unnecessary updates that could cause issues
-                        if (score === seasonScore || score === bestScore) {
-                            sendUserDataToServer();
-                        }
+                        // Send the updated score to the server
+                        // We do this after all score updates to avoid multiple API calls
+                        sendUserDataToServer();
                         
                         return false;
                     } else {
@@ -1479,7 +1466,7 @@
             // Update score display
             document.getElementById('score-display').textContent = score;
             const userBestScoreKey = `tidashBestScore_${userId}`;
-            document.getElementById('best-score').textContent = `Best: ${localStorage.getItem(userBestScoreKey)}`;
+            document.getElementById('best-score').textContent = `Best: ${bestScore}`;
             
             // CRITICAL FIX: Handle season score correctly on game over
             const seasonScoreElement = document.getElementById('season-score');
@@ -1490,29 +1477,23 @@
                 .then(activeSeason => {
                     if (activeSeason) {
                         // CRITICAL FIX: Get the current game score and compare with the stored season best
-                        const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
-                        let storedSeasonBest = parseInt(localStorage.getItem(userSeasonScoreKey) || "0");
+                        let storedSeasonBest = seasonScore;
                         
-                        console.log(`🎮 Game Over - Current game score: ${score}, Stored season best: ${storedSeasonBest}`);
+                        console.log(`🎮 Game Over - Current game score: ${score}, Server season best: ${storedSeasonBest}`);
                         
                         // Update the season best if the current score is higher
                         if (score > storedSeasonBest) {
-                            storedSeasonBest = score;
-                            localStorage.setItem(userSeasonScoreKey, storedSeasonBest);
-                            console.log(`🏆 New season best achieved: ${storedSeasonBest}`);
+                            // Update our local variable
+                            seasonScore = score;
+                            console.log(`🏆 New season best achieved: ${seasonScore}`);
+                            
+                            // Send updated score to server immediately
+                            sendUserDataToServer();
                         }
                         
                         // Display the current season's best score
-                        seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${storedSeasonBest}`;
+                        seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore}`;
                         seasonScoreElement.style.display = 'block';
-                        
-                        // S'assurer que l'élément est visible
-                        seasonScoreElement.style.opacity = '1';
-                        seasonScoreElement.style.transform = 'translateY(0)';
-                        
-                        // CRITICAL FIX: Immediately send the updated score to the server
-                        // This ensures the server has the most up-to-date score
-                        sendUserDataToServer();
                     } else {
                         seasonScoreElement.style.display = 'none';
                     }
@@ -1782,8 +1763,11 @@
                     // Sauvegarder le profil avec les clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
-                    localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
-                    localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                    localStorage.setItem(userBestScoreKey, bestScore);
+                    localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    
+                    // Enregistrer la date d'inscription
+                    localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
                     
                     // Enregistrer l'association entre l'ID Telegram et l'ID du jeu
                     localStorage.setItem(telegramProfileKey, JSON.stringify({
@@ -1889,8 +1873,6 @@
                 paypalEmail: paypalEmail || "",
                 bestScore: localStorage.getItem(`tidashBestScore_${userId}`) || "0",
                 seasonScore: localStorage.getItem(`tidashSeasonScore_${userId}`) || "0",
-                lastKnownSeasonId: localStorage.getItem(`tidashLastSeasonId_${userId}`) || null,
-                registrationDate: localStorage.getItem(`tidashRegistrationDate_${userId}`) || localStorage.getItem("tidashRegistrationDate") || new Date().toISOString().split('T')[0],
                 lastLogin: new Date().toISOString().split('T')[0],
                 avatarSrc: avatarSrc || "avatars/avatar_default.jpg"
             };
@@ -1918,21 +1900,20 @@
             .then(data => {
                 console.log("Réponse du serveur:", data);
                 
-                // CRITICAL FIX: If the server returns season data, use it to update the local storage
-                if (data.seasonData) {
-                    // Update the last known season ID
-                    localStorage.setItem(`tidashLastSeasonId_${userId}`, data.seasonData.seasonId);
-                    
-                    // Update the season score with the server's value (source of truth)
-                    const serverSeasonScore = data.seasonData.currentScore;
-                    seasonScore = serverSeasonScore;
-                    localStorage.setItem(`tidashSeasonScore_${userId}`, serverSeasonScore);
-                    
-                    console.log(`🔄 Season data synchronized from server - Season ID: ${data.seasonData.seasonId}, Score: ${serverSeasonScore}`);
+                // If the server returns updated score data, use it
+                if (data.user) {
+                    if (data.user.bestScore !== undefined) {
+                        bestScore = data.user.bestScore;
+                    }
                 }
                 
-                // Check for a new season
-                checkForNewSeason();
+                if (data.seasonData) {
+                    seasonScore = data.seasonData.currentScore;
+                    console.log(`🔄 Season score synchronized from server: ${seasonScore}`);
+                }
+                
+                // Update the display with the server's data
+                updateScoreDisplay();
             })
             .catch(error => {
                 console.error('Erreur:', error);
@@ -1993,8 +1974,8 @@
                         fetch(`/api/seasons/${data.id}/scores/${userId}`)
                         .then(response => response.ok ? response.json() : { score: 0 })
                         .then(scoreData => {
-                            // If the server has a score for this user, use it as the source of truth
                             if (scoreData && scoreData.score !== undefined) {
+                                // If the server has a score for this user, use it as the source of truth
                                 const serverScore = parseInt(scoreData.score);
                                 const localScore = parseInt(localStorage.getItem(`tidashSeasonScore_${userId}`) || "0");
                                 
@@ -2024,6 +2005,7 @@
         
         // Fonction pour mettre à jour l'affichage du score
         function updateScoreDisplay() {
+            // Update the score display in the game UI
             const scoreElement = document.getElementById('score-display');
             if (scoreElement) {
                 scoreElement.textContent = score;
@@ -2037,6 +2019,9 @@
             const seasonScoreElement = document.getElementById('season-score');
             if (seasonScoreElement) {
                 seasonScoreElement.textContent = `Season Best: ${seasonScore}`;
+                seasonScoreElement.style.display = 'block';
+            } else {
+                seasonScoreElement.style.display = 'none';
             }
         }
         
