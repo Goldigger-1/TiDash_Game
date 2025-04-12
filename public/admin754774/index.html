@@ -44,6 +44,113 @@
                     <h3>Meilleur score</h3>
                     <p id="highest-score">0</p>
                 </div>
+                <div class="stat-card">
+                    <h3>Saison active</h3>
+                    <p id="active-season">Aucune</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Récompense</h3>
+                    <p id="prize-money">$0</p>
+                </div>
+            </div>
+            
+            <!-- Section de gestion des saisons -->
+            <div class="seasons-section">
+                <div class="section-header">
+                    <h2>Gestion des saisons</h2>
+                    <button id="new-season-btn" class="admin-button">Nouvelle saison</button>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="current-season">Saison en cours</button>
+                    <button class="tab-btn" data-tab="season-history">Historique des saisons</button>
+                    <button class="tab-btn" data-tab="global-ranking">Classement global</button>
+                </div>
+                
+                <div class="tab-content active" id="current-season">
+                    <div class="season-info">
+                        <div class="season-header">
+                            <h3>Saison <span id="season-number">-</span></h3>
+                            <div class="season-actions">
+                                <button id="edit-season-btn" class="admin-button secondary">Modifier</button>
+                                <button id="close-season-btn" class="admin-button danger">Clôturer</button>
+                            </div>
+                        </div>
+                        <div class="season-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Date de fin:</span>
+                                <span id="season-end-date">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Récompense:</span>
+                                <span id="season-prize">$0</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Statut:</span>
+                                <span id="season-status">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="ranking-table">
+                        <h3>Classement de la saison</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rang</th>
+                                    <th>Utilisateur</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="season-ranking-table">
+                                <tr>
+                                    <td colspan="3">Chargement des données...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="season-history">
+                    <div class="seasons-list">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Saison</th>
+                                    <th>Date de fin</th>
+                                    <th>Récompense</th>
+                                    <th>Gagnant</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="seasons-history-table">
+                                <tr>
+                                    <td colspan="5">Chargement des données...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="global-ranking">
+                    <div class="ranking-table">
+                        <h3>Classement global (tous les temps)</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rang</th>
+                                    <th>Utilisateur</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="global-ranking-table">
+                                <tr>
+                                    <td colspan="3">Chargement des données...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
             
             <div class="users-section">
@@ -82,43 +189,111 @@
         </main>
     </div>
 
+    <!-- Modal pour voir les détails d'un utilisateur -->
     <div id="user-modal" class="modal">
         <div class="modal-content">
             <span class="close-modal">&times;</span>
             <h2>Détails de l'utilisateur</h2>
             <div class="user-details">
                 <div class="detail-row">
-                    <label>ID du jeu:</label>
+                    <span class="detail-label">ID:</span>
                     <span id="modal-user-id"></span>
                 </div>
                 <div class="detail-row">
-                    <label>Username du jeu:</label>
+                    <span class="detail-label">Nom d'utilisateur:</span>
                     <span id="modal-username"></span>
                 </div>
                 <div class="detail-row">
-                    <label>ID Telegram:</label>
+                    <span class="detail-label">ID Telegram:</span>
                     <span id="modal-telegram-id"></span>
                 </div>
                 <div class="detail-row">
-                    <label>Username Telegram:</label>
+                    <span class="detail-label">Nom Telegram:</span>
                     <span id="modal-telegram-username"></span>
                 </div>
                 <div class="detail-row">
-                    <label>Email PayPal:</label>
-                    <span id="modal-paypal"></span>
+                    <span class="detail-label">Email PayPal:</span>
+                    <span id="modal-paypal-email"></span>
                 </div>
                 <div class="detail-row">
-                    <label>Meilleur score:</label>
+                    <span class="detail-label">Meilleur score:</span>
                     <span id="modal-best-score"></span>
                 </div>
                 <div class="detail-row">
-                    <label>Date d'inscription:</label>
+                    <span class="detail-label">Date d'inscription:</span>
                     <span id="modal-registration-date"></span>
                 </div>
                 <div class="detail-row">
-                    <label>Dernière connexion:</label>
+                    <span class="detail-label">Dernière connexion:</span>
                     <span id="modal-last-login"></span>
                 </div>
+            </div>
+            <div class="modal-actions">
+                <button id="delete-user-btn" class="admin-button danger">Supprimer</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal pour créer ou modifier une saison -->
+    <div id="season-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="season-modal-title">Nouvelle saison</h2>
+            <div class="season-form">
+                <div class="form-group">
+                    <label for="season-number-input">Numéro de saison</label>
+                    <input type="number" id="season-number-input" min="1" placeholder="Exemple: 1">
+                </div>
+                <div class="form-group">
+                    <label for="season-end-date-input">Date de fin</label>
+                    <input type="datetime-local" id="season-end-date-input">
+                </div>
+                <div class="form-group">
+                    <label for="season-prize-input">Récompense (en $)</label>
+                    <input type="number" id="season-prize-input" min="0" step="0.01" placeholder="Exemple: 100">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-season-btn" class="admin-button secondary">Annuler</button>
+                <button id="save-season-btn" class="admin-button">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal pour confirmer la clôture d'une saison -->
+    <div id="close-season-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Clôturer la saison</h2>
+            <p>Êtes-vous sûr de vouloir clôturer la saison <span id="close-season-number"></span> ?</p>
+            <p>Cette action est irréversible et déterminera le gagnant de la saison.</p>
+            <div class="modal-actions">
+                <button id="cancel-close-season-btn" class="admin-button secondary">Annuler</button>
+                <button id="confirm-close-season-btn" class="admin-button danger">Clôturer</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal pour voir les scores d'une saison passée -->
+    <div id="season-scores-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Classement de la saison <span id="scores-season-number"></span></h2>
+            <div class="ranking-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Utilisateur</th>
+                            <th>Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scores-ranking-table">
+                        <tr>
+                            <td colspan="3">Chargement des données...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

@@ -25,11 +25,13 @@ const sequelize = new Sequelize({
   logging: false // Désactiver les logs SQL pour la production
 });
 
-// Définir le modèle utilisateur
+// Définition des modèles
 const User = sequelize.define('User', {
   gameId: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    unique: true,
+    primaryKey: true
   },
   gameUsername: {
     type: DataTypes.STRING,
@@ -49,30 +51,106 @@ const User = sequelize.define('User', {
   },
   bestScore: {
     type: DataTypes.INTEGER,
+    allowNull: false,
     defaultValue: 0
   },
   registrationDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
   },
   lastLogin: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW
   }
-}, {
-  // Spécifier explicitement le nom de la table
-  tableName: 'users',
-  // Désactiver la conversion automatique des noms de tables en pluriel
-  freezeTableName: false
+});
+
+const Season = sequelize.define('Season', {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  seasonNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  endDate: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  prizeMoney: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+    defaultValue: 0
+  },
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
+  },
+  isClosed: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  winnerId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    references: {
+      model: User,
+      key: 'gameId'
+    }
+  }
+});
+
+const SeasonScore = sequelize.define('SeasonScore', {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true
+  },
+  userId: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'gameId'
+    }
+  },
+  seasonId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Season,
+      key: 'id'
+    }
+  },
+  score: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0
+  }
+});
+
+// Définir les relations
+User.hasMany(SeasonScore, { foreignKey: 'userId' });
+SeasonScore.belongsTo(User, { foreignKey: 'userId' });
+Season.hasMany(SeasonScore, { foreignKey: 'seasonId' });
+SeasonScore.belongsTo(Season, { foreignKey: 'seasonId' });
+Season.belongsTo(User, { foreignKey: 'winnerId', as: 'Winner' });
+
+// Synchroniser les modèles avec la base de données
+sequelize.sync({ alter: true }).then(() => {
+  console.log('Base de données synchronisée');
+}).catch(err => {
+  console.error('Erreur lors de la synchronisation de la base de données:', err);
 });
 
 // Initialiser la base de données
 (async () => {
   try {
-    // Synchroniser les modèles avec la base de données sans forcer la recréation des tables
-    await sequelize.sync({ force: false });
-    console.log('Base de données initialisée avec succès');
-    
     // Vérifier si la table users existe et contient des données
     try {
       const count = await User.count();
@@ -239,59 +317,467 @@ app.delete('/api/users/:id', async (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     const userData = req.body;
-    
-    if (!userData || !userData.gameId || !userData.gameUsername) {
-      return res.status(400).json({ error: 'Données utilisateur invalides' });
+    console.log('Données utilisateur reçues:', userData);
+
+    // Vérifier si l'utilisateur existe déjà par ID Telegram ou ID de jeu
+    let user = null;
+    if (userData.telegramId) {
+      user = await User.findOne({ where: { telegramId: userData.telegramId } });
     }
     
-    console.log("Données utilisateur reçues:", userData);
-    
-    // Préparer les données utilisateur
-    const userToSave = {
-      gameId: userData.gameId,
-      gameUsername: userData.gameUsername,
-      telegramId: userData.telegramId !== "N/A" ? userData.telegramId : null,
-      telegramUsername: userData.telegramUsername !== "N/A" ? userData.telegramUsername : null,
-      paypalEmail: userData.paypalEmail || "",
-      bestScore: parseInt(userData.bestScore) || 0,
-      registrationDate: userData.registrationDate || new Date().toISOString().split('T')[0],
-      lastLogin: userData.lastLogin || new Date().toISOString().split('T')[0]
-    };
-    
-    // Vérifier si l'utilisateur existe déjà
-    let existingUser = null;
-    
-    // Si l'ID Telegram est disponible, chercher d'abord par ID Telegram
-    if (userData.telegramId && userData.telegramId !== "N/A") {
-      console.log("Recherche d'utilisateur par ID Telegram:", userData.telegramId);
-      existingUser = await User.findOne({
-        where: { telegramId: userData.telegramId }
-      });
+    if (!user && userData.gameId) {
+      user = await User.findOne({ where: { gameId: userData.gameId } });
     }
-    
-    // Si non trouvé par ID Telegram, chercher par ID de jeu
-    if (!existingUser) {
-      console.log("Recherche d'utilisateur par ID de jeu:", userData.gameId);
-      existingUser = await User.findOne({
-        where: { gameId: userData.gameId }
-      });
-    }
-    
-    if (existingUser) {
-      console.log("Utilisateur existant trouvé, mise à jour:", existingUser.id);
+
+    // Récupérer la saison active
+    const activeSeason = await Season.findOne({ where: { isActive: true } });
+
+    if (user) {
       // Mettre à jour l'utilisateur existant
-      await existingUser.update(userToSave);
-      res.status(200).json({ message: 'Utilisateur mis à jour avec succès' });
+      const updateData = {};
+      
+      // Mettre à jour les champs si fournis
+      if (userData.gameUsername) updateData.gameUsername = userData.gameUsername;
+      if (userData.telegramId) updateData.telegramId = userData.telegramId;
+      if (userData.telegramUsername) updateData.telegramUsername = userData.telegramUsername;
+      if (userData.paypalEmail) updateData.paypalEmail = userData.paypalEmail;
+      
+      // Mettre à jour le meilleur score si le nouveau score est plus élevé
+      if (userData.bestScore && parseInt(userData.bestScore) > user.bestScore) {
+        updateData.bestScore = parseInt(userData.bestScore);
+      }
+      
+      // Mettre à jour la date de dernière connexion
+      updateData.lastLogin = new Date();
+      
+      await user.update(updateData);
+      
+      // Mettre à jour le score de la saison si une saison active existe
+      if (activeSeason && userData.bestScore) {
+        const [seasonScore, created] = await SeasonScore.findOrCreate({
+          where: { userId: user.gameId, seasonId: activeSeason.id },
+          defaults: { score: parseInt(userData.bestScore) || 0 }
+        });
+        
+        // Si le score de saison existe déjà et que le nouveau score est plus élevé, le mettre à jour
+        if (!created && parseInt(userData.bestScore) > seasonScore.score) {
+          await seasonScore.update({ score: parseInt(userData.bestScore) });
+        }
+      }
+      
+      res.status(200).json({ message: 'Utilisateur mis à jour avec succès', user });
     } else {
-      console.log("Nouvel utilisateur, création en cours");
       // Créer un nouvel utilisateur
-      const newUser = await User.create(userToSave);
-      console.log("Nouvel utilisateur créé:", newUser.id);
-      res.status(201).json({ message: 'Utilisateur créé avec succès' });
+      if (!userData.gameId || !userData.gameUsername) {
+        return res.status(400).json({ error: 'gameId et gameUsername sont requis pour créer un nouvel utilisateur' });
+      }
+      
+      const newUser = await User.create({
+        gameId: userData.gameId,
+        gameUsername: userData.gameUsername,
+        telegramId: userData.telegramId || null,
+        telegramUsername: userData.telegramUsername || null,
+        paypalEmail: userData.paypalEmail || null,
+        bestScore: parseInt(userData.bestScore) || 0,
+        registrationDate: new Date(),
+        lastLogin: new Date()
+      });
+      
+      // Créer un score de saison si une saison active existe
+      if (activeSeason && userData.bestScore) {
+        await SeasonScore.create({
+          userId: newUser.gameId,
+          seasonId: activeSeason.id,
+          score: parseInt(userData.bestScore) || 0
+        });
+      }
+      
+      res.status(201).json({ message: 'Utilisateur créé avec succès', user: newUser });
     }
   } catch (error) {
-    console.error('Erreur lors de l\'enregistrement de l\'utilisateur:', error);
+    console.error('Erreur lors de la soumission des données utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la soumission des données utilisateur' });
+  }
+});
+
+// API pour récupérer les saisons
+app.get('/api/seasons', async (req, res) => {
+  try {
+    const seasons = await Season.findAll({
+      order: [['number', 'DESC']]
+    });
+    
+    res.json(seasons);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des saisons:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// API pour créer une nouvelle saison
+app.post('/api/seasons', async (req, res) => {
+  try {
+    const { number, endDate, prizeMoney } = req.body;
+    
+    if (!number || !endDate) {
+      return res.status(400).json({ error: 'Numéro de saison et date de fin requis' });
+    }
+    
+    // Désactiver toutes les saisons actives
+    await Season.update({ isActive: false }, { where: { isActive: true } });
+    
+    // Créer la nouvelle saison
+    const newSeason = await Season.create({
+      number,
+      endDate,
+      prizeMoney: prizeMoney || 0,
+      isActive: true
+    });
+    
+    // Réinitialiser tous les scores de saison pour la nouvelle saison
+    const users = await User.findAll();
+    for (const user of users) {
+      await SeasonScore.create({
+        userId: user.gameId,
+        seasonId: newSeason.id,
+        score: 0
+      });
+    }
+    
+    res.status(201).json(newSeason);
+  } catch (error) {
+    console.error('Erreur lors de la création de la saison:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// API pour mettre à jour une saison
+app.put('/api/seasons/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { endDate, prizeMoney, isActive } = req.body;
+    
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Saison non trouvée' });
+    }
+    
+    // Si on active cette saison, désactiver toutes les autres
+    if (isActive) {
+      await Season.update({ isActive: false }, { where: { id: { [Op.ne]: id } } });
+    }
+    
+    // Mettre à jour la saison
+    await season.update({
+      endDate: endDate || season.endDate,
+      prizeMoney: prizeMoney !== undefined ? prizeMoney : season.prizeMoney,
+      isActive: isActive !== undefined ? isActive : season.isActive
+    });
+    
+    res.json(season);
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la saison:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// API pour clôturer une saison
+app.post('/api/seasons/:id/close', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Saison non trouvée' });
+    }
+    
+    if (!season.isActive) {
+      return res.status(400).json({ error: 'La saison est déjà clôturée' });
+    }
+    
+    // Récupérer le gagnant (meilleur score)
+    const topScore = await SeasonScore.findOne({
+      where: { seasonId: id },
+      order: [['score', 'DESC']]
+    });
+    
+    let winnerId = null;
+    if (topScore) {
+      winnerId = topScore.userId;
+    }
+    
+    // Clôturer la saison
+    await season.update({
+      isActive: false,
+      winnerId
+    });
+    
+    // Mettre à jour les rangs des scores de saison
+    const scores = await SeasonScore.findAll({
+      where: { seasonId: id },
+      order: [['score', 'DESC']]
+    });
+    
+    for (let i = 0; i < scores.length; i++) {
+      await scores[i].update({ rank: i + 1 });
+    }
+    
+    res.json({ message: 'Saison clôturée avec succès', season });
+  } catch (error) {
+    console.error('Erreur lors de la clôture de la saison:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// API pour récupérer le classement d'une saison
+app.get('/api/seasons/:id/scores', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Saison non trouvée' });
+    }
+    
+    // Récupérer les scores de la saison avec les informations utilisateur
+    const scores = await SeasonScore.findAll({
+      where: { seasonId: id },
+      order: [['score', 'DESC']],
+      limit
+    });
+    
+    // Récupérer les informations utilisateur pour chaque score
+    const scoresWithUserInfo = [];
+    for (const score of scores) {
+      const user = await User.findOne({ where: { gameId: score.userId } });
+      if (user) {
+        scoresWithUserInfo.push({
+          userId: score.userId,
+          username: user.gameUsername,
+          telegramUsername: user.telegramUsername,
+          score: score.score,
+          rank: score.rank
+        });
+      }
+    }
+    
+    res.json(scoresWithUserInfo);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des scores de saison:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// API pour récupérer le classement global
+app.get('/api/global-scores', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const users = await User.findAll({
+      order: [['bestScore', 'DESC']],
+      limit
+    });
+    
+    const scores = users.map((user, index) => ({
+      userId: user.gameId,
+      username: user.gameUsername,
+      telegramUsername: user.telegramUsername,
+      score: user.bestScore,
+      rank: index + 1
+    }));
+    
+    res.json(scores);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des scores globaux:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Route pour récupérer toutes les saisons
+app.get('/api/seasons', async (req, res) => {
+  try {
+    const seasons = await Season.findAll({
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(seasons);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des saisons:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des saisons' });
+  }
+});
+
+// Route pour récupérer une saison spécifique
+app.get('/api/seasons/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Saison non trouvée' });
+    }
+    res.json(season);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la saison:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de la saison' });
+  }
+});
+
+// Route pour créer une nouvelle saison
+app.post('/api/seasons', async (req, res) => {
+  const { seasonNumber, endDate, prizeMoney } = req.body;
+  
+  try {
+    // Désactiver toutes les saisons actives
+    await Season.update({ isActive: false }, { where: { isActive: true } });
+    
+    // Créer une nouvelle saison
+    const newSeason = await Season.create({
+      seasonNumber,
+      endDate,
+      prizeMoney,
+      isActive: true,
+      isClosed: false
+    });
+    
+    res.status(201).json(newSeason);
+  } catch (error) {
+    console.error('Erreur lors de la création de la saison:', error);
+    res.status(500).json({ error: 'Erreur lors de la création de la saison' });
+  }
+});
+
+// Route pour mettre à jour une saison
+app.put('/api/seasons/:id', async (req, res) => {
+  const { id } = req.params;
+  const { seasonNumber, endDate, prizeMoney } = req.body;
+  
+  try {
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Saison non trouvée' });
+    }
+    
+    await season.update({
+      seasonNumber,
+      endDate,
+      prizeMoney
+    });
+    
+    res.json(season);
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la saison:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour de la saison' });
+  }
+});
+
+// Route pour clôturer une saison
+app.post('/api/seasons/:id/close', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Saison non trouvée' });
+    }
+    
+    if (season.isClosed) {
+      return res.status(400).json({ error: 'Cette saison est déjà clôturée' });
+    }
+    
+    // Récupérer le gagnant de la saison (meilleur score)
+    const topScore = await SeasonScore.findOne({
+      where: { seasonId: id },
+      order: [['score', 'DESC']],
+      include: [{ model: User }]
+    });
+    
+    let winnerId = null;
+    if (topScore) {
+      winnerId = topScore.userId;
+    }
+    
+    // Mettre à jour la saison
+    await season.update({
+      isClosed: true,
+      isActive: false,
+      winnerId
+    });
+    
+    res.json({ 
+      message: 'Saison clôturée avec succès',
+      season,
+      winner: topScore ? topScore.User : null
+    });
+  } catch (error) {
+    console.error('Erreur lors de la clôture de la saison:', error);
+    res.status(500).json({ error: 'Erreur lors de la clôture de la saison' });
+  }
+});
+
+// Route pour récupérer le classement d'une saison
+app.get('/api/seasons/:id/ranking', async (req, res) => {
+  const { id } = req.params;
+  const limit = req.query.limit ? parseInt(req.query.limit) : 100;
+  
+  try {
+    const seasonScores = await SeasonScore.findAll({
+      where: { seasonId: id },
+      order: [['score', 'DESC']],
+      limit,
+      include: [{ model: User }]
+    });
+    
+    const ranking = seasonScores.map(score => ({
+      userId: score.userId,
+      username: score.User.gameUsername,
+      score: score.score
+    }));
+    
+    res.json(ranking);
+  } catch (error) {
+    console.error('Erreur lors de la récupération du classement de la saison:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du classement de la saison' });
+  }
+});
+
+// Route pour récupérer le classement global
+app.get('/api/global-ranking', async (req, res) => {
+  const limit = req.query.limit ? parseInt(req.query.limit) : 100;
+  
+  try {
+    const users = await User.findAll({
+      order: [['bestScore', 'DESC']],
+      limit
+    });
+    
+    const ranking = users.map(user => ({
+      userId: user.gameId,
+      username: user.gameUsername,
+      score: user.bestScore
+    }));
+    
+    res.json(ranking);
+  } catch (error) {
+    console.error('Erreur lors de la récupération du classement global:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du classement global' });
+  }
+});
+
+// Route pour récupérer la saison active
+app.get('/api/active-season', async (req, res) => {
+  try {
+    const activeSeason = await Season.findOne({
+      where: { isActive: true }
+    });
+    
+    if (!activeSeason) {
+      return res.status(404).json({ error: 'Aucune saison active' });
+    }
+    
+    res.json(activeSeason);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la saison active:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de la saison active' });
   }
 });
 
