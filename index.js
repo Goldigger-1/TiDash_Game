@@ -746,6 +746,51 @@ app.get('/api/seasons/active', async (req, res) => {
   }
 });
 
+// API pour supprimer une saison
+app.delete('/api/seasons/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Vérifier si la saison existe
+    const season = await Season.findByPk(id);
+    if (!season) {
+      return res.status(404).json({ error: 'Season not found' });
+    }
+    
+    // Désactiver temporairement les contraintes de clé étrangère
+    await sequelize.query('PRAGMA foreign_keys = OFF;');
+    
+    try {
+      // Supprimer les scores de saison associés
+      await sequelize.query('DELETE FROM "SeasonScores" WHERE "seasonId" = ?', {
+        replacements: [id]
+      });
+      
+      // Supprimer la saison
+      await sequelize.query('DELETE FROM "Seasons" WHERE "id" = ?', {
+        replacements: [id]
+      });
+      
+      // Réactiver les contraintes de clé étrangère
+      await sequelize.query('PRAGMA foreign_keys = ON;');
+      
+      console.log(`🗑️ Season ${id} deleted successfully`);
+      res.status(200).json({ message: 'Season deleted successfully' });
+    } catch (innerError) {
+      // Réactiver les contraintes de clé étrangère même en cas d'erreur
+      await sequelize.query('PRAGMA foreign_keys = ON;');
+      throw innerError;
+    }
+  } catch (error) {
+    console.error('❌ Error deleting season:', error);
+    res.status(500).json({ 
+      error: 'Error deleting season', 
+      details: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // Démarrer le serveur
 app.listen(port, '0.0.0.0', () => {
   console.log(`Serveur démarré sur le port ${port}`);

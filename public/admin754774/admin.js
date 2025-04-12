@@ -236,6 +236,16 @@ function initEvents() {
             }
         }
     });
+    
+    // Ajouter un gestionnaire d'événements pour les boutons "Supprimer" des saisons
+    seasonsHistoryTable.addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete')) {
+            const seasonId = e.target.getAttribute('data-season-id');
+            if (confirm(`Are you sure you want to delete Season ${seasonId}? This action cannot be undone.`)) {
+                deleteSeason(seasonId);
+            }
+        }
+    });
 }
 
 // Gérer la connexion
@@ -568,7 +578,7 @@ function displaySeasons() {
     // Si aucune saison n'est trouvée
     if (seasons.length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="5" style="text-align: center;">Aucune saison trouvée</td>`;
+        row.innerHTML = `<td colspan="6" style="text-align: center;">Aucune saison trouvée</td>`;
         seasonsHistoryTable.appendChild(row);
     } else {
         // Afficher les saisons
@@ -594,11 +604,21 @@ function displaySeasons() {
                 <td>
                     <button class="action-btn view" data-season-id="${season.id}">Voir les scores</button>
                 </td>
+                <td>
+                    <button class="action-btn delete" data-season-id="${season.id}">🗑️ Delete</button>
+                </td>
             `;
             
             // Ajouter un gestionnaire d'événements pour le bouton "Voir les scores"
             row.querySelector('.action-btn.view').addEventListener('click', () => {
                 viewSeasonScores(season);
+            });
+            
+            // Ajouter un gestionnaire d'événements pour le bouton "Supprimer"
+            row.querySelector('.action-btn.delete').addEventListener('click', () => {
+                if (confirm(`Are you sure you want to delete Season ${season.seasonNumber}? This action cannot be undone.`)) {
+                    deleteSeason(season.id);
+                }
             });
             
             seasonsHistoryTable.appendChild(row);
@@ -776,6 +796,32 @@ function closeSeason(seasonId) {
     .catch(error => {
         console.error('Erreur lors de la clôture de la saison:', error);
         showNotification('Erreur lors de la clôture de la saison', 'error');
+    });
+}
+
+// Supprimer une saison
+function deleteSeason(seasonId) {
+    fetch(`/api/seasons/${seasonId}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error deleting season');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Season deleted:', data);
+        
+        // Rafraîchir les données
+        fetchSeasons();
+        
+        // Afficher un message de succès
+        showNotification('Season deleted successfully! 🗑️', 'success');
+    })
+    .catch(error => {
+        console.error('Error deleting season:', error);
+        showNotification('Error deleting season ❌', 'error');
     });
 }
 
