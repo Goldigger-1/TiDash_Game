@@ -97,11 +97,7 @@ const Season = sequelize.define('Season', {
   },
   winnerId: {
     type: DataTypes.STRING,
-    allowNull: true,
-    references: {
-      model: User,
-      key: 'gameId'
-    }
+    allowNull: true
   }
 });
 
@@ -139,7 +135,8 @@ User.hasMany(SeasonScore, { foreignKey: 'userId' });
 SeasonScore.belongsTo(User, { foreignKey: 'userId' });
 Season.hasMany(SeasonScore, { foreignKey: 'seasonId' });
 SeasonScore.belongsTo(Season, { foreignKey: 'seasonId' });
-Season.belongsTo(User, { foreignKey: 'winnerId', as: 'Winner' });
+// Suppression de la relation problématique
+// Season.belongsTo(User, { foreignKey: 'winnerId', as: 'Winner' });
 
 // Synchroniser les modèles avec la base de données
 sequelize.sync({ alter: true }).then(() => {
@@ -437,7 +434,8 @@ app.post('/api/seasons', async (req, res) => {
       endDate: new Date(endDate),
       prizeMoney: parseFloat(prizeMoney),
       isActive: true,
-      isClosed: false
+      isClosed: false,
+      winnerId: null
     });
     
     console.log('Nouvelle saison créée:', newSeason.toJSON());
@@ -604,30 +602,6 @@ app.get('/api/seasons/:id', async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la récupération de la saison:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération de la saison' });
-  }
-});
-
-// Route pour créer une nouvelle saison
-app.post('/api/seasons', async (req, res) => {
-  const { seasonNumber, endDate, prizeMoney } = req.body;
-  
-  try {
-    // Désactiver toutes les saisons actives
-    await Season.update({ isActive: false }, { where: { isActive: true } });
-    
-    // Créer une nouvelle saison
-    const newSeason = await Season.create({
-      seasonNumber,
-      endDate,
-      prizeMoney,
-      isActive: true,
-      isClosed: false
-    });
-    
-    res.status(201).json(newSeason);
-  } catch (error) {
-    console.error('Erreur lors de la création de la saison:', error);
-    res.status(500).json({ error: 'Erreur lors de la création de la saison' });
   }
 });
 
