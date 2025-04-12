@@ -1477,42 +1477,58 @@
                 .then(activeSeason => {
                     if (activeSeason) {
                         // CRITICAL FIX: Get the current game score and compare with the stored season best
-                        let storedSeasonBest = seasonScore;
-                        
-                        console.log(`🎮 Game Over - Current game score: ${score}, Server season best: ${storedSeasonBest}`);
-                        
-                        // IMPORTANT FIX: Always check if we need to update the season score
-                        // We need to handle two cases:
-                        // 1. If this is the first game in a new season, we should send the score regardless
-                        // 2. If the current score is better than the stored season best
-                        const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
-                        const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
-                        
-                        if (isNewSeason || score > storedSeasonBest) {
-                            // Update our local variable
-                            if (score > storedSeasonBest) {
-                                seasonScore = score;
-                                console.log(`🏆 New season best achieved: ${seasonScore}`);
+                        // First, get the latest season score from the server to ensure we have the correct data
+                        fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
+                        .then(response => response.ok ? response.json() : { score: 0 })
+                        .then(serverData => {
+                            // Use the server's score as the source of truth
+                            let serverSeasonBest = serverData && serverData.score ? parseInt(serverData.score) : 0;
+                            
+                            console.log(`🎮 Game Over - Current game score: ${score}, Server season best: ${serverSeasonBest}`);
+                            
+                            // IMPORTANT FIX: Always check if we need to update the season score
+                            // We need to handle two cases:
+                            // 1. If this is the first game in a new season, we should send the score regardless
+                            // 2. If the current score is better than the stored season best
+                            const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
+                            const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
+                            
+                            if (isNewSeason || score > serverSeasonBest) {
+                                // Update our local variable
+                                if (score > serverSeasonBest) {
+                                    seasonScore = score;
+                                    console.log(`🏆 New season best achieved: ${seasonScore}`);
+                                } else {
+                                    console.log(`📊 First game in new season: ${score}`);
+                                    // Even if it's not a personal best, we need to record it for the first game
+                                    seasonScore = score;
+                                }
+                                
+                                // Store the current season ID to track season changes
+                                localStorage.setItem(`tidashLastSeasonId_${userId}`, activeSeason.id.toString());
+                                
+                                // Always update the season score in localStorage
+                                localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                                
+                                // Send updated score to server immediately
+                                sendUserDataToServer();
                             } else {
-                                console.log(`📊 First game in new season: ${score}`);
-                                // Even if it's not a personal best, we need to record it for the first game
-                                seasonScore = score;
+                                // If we didn't update the score, make sure we're using the server's value
+                                seasonScore = serverSeasonBest;
+                                localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
                             }
                             
-                            // Store the current season ID to track season changes
-                            localStorage.setItem(`tidashLastSeasonId_${userId}`, activeSeason.id.toString());
-                            
-                            // Always update the season score in localStorage
-                            localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
-                            
-                            // Send updated score to server immediately
-                            sendUserDataToServer();
-                        }
-                        
-                        // CRITICAL FIX: Always display the season score, regardless of whether it was updated
-                        // This ensures the season score is always visible in the game over popup
-                        seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore}`;
-                        seasonScoreElement.style.display = 'block';
+                            // CRITICAL FIX: Always display the season score, regardless of whether it was updated
+                            // This ensures the season score is always visible in the game over popup
+                            seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore} 🏆`;
+                            seasonScoreElement.style.display = 'block';
+                        })
+                        .catch(error => {
+                            console.error('❌ Error getting season score from server:', error);
+                            // Fallback to local data if server request fails
+                            seasonScoreElement.textContent = `Season ${activeSeason.seasonNumber} Best: ${seasonScore} 🏆`;
+                            seasonScoreElement.style.display = 'block';
+                        });
                     } else {
                         seasonScoreElement.style.display = 'none';
                     }
@@ -1802,6 +1818,13 @@
                 
                 // Envoyer immédiatement les données utilisateur au serveur après l'initialisation
                 setTimeout(sendUserDataToServer, 500);
+                
+                // CRITICAL FIX: Force a season check immediately to ensure we have the correct season score
+                setTimeout(function() {
+                    // Force a complete reset of season data to ensure we're starting fresh
+                    console.log("🔄 Forcing season check and potential reset on startup");
+                    checkForNewSeason(true); // Pass true to force a reset if needed
+                }, 1000);
             } else {
                 // Pas de Telegram, utiliser le comportement standard
                 if (localStorage.getItem("tidashUsername") && localStorage.getItem("tidashUserId")) {
@@ -1944,11 +1967,11 @@
         }
         
         // Fonction pour vérifier si une nouvelle saison a été créée
-        function checkForNewSeason() {
+        function checkForNewSeason(forceReset = false) {
             fetch('/api/seasons/active')
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Erreur lors de la récupération de la saison active');
+                    throw new Error('Error retrieving active season');
                 }
                 return response.json();
             })
@@ -1958,11 +1981,11 @@
                     // Get the ID of the last known season
                     const lastKnownSeasonId = localStorage.getItem(`tidashLastSeasonId_${userId}`);
                     
-                    console.log(`🔍 Checking season - Current active season: ${data.id}, Last known: ${lastKnownSeasonId}`);
+                    console.log(`🔍 Checking season - Current active season: ${data.id}, Last known: ${lastKnownSeasonId}, Force reset: ${forceReset}`);
                     
-                    // If it's a new season or the first season for this user
-                    if (!lastKnownSeasonId || lastKnownSeasonId !== data.id.toString()) {
-                        console.log('🔄 New season detected:', data);
+                    // If it's a new season, the first season for this user, or a force reset is requested
+                    if (!lastKnownSeasonId || lastKnownSeasonId !== data.id.toString() || forceReset) {
+                        console.log('🔄 New season detected or force reset requested:', data);
                         
                         // IMPORTANT: Completely reset the season score
                         seasonScore = 0;
@@ -1972,8 +1995,8 @@
                         localStorage.setItem(`tidashLastSeasonId_${userId}`, data.id.toString());
                         
                         // Notify the user of the new season in English with emojis
-                        if (lastKnownSeasonId) {
-                            // Only if this isn't the first time the user plays
+                        if (lastKnownSeasonId && !forceReset) {
+                            // Only if this isn't the first time the user plays and not a forced reset
                             if (tg && tg.showPopup) {
                                 tg.showPopup({
                                     title: '🏆 New Season Started! 🏆',
@@ -1985,7 +2008,7 @@
                             }
                         }
                         
-                        console.log('🔄 Season score reset for new season');
+                        console.log('🔄 Season score reset to 0');
                         
                         // Force immediate synchronization with the server to ensure the score is reset
                         sendUserDataToServer();
@@ -2022,7 +2045,7 @@
                 }
             })
             .catch(error => {
-                console.error('❌ Error checking for new season:', error);
+                console.error('Error checking for new season:', error);
             });
         }
         

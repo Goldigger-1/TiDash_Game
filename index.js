@@ -487,36 +487,46 @@ app.post('/api/users', async (req, res) => {
                 isNewSeason: true
               }
             });
-          } else if (currentSeasonScore > seasonScoreRecord.score) {
-            // Only update if the new score is better
-            await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
-            console.log(`📈 Season score updated for ${user.gameId}: ${currentSeasonScore}`);
           } else {
-            console.log(`ℹ️ No season score update needed: current ${currentSeasonScore} <= existing ${seasonScoreRecord.score}`);
-          }
-          
-          // Return the current season score to the client for validation
-          const updatedScore = await SeasonScore.findOne({
-            where: { 
-              userId: user.gameId, 
-              seasonId: activeSeason.id 
-            },
-            transaction
-          });
-          
-          // Commit the transaction
-          await transaction.commit();
-          
-          // Return user data with the current season score
-          res.status(200).json({ 
-            message: 'User updated successfully', 
-            user,
-            seasonData: {
-              seasonId: activeSeason.id,
-              seasonNumber: activeSeason.seasonNumber,
-              currentScore: updatedScore ? updatedScore.score : 0
+            // CRITICAL FIX: For existing seasons, we need to handle two cases:
+            // 1. If the score from the client is better than what we have stored
+            // 2. If the client has a score of 0 but we have a non-zero score (client needs to sync)
+            
+            if (currentSeasonScore > seasonScoreRecord.score) {
+              // Update if the new score is better
+              await seasonScoreRecord.update({ score: currentSeasonScore }, { transaction });
+              console.log(`📈 Season score updated for ${user.gameId}: ${currentSeasonScore}`);
+            } else if (currentSeasonScore === 0 && seasonScoreRecord.score > 0) {
+              // Client has a score of 0 but we have a non-zero score - this indicates the client
+              // needs to sync with our data, so we don't update our record
+              console.log(`⚠️ Client has score 0 but server has ${seasonScoreRecord.score} for ${user.gameId} - sending server data`);
+            } else {
+              console.log(`ℹ️ No season score update needed: current ${currentSeasonScore} <= existing ${seasonScoreRecord.score}`);
             }
-          });
+            
+            // Return the current season score to the client for validation
+            const updatedScore = await SeasonScore.findOne({
+              where: { 
+                userId: user.gameId, 
+                seasonId: activeSeason.id 
+              },
+              transaction
+            });
+            
+            // Commit the transaction
+            await transaction.commit();
+            
+            // Return user data with the current season score
+            res.status(200).json({ 
+              message: 'User updated successfully', 
+              user,
+              seasonData: {
+                seasonId: activeSeason.id,
+                seasonNumber: activeSeason.seasonNumber,
+                currentScore: updatedScore ? updatedScore.score : 0
+              }
+            });
+          }
         } else {
           // No active season
           await transaction.commit();
