@@ -170,10 +170,17 @@ function initEvents() {
     
     saveSeasonBtn.addEventListener('click', (e) => {
         e.preventDefault();
+        
         // Récupérer les valeurs du formulaire
         const seasonNumberValue = seasonNumberInput.value.trim();
         const seasonEndDateValue = seasonEndDateInput.value.trim();
         const seasonPrizeValue = seasonPrizeInput.value.trim();
+        
+        console.log('Données du formulaire:', {
+            seasonNumber: seasonNumberValue,
+            endDate: seasonEndDateValue,
+            prizeMoney: seasonPrizeValue
+        });
         
         // Validation des données
         if (!seasonNumberValue || !seasonEndDateValue || !seasonPrizeValue) {
@@ -668,25 +675,40 @@ function displayGlobalRanking(data) {
 
 // Créer une nouvelle saison
 function createSeason(seasonNumber, endDate, prizeMoney) {
+    const payload = {
+        seasonNumber: parseInt(seasonNumber),
+        endDate: endDate,
+        prizeMoney: parseFloat(prizeMoney)
+    };
+    
+    console.log('Envoi de la requête de création de saison:', payload);
+    
     fetch('/api/seasons', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            seasonNumber: parseInt(seasonNumber),
-            endDate: endDate,
-            prizeMoney: parseFloat(prizeMoney)
-        })
+        body: JSON.stringify(payload)
     })
     .then(response => {
+        console.log('Réponse reçue:', response.status, response.statusText);
+        
         if (!response.ok) {
-            throw new Error('Erreur lors de la création de la saison');
+            return response.text().then(text => {
+                try {
+                    const errorData = JSON.parse(text);
+                    console.error('Erreur détaillée:', errorData);
+                    throw new Error(errorData.error || 'Erreur lors de la création de la saison');
+                } catch (e) {
+                    console.error('Erreur brute:', text);
+                    throw new Error('Erreur lors de la création de la saison');
+                }
+            });
         }
         return response.json();
     })
     .then(data => {
-        console.log('Saison créée:', data);
+        console.log('Saison créée avec succès:', data);
         seasonModal.style.display = 'none';
         
         // Rafraîchir les données
@@ -697,7 +719,7 @@ function createSeason(seasonNumber, endDate, prizeMoney) {
     })
     .catch(error => {
         console.error('Erreur lors de la création de la saison:', error);
-        showNotification('Erreur lors de la création de la saison', 'error');
+        showNotification(error.message || 'Erreur lors de la création de la saison', 'error');
     });
 }
 

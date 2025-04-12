@@ -404,13 +404,14 @@ app.post('/api/users', async (req, res) => {
 app.get('/api/seasons', async (req, res) => {
   try {
     const seasons = await Season.findAll({
-      order: [['number', 'DESC']]
+      order: [['seasonNumber', 'DESC']]
     });
     
+    console.log('Saisons récupérées:', seasons.map(s => s.toJSON()));
     res.json(seasons);
   } catch (error) {
     console.error('Erreur lors de la récupération des saisons:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la récupération des saisons' });
   }
 });
 
@@ -482,22 +483,23 @@ app.put('/api/seasons/:id', async (req, res) => {
 
 // API pour clôturer une saison
 app.post('/api/seasons/:id/close', async (req, res) => {
+  const { id } = req.params;
+  
   try {
-    const { id } = req.params;
-    
     const season = await Season.findByPk(id);
     if (!season) {
       return res.status(404).json({ error: 'Saison non trouvée' });
     }
     
-    if (!season.isActive) {
-      return res.status(400).json({ error: 'La saison est déjà clôturée' });
+    if (season.isClosed) {
+      return res.status(400).json({ error: 'Cette saison est déjà clôturée' });
     }
     
-    // Récupérer le gagnant (meilleur score)
+    // Récupérer le gagnant de la saison (meilleur score)
     const topScore = await SeasonScore.findOne({
       where: { seasonId: id },
-      order: [['score', 'DESC']]
+      order: [['score', 'DESC']],
+      include: [{ model: User }]
     });
     
     let winnerId = null;
@@ -505,26 +507,23 @@ app.post('/api/seasons/:id/close', async (req, res) => {
       winnerId = topScore.userId;
     }
     
-    // Clôturer la saison
+    // Mettre à jour la saison
     await season.update({
+      isClosed: true,
       isActive: false,
       winnerId
     });
     
-    // Mettre à jour les rangs des scores de saison
-    const scores = await SeasonScore.findAll({
-      where: { seasonId: id },
-      order: [['score', 'DESC']]
+    console.log('Saison clôturée avec succès:', season.toJSON());
+    
+    res.json({ 
+      message: 'Saison clôturée avec succès',
+      season,
+      winner: topScore ? topScore.User : null
     });
-    
-    for (let i = 0; i < scores.length; i++) {
-      await scores[i].update({ rank: i + 1 });
-    }
-    
-    res.json({ message: 'Saison clôturée avec succès', season });
   } catch (error) {
     console.error('Erreur lors de la clôture de la saison:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur lors de la clôture de la saison' });
   }
 });
 
@@ -593,19 +592,6 @@ app.get('/api/global-scores', async (req, res) => {
   }
 });
 
-// Route pour récupérer toutes les saisons
-app.get('/api/seasons', async (req, res) => {
-  try {
-    const seasons = await Season.findAll({
-      order: [['createdAt', 'DESC']]
-    });
-    res.json(seasons);
-  } catch (error) {
-    console.error('Erreur lors de la récupération des saisons:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des saisons' });
-  }
-});
-
 // Route pour récupérer une saison spécifique
 app.get('/api/seasons/:id', async (req, res) => {
   const { id } = req.params;
@@ -642,60 +628,6 @@ app.post('/api/seasons', async (req, res) => {
   } catch (error) {
     console.error('Erreur lors de la création de la saison:', error);
     res.status(500).json({ error: 'Erreur lors de la création de la saison' });
-  }
-});
-
-// Route pour clôturer une saison
-app.post('/api/seasons/:id/close', async (req, res) => {
-  const { id } = req.params;
-  
-  try {
-    const season = await Season.findByPk(id);
-    if (!season) {
-      return res.status(404).json({ error: 'Saison non trouvée' });
-    }
-    
-    if (season.isClosed) {
-      return res.status(400).json({ error: 'Cette saison est déjà clôturée' });
-    }
-    
-    // Récupérer le gagnant de la saison (meilleur score)
-    const topScore = await SeasonScore.findOne({
-      where: { seasonId: id },
-      order: [['score', 'DESC']],
-      include: [{ model: User }]
-    });
-    
-    let winnerId = null;
-    if (topScore) {
-      winnerId = topScore.userId;
-    }
-    
-    // Mettre à jour la saison
-    await season.update({
-      isClosed: true,
-      isActive: false,
-      winnerId
-    });
-    
-    // Mettre à jour les rangs des scores de saison
-    const scores = await SeasonScore.findAll({
-      where: { seasonId: id },
-      order: [['score', 'DESC']]
-    });
-    
-    for (let i = 0; i < scores.length; i++) {
-      await scores[i].update({ rank: i + 1 });
-    }
-    
-    res.json({ 
-      message: 'Saison clôturée avec succès',
-      season,
-      winner: topScore ? topScore.User : null
-    });
-  } catch (error) {
-    console.error('Erreur lors de la clôture de la saison:', error);
-    res.status(500).json({ error: 'Erreur lors de la clôture de la saison' });
   }
 });
 
