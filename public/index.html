@@ -1705,137 +1705,147 @@
             try {
                 console.log("🧑 Initializing user profile...");
                 
-                // Check if we're in a Telegram WebApp
-                if (window.Telegram && window.Telegram.WebApp) {
-                    // Telegram WebApp initialization code...
-                    // (existing code remains unchanged)
+                // Try to get a device identifier or generate a new one
+                let deviceId = getCookie("tidashDeviceId");
+                if (!deviceId) {
+                    deviceId = generateRandomUserId();
+                    setCookie("tidashDeviceId", deviceId, 365); // Store for 1 year
+                    console.log(`🆕 Generated new device ID: ${deviceId}`);
                 } else {
-                    // No Telegram, use standard behavior with server-side storage
-                    console.log("📱 Initializing profile for standard user");
-                    
-                    // Try to get a device identifier or generate a new one
-                    let deviceId = getCookie("tidashDeviceId");
-                    if (!deviceId) {
-                        deviceId = generateRandomUserId();
-                        setCookie("tidashDeviceId", deviceId, 365); // Store for 1 year
-                        console.log(`🆕 Generated new device ID: ${deviceId}`);
-                    } else {
-                        console.log(`🔍 Found existing device ID: ${deviceId}`);
-                    }
-                    
-                    // Fetch user data from server using device ID
-                    fetch(`/api/users/device/${deviceId}`)
-                        .then(response => {
-                            if (response.status === 404) {
-                                console.log("👤 User not found, creating new profile");
-                                // User not found, create new profile
-                                username = generateRandomUsername();
-                                userId = generateRandomUserId();
-                                avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                                bestScore = 0;
-                                seasonScore = 0;
-                                
-                                // Create new user with device ID
-                                const userData = {
-                                    gameId: userId,
-                                    gameUsername: username,
-                                    deviceId: deviceId,
-                                    avatarSrc: '/avatars/avatar_default.jpg',
-                                    bestScore: 0,
-                                    seasonScore: 0,
-                                    musicEnabled: true
-                                };
-                                
-                                // Send new user data to server
-                                return fetch('/api/users', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify(userData)
-                                })
-                                .then(response => response.json())
-                                .then(data => {
-                                    console.log("✅ New user created:", data);
-                                    return null; // Return null to indicate we've handled this case
-                                });
-                            } else if (!response.ok) {
-                                throw new Error('Network response was not ok');
-                            } else {
-                                return response.json();
-                            }
-                        })
-                        .then(data => {
-                            if (data) {
-                                console.log("✅ User data loaded from server:", data);
-                                // Set user data from server response
-                                userId = data.gameId;
-                                username = data.gameUsername;
-                                
-                                // Handle avatar path correctly
-                                if (data.avatarSrc) {
-                                    // Ensure avatar path is absolute
-                                    if (data.avatarSrc.startsWith('http')) {
-                                        avatarSrc = data.avatarSrc;
-                                    } else if (data.avatarSrc.startsWith('/')) {
-                                        avatarSrc = window.location.origin + data.avatarSrc;
-                                    } else {
-                                        avatarSrc = window.location.origin + '/avatars/' + data.avatarSrc;
-                                    }
-                                } else {
-                                    // Default avatar with absolute path
-                                    avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                                }
-                                
-                                paypalEmail = data.paypalEmail || "";
-                                bestScore = parseInt(data.bestScore || "0");
-                                
-                                // Set music preference from server
-                                isMusicEnabled = data.musicEnabled !== undefined ? data.musicEnabled : true;
-                                
-                                // Update UI elements
-                                updateUserProfileDisplay();
-                                updateScoreDisplay();
-                                updateSoundToggleDisplay();
-                                
-                                // Initialize avatar selection in settings
-                                initAvatarSelection();
-                            }
+                    console.log(`🔍 Found existing device ID: ${deviceId}`);
+                }
+                
+                // Fetch user data from server using device ID
+                fetch(`/api/users/device/${deviceId}`)
+                    .then(response => {
+                        if (response.status === 404) {
+                            console.log("👤 User not found, creating new profile");
                             
-                            // Check for new season
-                            setTimeout(function() {
-                                checkForNewSeason(true);
-                            }, 1000);
-                        })
-                        .catch(error => {
-                            console.error('❌ Error fetching user data:', error);
-                            
-                            // Fallback to creating a new user if fetch fails
+                            // Generate random username and ID if not found
                             username = generateRandomUsername();
                             userId = generateRandomUserId();
                             avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
                             bestScore = 0;
                             seasonScore = 0;
                             
+                            // Create new user with device ID
+                            const userData = {
+                                gameId: userId,
+                                gameUsername: username,
+                                deviceId: deviceId,
+                                avatarSrc: '/avatars/avatar_default.jpg',
+                                bestScore: 0,
+                                seasonScore: 0,
+                                musicEnabled: true
+                            };
+                            
+                            console.log("📝 Creating new user:", userData);
+                            
                             // Send new user data to server
-                            sendUserDataToServer();
+                            return fetch('/api/users', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(userData)
+                            })
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to create user');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log("✅ New user created:", data);
+                                
+                                // Update UI
+                                updateUserProfileDisplay();
+                                updateScoreDisplay();
+                                updateSoundToggleDisplay();
+                                
+                                return null; // Return null to indicate we've handled this case
+                            });
+                        } else if (!response.ok) {
+                            throw new Error('Failed to fetch user data');
+                        } else {
+                            return response.json();
+                        }
+                    })
+                    .then(data => {
+                        if (data) {
+                            console.log("✅ User data loaded from server:", data);
+                            
+                            // Set user data from server response
+                            userId = data.gameId;
+                            username = data.gameUsername;
+                            
+                            // Handle avatar path correctly
+                            if (data.avatarSrc) {
+                                // Ensure avatar path is absolute
+                                if (data.avatarSrc.startsWith('http')) {
+                                    avatarSrc = data.avatarSrc;
+                                } else if (data.avatarSrc.startsWith('/')) {
+                                    avatarSrc = window.location.origin + data.avatarSrc;
+                                } else {
+                                    avatarSrc = window.location.origin + '/avatars/' + data.avatarSrc;
+                                }
+                            } else {
+                                // Default avatar with absolute path
+                                avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                            }
+                            
+                            paypalEmail = data.paypalEmail || "";
+                            bestScore = parseInt(data.bestScore || "0");
+                            
+                            // Set music preference from server
+                            isMusicEnabled = data.musicEnabled !== undefined ? data.musicEnabled : true;
                             
                             // Update UI elements
                             updateUserProfileDisplay();
                             updateScoreDisplay();
                             updateSoundToggleDisplay();
-                            
-                            // Initialize avatar selection in settings
-                            initAvatarSelection();
-                            
-                            // Check for new season
-                            setTimeout(function() {
-                                checkForNewSeason(true);
-                            }, 1000);
-                        });
-                }
+                        }
+                        
+                        // Initialize avatar selection
+                        initAvatarSelection();
+                        
+                        // Check for new season
+                        setTimeout(function() {
+                            checkForNewSeason(true);
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        console.error('❌ Error in user profile initialization:', error);
+                        
+                        // Fallback to creating a new user if fetch fails
+                        username = generateRandomUsername();
+                        userId = generateRandomUserId();
+                        avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                        bestScore = 0;
+                        seasonScore = 0;
+                        
+                        console.log("🔄 Falling back to local user creation due to error");
+                        
+                        // Update UI elements
+                        updateUserProfileDisplay();
+                        updateScoreDisplay();
+                        
+                        // Try to send user data to server as a fallback
+                        sendUserDataToServer();
+                        
+                        // Initialize avatar selection
+                        initAvatarSelection();
+                    });
             } catch (error) {
                 console.error("❌ Error in initUserProfile:", error);
+                
+                // Emergency fallback
+                username = generateRandomUsername();
+                userId = generateRandomUserId();
+                avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
+                
+                // Update UI as a last resort
+                updateUserProfileDisplay();
             }
         }
         
@@ -1848,21 +1858,29 @@
                 // Clear existing avatars
                 avatarsGrid.innerHTML = '';
                 
-                // List of available avatars
+                // List of available avatars (using the correct filenames)
                 const avatars = [
                     'avatar_default.jpg',
-                    'avatar_1.jpg',
-                    'avatar_2.jpg',
-                    'avatar_3.jpg',
-                    'avatar_4.jpg',
-                    'avatar_5.jpg',
-                    'avatar_6.jpg',
-                    'avatar_7.jpg',
-                    'avatar_8.jpg',
-                    'avatar_9.jpg',
-                    'avatar_10.jpg',
-                    'avatar_11.jpg',
-                    'avatar_12.jpg'
+                    'avatar1.jpg',
+                    'avatar2.jpg',
+                    'avatar3.jpg',
+                    'avatar4.jpg',
+                    'avatar5.jpg',
+                    'avatar6.jpg',
+                    'avatar7.jpg',
+                    'avatar8.jpg',
+                    'avatar9.jpg',
+                    'avatar10.jpg',
+                    'avatar11.jpg',
+                    'avatar12.jpg',
+                    'avatar13.jpg',
+                    'avatar14.jpg',
+                    'avatar15.jpg',
+                    'avatar16.jpg',
+                    'avatar17.jpg',
+                    'avatar18.jpg',
+                    'avatar19.jpg',
+                    'avatar20.jpg'
                 ];
                 
                 // Create avatar items
@@ -2014,12 +2032,12 @@
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`Server error: ${response.status}`);
+                        throw new Error('Failed to save user data');
                     }
                     return response.json();
                 })
                 .then(data => {
-                    console.log("✅ User data saved successfully:", data);
+                    console.log('✅ User data saved successfully:', data);
                     
                     // Update user data from response if available
                     if (data.user) {
@@ -2050,7 +2068,6 @@
                 .then(response => {
                     if (!response.ok) {
                         if (response.status === 404) {
-                            console.log("⚠️ No active season found");
                             return null;
                         }
                         throw new Error('Error retrieving active season');
