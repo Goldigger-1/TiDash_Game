@@ -1669,7 +1669,7 @@
                     fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
                     .then(response => response.ok ? response.json() : { score: 0 })
                     .then(serverData => {
-                        // Update our local variable with the server's data
+                        // Use the server's score as the source of truth
                         const serverScore = serverData && serverData.score ? parseInt(serverData.score) : 0;
                         console.log(`🔄 Game reset - Server season score: ${serverScore}`);
                         seasonScore = serverScore;
@@ -1790,17 +1790,20 @@
                     // Récupérer l'email PayPal
                     paypalEmail = localStorage.getItem(`tidashPaypalEmail_${userId}`) || "";
                     
-                    // Initialize scores to 0, will be updated from server
-                    bestScore = 0;
-                    seasonScore = 0;
+                    // Récupérer les scores depuis localStorage pour l'initialisation
+                    const userBestScoreKey = `tidashBestScore_${userId}`;
+                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                    
+                    bestScore = parseInt(localStorage.getItem(userBestScoreKey) || "0");
+                    seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey) || "0");
                     
                     // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     
-                    // Ne plus stocker les scores dans localStorage
-                    // localStorage.setItem(userBestScoreKey, bestScore);
-                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    // Stocker les scores dans localStorage pour l'initialisation
+                    localStorage.setItem(userBestScoreKey, bestScore);
+                    localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
                     // Enregistrer la date d'inscription
                     localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
@@ -1816,61 +1819,12 @@
                     // Log pour débogage iOS
                     console.log("Avatar initialisé:", avatarSrc);
                     
-                    // CRITICAL FIX: Force a complete synchronization with the server
-                    // This ensures we have the most up-to-date scores
-                    console.log("🔄 Forcing complete synchronization with server at startup");
-                    
-                    // First, send our data to the server
+                    // Synchroniser avec le serveur après initialisation
                     sendUserDataToServer();
                     
-                    // Then, force a check for new season and get the latest scores
+                    // Vérifier s'il y a une nouvelle saison
                     setTimeout(function() {
-                        fetch('/api/seasons/active')
-                        .then(response => response.ok ? response.json() : null)
-                        .then(activeSeason => {
-                            if (activeSeason) {
-                                console.log(`🔍 Active season found at startup: ${activeSeason.id}, Season ${activeSeason.seasonNumber}`);
-                                
-                                // Get the latest season score from the server
-                                fetch(`/api/seasons/${activeSeason.id}/scores/${userId}`)
-                                .then(response => response.ok ? response.json() : { score: 0 })
-                                .then(serverData => {
-                                    // Use the server's score as the source of truth
-                                    const serverScore = serverData && serverData.score ? parseInt(serverData.score) : 0;
-                                    console.log(`🔄 Startup sync - Season score from server: ${serverScore}`);
-                                    
-                                    // CRITICAL FIX: Always use the server's value
-                                    seasonScore = serverScore;
-                                    
-                                    // Update the display
-                                    updateScoreDisplay();
-                                })
-                                .catch(error => {
-                                    console.error('❌ Error getting season score at startup:', error);
-                                });
-                                
-                                // Also get the best score
-                                fetch(`/api/users/${userId}`)
-                                .then(response => response.ok ? response.json() : null)
-                                .then(userData => {
-                                    if (userData && userData.bestScore !== undefined) {
-                                        bestScore = parseInt(userData.bestScore);
-                                        console.log(`🔄 Startup sync - Best score from server: ${bestScore}`);
-                                        
-                                        // Update the display
-                                        updateScoreDisplay();
-                                    }
-                                })
-                                .catch(error => {
-                                    console.error('❌ Error getting user data at startup:', error);
-                                });
-                            } else {
-                                console.log("⚠️ No active season found at startup");
-                            }
-                        })
-                        .catch(error => {
-                            console.error('❌ Error checking active season at startup:', error);
-                        });
+                        checkForNewSeason();
                     }, 1000);
                 } else {
                     console.log("Création d'un nouveau profil Telegram");
@@ -1887,9 +1841,11 @@
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     
-                    // Ne plus stocker les scores dans localStorage
-                    // localStorage.setItem(userBestScoreKey, bestScore);
-                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    // Stocker les scores dans localStorage pour l'initialisation
+                    const userBestScoreKey = `tidashBestScore_${userId}`;
+                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                    localStorage.setItem(userBestScoreKey, bestScore);
+                    localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
                     // Enregistrer la date d'inscription
                     localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
@@ -1932,17 +1888,20 @@
                         paypalEmail = localStorage.getItem("tidashPaypalEmail");
                     }
                     
-                    // Initialize scores to 0, will be updated from server
-                    bestScore = 0;
-                    seasonScore = 0;
+                    // Récupérer les scores depuis localStorage pour l'initialisation
+                    const userBestScoreKey = `tidashBestScore_${userId}`;
+                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                    
+                    bestScore = parseInt(localStorage.getItem(userBestScoreKey) || "0");
+                    seasonScore = parseInt(localStorage.getItem(userSeasonScoreKey) || "0");
                     
                     // Mettre à jour les informations de stockage avec les noms de clés spécifiques à l'utilisateur
                     localStorage.setItem(`tidashUsername_${userId}`, username);
                     localStorage.setItem(`tidashAvatarSrc_${userId}`, avatarSrc);
                     
-                    // Ne plus stocker les scores dans localStorage
-                    // localStorage.setItem(userBestScoreKey, bestScore);
-                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    // Stocker les scores dans localStorage pour l'initialisation
+                    localStorage.setItem(userBestScoreKey, bestScore);
+                    localStorage.setItem(userSeasonScoreKey, seasonScore);
                 } else {
                     // Générer un nouveau profil
                     username = generateRandomUsername();
@@ -1956,9 +1915,11 @@
                     localStorage.setItem("tidashUserId", userId);
                     localStorage.setItem("tidashAvatarSrc", avatarSrc);
                     
-                    // Ne plus stocker les scores dans localStorage
-                    // localStorage.setItem(userBestScoreKey, bestScore);
-                    // localStorage.setItem(userSeasonScoreKey, seasonScore);
+                    // Stocker les scores dans localStorage pour l'initialisation
+                    const userBestScoreKey = `tidashBestScore_${userId}`;
+                    const userSeasonScoreKey = `tidashSeasonScore_${userId}`;
+                    localStorage.setItem(userBestScoreKey, bestScore);
+                    localStorage.setItem(userSeasonScoreKey, seasonScore);
                     
                     // Enregistrer la date d'inscription
                     localStorage.setItem("tidashRegistrationDate", new Date().toISOString().split('T')[0]);
@@ -2008,13 +1969,13 @@
                 // Update best score display if it exists
                 const bestScoreElement = document.getElementById('best-score');
                 if (bestScoreElement) {
-                    bestScoreElement.textContent = `Best: ${bestScore} 🌟`;
+                    bestScoreElement.textContent = `Best: ${bestScore}`;
                 }
                 
                 // Update season score display if it exists
                 const seasonScoreElement = document.getElementById('season-score');
                 if (seasonScoreElement) {
-                    seasonScoreElement.textContent = `Season Best: ${seasonScore} 🏆`;
+                    seasonScoreElement.textContent = `Season Best: ${seasonScore}`;
                 }
             } catch (error) {
                 console.error("Error updating score display:", error);
