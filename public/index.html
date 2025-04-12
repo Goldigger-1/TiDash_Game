@@ -1479,8 +1479,8 @@
                 })
                 .then(data => {
                     if (data && data.id) {
-                        // Get the current game score and compare with the stored season best
-                        // First, get the latest season score from the server to ensure we have the correct data
+                        console.log(`🔍 Active season found: ${data.id}, Season ${data.seasonNumber}`);
+                        
                         fetch(`/api/seasons/${data.id}/scores/${userId}`)
                         .then(response => response.ok ? response.json() : { score: 0 })
                         .then(serverData => {
@@ -1617,17 +1617,47 @@
         }
 
         // Resize handler
-        function handleResize() {
-            // Pause game
-            gameRunning = false;
+        function resizeCanvas() {
+            // Set canvas size to match container
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
             
-            // Restart game with new dimensions
-            initGame();
+            // Adjust ball size based on canvas width
+            ball.radius = canvas.width * 0.035;
+            
+            // Adjust line dimensions
+            line.width = canvas.width * 0.8;
+            line.height = ball.radius * 2;
+            
+            // Reposition ball and line
+            if (gameMode === 'home') {
+                // On home screen, position in the middle
+                ball.x = canvas.width / 2;
+                ball.y = canvas.height * 0.5;
+                line.x = (canvas.width - line.width) / 2;
+                line.y = ball.y - ball.radius;
+            }
+            
+            // Redraw stars for new dimensions
+            initStars();
+            
+            console.log(`📱 Canvas resized to ${canvas.width}x${canvas.height}`);
         }
+
+        // Handle window resize
+        function handleResize() {
+            // Delay resize to avoid performance issues during resize
+            clearTimeout(window.resizeTimer);
+            window.resizeTimer = setTimeout(function() {
+                resizeCanvas();
+            }, 250);
+        }
+
+        // Add resize event listener
+        window.addEventListener('resize', handleResize);
 
         // Event listeners
         canvas.addEventListener('click', handleTap);
-        window.addEventListener('resize', handleResize);
         
         // Handle play again button click
         playAgainBtn.addEventListener('click', resetGame);
@@ -2064,9 +2094,6 @@
                     document.getElementById('settings-screen').style.display = 'none';
                 });
             }
-            
-            // Setup window resize handler
-            window.addEventListener('resize', resizeCanvas);
             
             // Set initial game mode
             gameMode = 'home';
