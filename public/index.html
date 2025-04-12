@@ -1405,13 +1405,13 @@
                         
                         // Increment score
                         score++;
-                        seasonScore++;
                         
-                        // Mettre à jour le score de saison dans le localStorage
-                        localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
-                        
-                        // Envoyer les données utilisateur au serveur
-                        sendUserDataToServer();
+                        // Mettre à jour le score de saison uniquement si c'est un nouveau record
+                        if (score > seasonScore) {
+                            seasonScore = score;
+                            localStorage.setItem(`tidashSeasonScore_${userId}`, seasonScore);
+                            console.log(`Nouveau record de saison: ${seasonScore}`);
+                        }
                         
                         // Create explosion effect
                         createExplosion(square.x + square.size / 2, square.y + square.size / 2, '#00FF9D');
@@ -1420,8 +1420,11 @@
                         if (score > bestScore) {
                             bestScore = score;
                             localStorage.setItem(`tidashBestScore_${userId}`, bestScore);
-                            sendUserDataToServer(); // Mettre à jour les données utilisateur sur le serveur
+                            console.log(`Nouveau record global: ${bestScore}`);
                         }
+                        
+                        // Envoyer les données utilisateur au serveur
+                        sendUserDataToServer();
                         
                         return false;
                     } else {
