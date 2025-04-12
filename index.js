@@ -429,7 +429,15 @@ app.post('/api/users', async (req, res) => {
         // RADICAL SOLUTION: Handle season scores completely separately from user data
         if (activeSeason) {
           // First, check if this is a new season for the user
-          const isNewSeason = !lastKnownSeasonId || lastKnownSeasonId !== activeSeason.id.toString();
+          // FIXED: Make isNewSeason false by default to prevent resetting scores unnecessarily
+          // Only set it to true if we have explicit information that it's a new season
+          let isNewSeason = false;
+          
+          // Only check for new season if lastKnownSeasonId is provided and valid
+          if (lastKnownSeasonId) {
+            isNewSeason = lastKnownSeasonId !== activeSeason.id.toString();
+          }
+          
           console.log(`🔄 Season check - Active: ${activeSeason.id}, Last known: ${lastKnownSeasonId}, Is new: ${isNewSeason}`);
           
           // Get the user's current season score from the database
