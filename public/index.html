@@ -1721,32 +1721,30 @@
         // Initialiser ou récupérer le profil utilisateur
         function initUserProfile() {
             try {
-                console.log("🧑 Initializing user profile...");
+                console.log(" Initializing user profile...");
                 
-                // Try to get a device identifier or generate a new one
+                // Get device ID from cookie
                 let deviceId = getCookie("tidashDeviceId");
                 if (!deviceId) {
                     deviceId = generateRandomUserId();
-                    setCookie("tidashDeviceId", deviceId, 365); // Store for 1 year
-                    console.log(`🆕 Generated new device ID: ${deviceId}`);
+                    setCookie("tidashDeviceId", deviceId, 365);
+                    console.log(" Generated new device ID:", deviceId);
                 } else {
-                    console.log(`🔍 Found existing device ID: ${deviceId}`);
+                    console.log(" Found existing device ID:", deviceId);
                 }
                 
-                // Fetch user data from server using device ID
+                // Fetch user data from server
                 fetch(`/api/users/device/${deviceId}`)
                     .then(response => {
                         if (response.status === 404) {
-                            console.log("👤 User not found, creating new profile");
+                            // User not found, create a new user
+                            console.log(" User not found, creating new user...");
                             
-                            // Generate random username and ID if not found
-                            username = generateRandomUsername();
+                            // Generate random user ID and username
                             userId = generateRandomUserId();
-                            avatarSrc = "/avatars/avatar_default.jpg";
-                            bestScore = 0;
-                            seasonScore = 0;
+                            username = generateRandomUsername();
                             
-                            // Create new user with device ID
+                            // Create new user data
                             const userData = {
                                 gameId: userId,
                                 gameUsername: username,
@@ -1757,7 +1755,7 @@
                                 musicEnabled: true
                             };
                             
-                            console.log("📝 Creating new user:", userData);
+                            console.log(" Creating new user:", userData);
                             
                             // Send new user data to server
                             return fetch('/api/users', {
@@ -1774,7 +1772,7 @@
                                 return response.json();
                             })
                             .then(data => {
-                                console.log("✅ New user created:", data);
+                                console.log(" New user created:", data);
                                 
                                 // Update UI
                                 updateUserProfileDisplay();
@@ -1791,26 +1789,29 @@
                     })
                     .then(data => {
                         if (data) {
-                            console.log("✅ User data loaded from server:", data);
+                            console.log(" User data loaded from server:", data);
                             
-                            // Check if user has a gameId and gameUsername
+                            // Only update fields if they are missing or empty
                             let needsUpdate = false;
                             
-                            // Set user data from server response
-                            if (!data.gameId) {
+                            // Only set gameId if it's missing or empty
+                            if (!data.gameId || data.gameId === "") {
                                 userId = generateRandomUserId();
                                 needsUpdate = true;
-                                console.log("🆕 Generated new game ID for existing user:", userId);
+                                console.log(" Generated new game ID for existing user:", userId);
                             } else {
                                 userId = data.gameId;
+                                console.log(" Using existing game ID:", userId);
                             }
                             
-                            if (!data.gameUsername) {
+                            // Only set gameUsername if it's missing or empty
+                            if (!data.gameUsername || data.gameUsername === "") {
                                 username = generateRandomUsername();
                                 needsUpdate = true;
-                                console.log("🆕 Generated new username for existing user:", username);
+                                console.log(" Generated new username for existing user:", username);
                             } else {
                                 username = data.gameUsername;
+                                console.log(" Using existing username:", username);
                             }
                             
                             // Handle avatar path correctly
@@ -1830,14 +1831,17 @@
                             
                             paypalEmail = data.paypalEmail || "";
                             bestScore = parseInt(data.bestScore || "0");
+                            seasonScore = parseInt(data.seasonScore || "0");
                             
                             // Set music preference from server
                             isMusicEnabled = data.musicEnabled !== undefined ? data.musicEnabled : true;
                             
-                            // If we generated a new ID or username, update the user data on the server
+                            // Only update the server if we needed to generate new ID or username
                             if (needsUpdate) {
-                                console.log("🔄 Updating user with new ID or username");
+                                console.log(" Updating user with new ID or username");
                                 setTimeout(() => sendUserDataToServer(), 500);
+                            } else {
+                                console.log(" User data is complete, no updates needed");
                             }
                             
                             // Update UI elements
@@ -1849,21 +1853,13 @@
                         // Initialize avatar selection
                         initAvatarSelection();
                         
-                        // Check for new season
-                        setTimeout(function() {
-                            checkForNewSeason(true);
-                        }, 1000);
+                        // Check for active season
+                        checkForNewSeason();
+                        
+                        return data;
                     })
                     .catch(error => {
-                        console.error('❌ Error in user profile initialization:', error);
-                        
-                        // Fallback to creating a new user if fetch fails
-                        username = generateRandomUsername();
-                        userId = generateRandomUserId();
-                        avatarSrc = window.location.origin + '/avatars/avatar_default.jpg';
-                        bestScore = 0;
-                        seasonScore = 0;
-                        
+                        console.error(" Error initializing user profile:", error);
                         console.log("🔄 Falling back to local user creation due to error");
                         
                         // Update UI elements

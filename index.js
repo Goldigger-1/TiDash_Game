@@ -337,18 +337,26 @@ app.get('/api/users', async (req, res) => {
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
     
-    // Construire la condition de recherche
-    const whereCondition = search
-      ? {
-          [Op.or]: [
-            { gameId: { [Op.like]: `%${search}%` } },
-            { gameUsername: { [Op.like]: `%${search}%` } },
-            { telegramId: { [Op.like]: `%${search}%` } },
-            { telegramUsername: { [Op.like]: `%${search}%` } },
-            { paypalEmail: { [Op.like]: `%${search}%` } }
-          ]
-        }
-      : {};
+    console.log(`📋 Admin panel requesting users - Page: ${page}, Limit: ${limit}, Search: "${search}"`);
+    
+    let whereCondition = {};
+    
+    // Only add search conditions if a search term was provided
+    if (search && search.trim() !== '') {
+      // For SQLite, we need to use the LIKE operator differently
+      const searchPattern = `%${search}%`;
+      
+      // Use raw query for SQLite compatibility
+      whereCondition = {
+        [Op.or]: [
+          sequelize.literal(`"gameId" LIKE '${searchPattern}'`),
+          sequelize.literal(`"gameUsername" LIKE '${searchPattern}'`),
+          sequelize.literal(`"telegramId" LIKE '${searchPattern}'`),
+          sequelize.literal(`"telegramUsername" LIKE '${searchPattern}'`),
+          sequelize.literal(`"paypalEmail" LIKE '${searchPattern}'`)
+        ]
+      };
+    }
     
     // Récupérer les utilisateurs avec pagination
     const { count, rows } = await User.findAndCountAll({
@@ -358,6 +366,8 @@ app.get('/api/users', async (req, res) => {
       offset
     });
     
+    console.log(`✅ Found ${count} users matching criteria`);
+    
     res.json({
       total: count,
       totalPages: Math.ceil(count / limit),
@@ -365,8 +375,12 @@ app.get('/api/users', async (req, res) => {
       users: rows
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des utilisateurs:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
+    console.error('❌ Error retrieving users:', error);
+    res.status(500).json({ 
+      error: 'Error retrieving users', 
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
