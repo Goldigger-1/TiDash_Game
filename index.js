@@ -291,14 +291,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Initialiser le bot Telegram
 const bot = new Telegraf(botToken);
 
-// Commande /start
+// Ajoutez ces logs avant et dans la commande /start
+console.log('Configuration du gestionnaire de commande /start');
+
 bot.start((ctx) => {
+  console.log('Commande /start reçue de:', ctx.from.id, ctx.from.username);
   ctx.reply('Bienvenue sur TiDash Game!', {
     reply_markup: {
       inline_keyboard: [
-        [{ text: 'Jouer', web_app: { url: webAppUrl } }]
+        [{ text: 'Start', web_app: { url: webAppUrl } }]
       ]
     }
+  }).then(() => {
+    console.log('Réponse envoyée avec succès');
+  }).catch(err => {
+    console.error('Erreur lors de l\'envoi de la réponse:', err);
   });
 });
 
